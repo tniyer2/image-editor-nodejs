@@ -1,0 +1,24 @@
+{
+  "name": "image-editor",
+  "version": "1.0.0",
+  "description": "a webapp for editing images",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tniyer2/image-editor.git"
+  },
+  "author": "Tanishq Iyer",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tniyer2/image-editor/issues"
+  },
+  "homepage": "https://github.com/tniyer2/image-editor#readme",
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "webpack": "^4.32.2",
+    "webpack-cli": "^3.3.2"
+  }
+}
