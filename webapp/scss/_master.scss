@@ -2,6 +2,22 @@
 .noshow {
 	display: none !important; }
 
+$light-blue: #5d9afc;
+$blue: #4286F4;
+$medium-blue: #166af4;
+$dark-blue: #1c59bc;
+
+$regular-font-weight: 300;
+$regular-font-size: 16px;
+$big-font-size: 18px;
+$regular-font-family: arial, sans-serif;
+$regular-font-color: black;
+
+%regular-font {
+	font: $regular-font-weight $regular-font-size $regular-font-family;
+	color: $regular-font-color;
+}
+
 %max-size {
 	width: 100%;
 	height: 100%; }
@@ -9,6 +25,11 @@
 	position: absolute;
 	top: 0;
 	left: 0; }
+%centered-absolute {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%); }
 %remove-button-defaults {
 	padding: 0;
 	margin: 0; 
@@ -16,3 +37,9 @@
 	border: none;
 	outline: none;
 	cursor: pointer; }
+%inline-image-helper {
+	display: inline-block;
+	vertical-align: middle;
+	width: 0;
+	height: 100%;
+}

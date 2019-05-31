@@ -12,36 +12,164 @@ body {
 	@extend %max-size;
 	border-radius: 5px; }
 
-%editor-box {
-	background-color: #888;
-	border: 3px solid #444; }
+
 .editor {
 	@extend %max-size;
 	display: flex;
-	flex-direction: column; }
-.editor__menubar {
-	height: 100px;
+	flex-direction: column;
+	user-select: none; }
+%editor-box {
+	background-color: #888;
+	border: 3px solid #444; }
+
+
+.menubar {
+	display: flex;
+	align-items: flex-start;
+	height: 50px;
+	padding: 5px 10px;
 	@extend %editor-box; }
-.editor__content {
+%menubar__div {
+	display: flex;
+	align-items: center;
+	height: 100%; }
+.menubar__main-options { 
+	@extend %menubar__div; }
+.menubar__upload-btn {
+	position: relative;
+	width: 80px; 
+	height: 40px;
+	margin-right: 20px;
+	cursor: pointer;
+	border-radius: 5px;
+	background-color: #444; }
+.menubar__upload-btn input {
+	width: 0;
+	height: 0; }
+.menubar__upload-btn .text {
+	@extend %centered-absolute;
+	@extend %regular-font;
+	font-size: $big-font-size; }
+.menubar__upload-btn:hover .text {
+	color: $blue; }
+.menubar__undo-btn {
+	@extend %remove-button-defaults;
+	width: 40px;
+	height: 40px;
+	margin-right: 10px; }
+.menubar__undo-btn svg { 
+	@extend %max-size; }
+.menubar__undo-btn:hover svg { 
+	fill: $dark-blue; }
+.menubar__undo-btn:disabled svg { 
+	fill: #444; }
+.menubar__tool-options { 
+	@extend %menubar__div; }
+
+
+.editor-content {
 	flex: 1;
 	display: flex;
 	flex-direction: row; }
-.editor__toolbar {
-	box-sizing: border-box;
-	width: 150px;
-	height: 100%; 
+%sidebar {
+	display: flex;
+	align-content: flex-start;
 	@extend %editor-box;
 	border-top-width: 0; }
-.editor__main-container {
+
+
+.toolbar {
+	@extend %sidebar;
+	width: 138px;
+	padding: 10px;
+	flex-wrap: wrap;
+	justify-content: space-between; }
+.toolbar__tool {
+	@extend %remove-button-defaults;
+	width: 64px;
+	height: 64px;
+	margin-bottom: 10px;
+	background-color: #666; }
+.toolbar__tool:hover {
+	background-color: $dark-blue; }
+.toolbar__tool .text {
+	@extend %regular-font;
+	font-size: $big-font-size; }
+
+
+.viewport {
 	position: relative;
 	flex: 1;
-	height: 100%; }
-.editor__canvas-background {
+	height: 100%;
+	overflow: hidden; }
+.viewport__canvas-background {
 	@extend %default-absolute;
 	@extend %max-size;
 	z-index: -1;
 	background-image: url("../img/checkers.png"); }
-.editor__canvas-wrapper {
+.viewport__layers {
+	@extend %max-size; }
+.viewport__canvas-wrapper {
+	@extend %default-absolute;
+	display: inline-block; }
+.viewport__canvas {
 	@extend %default-absolute; }
-.editor__canvas {
-	@extend %default-absolute; }
+
+
+.infobar {
+	@extend %sidebar;
+	width: 160px; 
+	flex-direction: column; }
+$layer-cards-spacing: 10px;
+.infobar__layer-cards {
+	box-sizing: border-box;
+	height: 70%;
+	padding-top: $layer-cards-spacing;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	overflow-x: hidden;
+	overflow-y: auto; }
+.infobar__layer-card {
+	position: relative;
+	width: 100px;
+	height: 100px;
+	margin-bottom: $layer-cards-spacing;
+	background-color: #eee;
+	border: 2px solid #444;
+	border-radius: 5px;
+	cursor: pointer; }
+.infobar__layer-card:hover {
+	background-color: #ccc }
+.infobar__layer-card.selected {
+	border-color: $blue; }
+.infobar__layer-card img {
+	display: inline-block;
+	vertical-align: middle;
+	margin: auto;
+	width: 100%;
+	height: auto; }
+.infobar__layer-card .helper {
+	@extend %inline-image-helper; }
+.infobar__layer-card .remove {
+	@extend %remove-button-defaults;
+	position: absolute;
+	opacity: 0;
+	bottom: 3px;
+	right: 0;
+	width: 20px;
+	height: 20px; }
+.infobar__layer-card:hover .remove {
+	opacity: 1;
+	transition: all 0.1s; }
+.infobar__layer-card .remove svg {
+	@extend %max-size;
+	fill: #777; }
+.infobar__layer-card .remove:hover svg {
+	fill: $blue; }
+.infobar__layer-info {
+	box-sizing: border-box;
+	height: 30%;
+	border: 0px solid #444;
+	border-top-width: 3px;
+	display: flex; }

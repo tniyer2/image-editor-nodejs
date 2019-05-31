@@ -1,143 +1,203 @@
 
-import { extend } from "./utility";
-import { commandQueue } from "./command";
+import { Vector2, getRandomString, addGetter, removeItem, extend, isUdf } from "./utility";
+import { addEvent, MouseAction, MouseActionManager } from "./event";
 
-function call(f)
-{
-	try {
-		f();
-	} catch (e) {
-		console.warn(e);
-	} 
-}
+export { Layer, LayerManager };
 
-const DEFAULTS = {};
+const Layer = (function(){
+	const ID_LENGTH = 40;
+	const DEFAULTS = {};
 
-export default class {
-	constructor(image, options)
-	{
-		if (!(image instanceof HTMLImageElement))
+	return class {
+		constructor(image, options)
 		{
-			throw new Error("image is not an HTMLImageElement");
+			this._checkValidImage(image);
+			addGetter(this, "image", image);
+
+			this._options = extend(DEFAULTS, options);
+
+			this._canvas = document.createElement("canvas");
+			addGetter(this, "canvas");
+			this._parent = document.createElement("div");
+			this._parent.appendChild(this._canvas);
+			addGetter(this, "parent");
+			this._id = getRandomString(ID_LENGTH);
+			addGetter(this, "id");
+
+			this.innerTop = 0;
+			this.innerLeft = 0;
+
+			let width  = this._options.width  || this._image.naturalWidth;
+			let height = this._options.height || this._image.naturalHeight;
+			this.width = width;
+			this.height = height;
+			this.innerWidth = width;
+			this.innerHeight = height;
+			this.draw();
 		}
 
-		this._options = extend(DEFAULTS, options);
-
-		this._isReady = false;
-		this._initQueue = [];
-		this._image = image;
-
-		this._addProperty(true, "canvas");
-		this._addProperty(true, "width");
-		this._addProperty(true, "height");
-
-		this._onLoaded(() => {
-			this._initialize();
-			this._isReady = true;
-
-			this._initQueue.forEach((args) => {
-				if (args[0])
-				{
-					call(() => {
-						args[0].call(this);
-					});
-				}
-			});
-		}, () => {
-			this._initQueue.forEach((args) => {
-				if (args[1])
-				{
-					call(args[1]);
-				}
-			});
-		});
-	}
-
-	get canvasWidth()
-	{
-		return this._canvas ? this._canvas.width : null;
-	}
-
-	get canvasHeight()
-	{
-		return this._canvas ? this._canvas.height : null;
-	}
-
-	_addProperty(checkState, publicName, privateName)
-	{
-		if (!privateName)
+		_checkValidImage(image)
 		{
-			privateName = "_" + publicName;	
-		}
-
-		Object.defineProperty(this, publicName, {
-			get: () => {
-				if (checkState)
-				{
-					this._checkState();
-				}
-				return this[privateName];
+			if (!(image instanceof HTMLImageElement))
+			{
+				throw new Error("image is not an HTMLImageElement");
 			}
-		});
-	}
-
-	_checkState()
-	{
-		if (!this._isReady)
-		{
-			throw new Error("Cannot manipulate layer before it is initialized.");
+			if (!image.complete)
+			{
+				throw new Error("image must have finished loading before creating layer.");
+			}
 		}
-	}
 
-	_onLoaded(cb, onErr)
-	{
-		if (this._image.complete)
+		get top()
 		{
-			cb();
+			return this._parent.offsetTop;
 		}
-		else
+
+		set top(value)
 		{
-			this._image.addEventListener("load", () => {
-				cb();
-			}, {once: true});
-
-			this._image.addEventListener("error", () => {
-				onErr();
-			}, {once: true});
+			this._parent.style.top = value + "px";	
 		}
-	}
 
-	onInit(cb, onErr)
-	{
-		this._initQueue.push(arguments);
-	}
+		get left()
+		{
+			return this._parent.offsetLeft;
+		}
 
-	_initialize()
-	{
-		this._canvas = document.createElement("canvas");
-		this._canvasContext = this._canvas.getContext("2d");
+		set left(value)
+		{
+			this._parent.style.left = value + "px";	
+		}
 
-		let width  = this._options.width  ? this._options.width  : this._image.naturalWidth;
-		let height = this._options.height ? this._options.height : this._image.naturalHeight;
-		this._scale(width, height);
-	}
+		get pos()
+		{
+			return new Vector2(this.left, this.top);
+		}
 
-	_scale(width, height)
-	{
-		this._resize(width, height);
-		this._draw(width, height);
-	}
+		set pos(value)
+		{
+			this.left = value.x;
+			this.top = value.y;
+		}
 
-	_resize(width, height)
-	{
-		this._canvas.width = width;
-		this._canvas.height = height;
-	}
+		get width()
+		{
+			return this._canvas.width;
+		}
 
-	_draw(width, height)
-	{
-		this._canvasContext.drawImage(this._image, 0, 0, width, height);
-		this._width = width;
-		this._height = height;
-	}
-}
+		set width(value)
+		{
+			this._parent.style.width = value + "px";
+			this._canvas.width = value;
+		}
+
+		get height()
+		{
+			return this._canvas.height;
+		}
+
+		set height(value)
+		{
+			this._parent.style.height = value + "px";
+			this._canvas.height = value;
+		}
+
+		draw()
+		{
+			this._canvas.getContext("2d").drawImage(this._image, this.innerTop, this.innerLeft, this.innerWidth, this.innerHeight);
+		}
+	};
+})();
+
+const LayerManager = (function(){
+	const DEFAULT_CURSOR = "default";
+
+	return class {
+		constructor()
+		{
+			this._layers = [];
+			this._selected = [];
+			addEvent(this, "onAdd");
+			addEvent(this, "onRemove");
+			addEvent(this, "onSelectedChange");
+			addGetter(this, "mouseActionManager", new MouseActionManager());
+
+			this._parent = document.createElement("div");
+			addGetter(this, "parent");
+			this.resetCursor();
+
+			this.onAdd.addListener((layer) => {
+				this._parent.appendChild(layer.parent);
+				if (isUdf(layer.parent.dataset.initialized))
+				{
+					this._initLayer(layer);
+					layer.parent.dataset.initialized = true;
+				}
+			});
+			this.onRemove.addListener((layer) => {
+				this._parent.removeChild(layer.parent);
+				this.deselect(layer);
+			});
+			this.onSelectedChange.addListener(() => {
+				this._selected.reverse().forEach((layer) => {
+					this._parent.appendChild(layer.parent);
+				});
+			});
+		}
+
+		_initLayer(layer)
+		{
+			let m = new MouseAction(layer.parent, this._parent, { loop: true, exitOnMouseLeave: true });
+			this._mouseActionManager.add(m, layer);
+		}
+
+		get layers()
+		{
+			return this._layers.slice();
+		}
+
+		get selected()
+		{
+			return this._selected.slice();
+		}
+
+		add(layer)
+		{
+			this._layers.push(layer);
+			this._onAdd.trigger(layer);
+		}
+
+		remove(layer)
+		{
+			removeItem(this._layers, layer);
+			this._onRemove.trigger(layer);
+		}
+
+		select(layer)
+		{
+			this._selected.push(layer);
+			this._onSelectedChange.trigger();
+		}
+
+		deselect(layer)
+		{
+			removeItem(this._selected, layer);
+			this._onSelectedChange.trigger();
+		}
+		
+		deselectAll()
+		{
+			this._selected = [];
+			this._onSelectedChange.trigger();
+		}
+
+		set cursor(value)
+		{
+			this._parent.style.cursor = value;	
+		}
+
+		resetCursor()
+		{
+			this.cursor = DEFAULT_CURSOR;
+		}
+	};
+})();
