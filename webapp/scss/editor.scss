@@ -97,21 +97,32 @@ body {
 	font-size: $big-font-size; }
 
 
-.viewport {
+.viewport-wrapper {
 	position: relative;
 	flex: 1;
 	height: 100%;
-	overflow: hidden; }
-.viewport__canvas-background {
+	overflow: hidden;
+	background: #555;
+	outline: none; }
+.viewport {
+	@extend %default-absolute;
+	@extend %max-size;
+	z-index: 0; }
+.viewport__background {
 	@extend %default-absolute;
 	@extend %max-size;
 	z-index: -1;
 	background-image: url("../img/checkers.png"); }
 .viewport__layers {
+	position: absolute;
+	overflow: hidden;
 	@extend %max-size; }
 .viewport__canvas-wrapper {
 	@extend %default-absolute;
-	display: inline-block; }
+	overflow: hidden;
+	z-index: 0; }
+.viewport__canvas-wrapper.selected {
+	z-index: 2; }
 .viewport__canvas {
 	@extend %default-absolute; }
 
@@ -129,7 +140,8 @@ $layer-cards-spacing: 10px;
 	flex-direction: column;
 	align-items: center;
 	overflow-x: hidden;
-	overflow-y: auto; }
+	overflow-y: auto;
+	outline: none; }
 .infobar__layer-card {
 	position: relative;
 	width: 100px;
@@ -138,12 +150,13 @@ $layer-cards-spacing: 10px;
 	background-color: #eee;
 	border: 2px solid #444;
 	border-radius: 5px;
+	background-image: url("../img/checkers.png");
 	cursor: pointer; }
 .infobar__layer-card:hover {
 	background-color: #ccc }
 .infobar__layer-card.selected {
 	border-color: $blue; }
-.infobar__layer-card img {
+.infobar__layer-card .canvasasdjas {
 	display: inline-block;
 	vertical-align: middle;
 	margin: auto;

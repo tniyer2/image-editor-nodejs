@@ -3,8 +3,9 @@
 <html>
 <head>
 	<title>Image Editor</title>
-	<link rel="stylesheet" type="text/css" href="../css/editor.css">
 	<link rel="stylesheet" type="text/css" href="../css/toolOptions.css">
+	<link rel="stylesheet" type="text/css" href="../css/widgets.css">
+	<link rel="stylesheet" type="text/css" href="../css/editor.css">
 </head>
 <body>
 	<svg style="position:absolute;width:0px;height:0px;">
@@ -50,12 +51,17 @@
 					<button class="toolbar__tool">
 						<span class="text">Move</span>
 					</button>
+					<button class="toolbar__tool">
+						<span class="text">Test</span>
+					</button>
 				</div>
-				<div id="viewport" class="viewport">
-					<div class="viewport__canvas-background"></div>
+				<div id="viewport-wrapper" class="viewport-wrapper" tabindex="0">
+					<div id="viewport" class="viewport">
+						<div class="viewport__background"></div>
+					</div>
 				</div>
-				<div class="infobar">
-					<div id="layer-cards" class="infobar__layer-cards"></div>
+				<div id="infobar" class="infobar">
+					<div id="layer-cards" class="infobar__layer-cards" tabindex="0"></div>
 					<div class="infobar__layer-info"></div>
 				</div>
 			</div>

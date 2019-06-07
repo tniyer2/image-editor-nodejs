@@ -1,258 +1,338 @@
 
-import { addGetter, removeItem, extend, isUdf } from "./utility";
+import Enforcer from "./enforcer";
+import { addGetter, forEach, removeItem, extend, warnIfError, isUdf } from "./utility";
+import { Vector2, Box } from "./geometry";
 
-export { MyEvent, addEvent, PromiseListener, MouseAction, MouseActionManager };
+export { MyEvent, addEvent, MouseAction, MouseActionPiper, MouseActionHandler };
 
-class MyEventInterface {
-	constructor(queue)
-	{
-		this._queue = queue;
+const MyEvent = (function(){
+	class MyEventInterface {
+		constructor(queue) {
+			this._queue = queue;
+		}
+
+		addListener(l) {
+			this._queue.push(l);
+		}
+
+		removeListener(l) {
+			removeItem(this._queue, l);
+		}
 	}
+	return class {
+		constructor() {
+			this._queue = [];
+			let int = new MyEventInterface(this._queue);
+			addGetter(this, "interface", int);
+		}
 
-	addListener(listener)
-	{
-		this._queue.push(listener);
-	}
+		trigger() {
+			let a = arguments;
+			this._queue.forEach((f) => {
+				f.apply(null, a);
+			});
+		}
+	};
+})();
 
-	removeListener(listener)
-	{
-		removeItem(this._queue, listener);
-	}
-}
-
-class MyEvent {
-	constructor()
-	{
-		this._queue = [];
-		this._interface = new MyEventInterface(this._queue);
-		addGetter(this, "interface");
-	}
-
-	trigger()
-	{
-		let args = arguments;
-		this._queue.forEach((f) => {
-			f.apply(null, args);
-		});
-	}
-}
-
-function addEvent(obj, publicName, privateName)
-{
-	if (isUdf(privateName))
-	{
+function addEvent(obj, publicName, privateName) {
+	if (isUdf(privateName)) {
 		privateName = "_" + publicName;
 	}
 
 	obj[privateName] = new MyEvent();
 	Object.defineProperty(obj, publicName, {
-		get: () => {
-			return obj[privateName].interface;
-		}
+		get: () => obj[privateName].interface
 	});
 }
 
-class PromiseListener {
-	constructor(target, type, listener, options)
-	{
-		addGetter(this, "target", target);
-		addGetter(this, "type", type);
-		this._listener = listener;
-		this._options = options;
-		addGetter(this, "attached", false);
-	}
+const Listener = (function(){
+	const invalidAttachMessage = "Cannot attach eventListener again until Promise is resolved or eventListener is removed.";
 
-	attach()
-	{
-		if (this._attached)
-		{
-			throw new Error("Cannot call attach again until you call remove.");
+	return class {
+		constructor(target, type, listener, options) {
+			addGetter(this, "target", target);
+			addGetter(this, "type", type);
+			this._listener = listener;
+			this._options = options;
+			addGetter(this, "attached", false);
 		}
-		else
-		{
-			this._attached = true;
-			return new Promise((resolve, reject) => {
-				const resolveWrapper = (...args) => {
-					this.remove();
-					resolve(...args);
-				};
-				const rejectWrapper = (...args) => {
-					this.remove();
-					reject(...args);
-				};
-				this._wrapper = (evt) => {
-					this._listener(evt, this, resolveWrapper, rejectWrapper);
-				};
-				this._target.addEventListener(this._type, this._wrapper, this._options);
-			});
-		}
-	}
 
-	remove()
-	{
-		if (this._attached)
-		{
-			this._attached = false;
+		attach() {
+			if (this._attached) {
+				throw new Error(invalidAttachMessage);
+			} else {
+				let ret = this._attach.apply(this, arguments);
+				this._attached = true;
+				return ret;
+			}
+		}
+
+		_attach() {
+			this._wrapper = (evt) => {
+				this._listener(evt, this);
+			};
+			this._target.addEventListener(this._type, this._wrapper, this._options);
+		}
+
+		remove() {
+			if (this._attached) {
+				this._remove();
+				this._attached = false;
+			}
+		}
+
+		_remove() {
 			this._target.removeEventListener(this._type, this._wrapper, this._options);
 		}
+	};
+})();
+
+class PromiseListener extends Listener {
+	_attach() {
+		return new Promise((resolve, reject) => {
+			const resolveWrapper = (value) => {
+				this._reject = null;
+				this.remove();
+				resolve(value);
+			};
+			const rejectWrapper = (reason) => {
+				this._reject = null;
+				this.remove();
+				reject(reason);
+			};
+			this._reject = reject;
+			this._wrapper = (evt) => {
+				this._listener(evt, this, resolveWrapper, rejectWrapper);
+			};
+			this._target.addEventListener(this._type, this._wrapper, this._options);
+		});
+	}
+
+	_remove() {
+		this._target.removeEventListener(this._type, this._wrapper, this._options);
+		if (this._reject) {
+			this._reject();
+		}
+	}
+}
+
+class Action {
+	constructor() {
+		const ef = new Enforcer(Action, this, "Action");
+		ef.enforceAbstract();
+		ef.enforceFunctions(["dispose"]);
 	}
 }
 
 const MouseAction = (function(){
 	const DEFAULTS = { loop: true, exitOnMouseLeave: false };
 
-	function isMouseOver(elm, mouseEvent)
-	{
-		let topMostElm = document.elementFromPoint(mouseEvent.clientX, mouseEvent.clientY);
-		return elm === topMostElm || elm.contains(topMostElm);
-	}
+	return class extends Action {
+		constructor(target, bounds, options) {
+			super();
 
-	return class {
-		constructor(target, bounds, options)
-		{
-			this._target = target;
-			this._bounds = bounds;
+			if (target instanceof Box) {
+				this._target = target.element;
+				this._bounds = target.bounds;
+				options = bounds;
+			} else {
+				this._target = target;
+				this._bounds = bounds;
+			}
+
 			this._options = extend(DEFAULTS, options);
-			addEvent(this, "onClick");
-			addEvent(this, "onStart");
-			addEvent(this, "onMove");
-			addEvent(this, "onExit");
+
+			MouseAction.eventNames.forEach((n) => {
+				addEvent(this, n);
+			});
 
 			this._initListeners();
 			this._start();
 		}
 
-		_initListeners()
-		{
-			let mouseUpTarget;
-			let mouseMoveTarget;
-			if (this._options.exitOnMouseLeave)
-			{
-				this._mouseLeave = new PromiseListener(this._bounds, "mouseleave", (evt, l, resolve) => {
+		static get eventNames() {
+			return ["onClick", "onStart", "onMove", "onEnd"];	
+		}
+
+		dispose() {
+			this._listeners.forEach((l) => {
+				l.remove();
+			});
+		}
+
+		_isMouseOver(elm, evt) {
+			let topMostElm = document.elementFromPoint(evt.clientX, evt.clientY);
+			return elm === topMostElm || elm.contains(topMostElm);
+		}
+
+		_initListeners() {
+			this._listeners = [];
+
+			let upTarget, moveTarget;
+			if (this._options.exitOnMouseLeave) {
+				this._mouseLeavePromise = new PromiseListener(this._bounds, "mouseleave", (evt, l, resolve) => {
 					resolve(evt);
 				});
-				mouseUpTarget = this._target;
-				mouseMoveTarget = this._target;
+				this._listeners.push(this._mouseLeavePromise);
+
+				upTarget = moveTarget = this._target;
 			}
-			else
-			{
-				mouseUpTarget = document;
-				mouseMoveTarget = this._bounds;
+			else {
+				upTarget = document;
+				moveTarget = this._bounds;
 			}
 
-			this._mouseDown = new PromiseListener(this._target, "mousedown", (evt, l, resolve) => {
-				if (isMouseOver(l.target, evt)) {
-					resolve(evt);
-				}
-			});
-			this._mouseMove = new PromiseListener(mouseMoveTarget, "mousemove", (evt, l, resolve) => {
-				if (isMouseOver(l.target, evt)) {
-					resolve(evt);
-				}
-			});
-			this._mouseMove2 = new PromiseListener(mouseMoveTarget, "mousemove", (evt, l) => {
-				if (isMouseOver(l.target, evt)) {
-					this._onMove.trigger(evt);
-				}
-			});
+			const triggerOnMouseOver = (evt, l, resolve) => {
+				if (this._isMouseOver(l.target, evt)) resolve(evt);
+			};
+			this._mouseDownPromise = new PromiseListener(this._target, "mousedown", triggerOnMouseOver);
+			this._mouseMovePromise = new PromiseListener(moveTarget, "mousemove", triggerOnMouseOver);
+			this._mouseUpPromise   = new PromiseListener(upTarget, "mouseup", triggerOnMouseOver);
+			this._listeners.push(this._mouseDownPromise);
+			this._listeners.push(this._mouseMovePromise);
+			this._listeners.push(this._mouseUpPromise);
 
-			this._mouseUp = new PromiseListener(mouseUpTarget, "mouseup", (evt, l, resolve) => {
-				if (isMouseOver(l.target, evt)) {
-					resolve(evt);	
+			this._mouseMoveListener = new Listener(moveTarget, "mousemove", (evt, l) => {
+				if (this._isMouseOver(l.target, evt)) {
+					this._onMove.trigger(evt, this._options.data);
 				}
 			});
+			this._listeners.push(this._mouseMoveListener);
 		}
 
-		_start()
-		{
-			this._mouseDown.attach().then((evt) => {
-				this._decide(evt);
-			});
+		_start() {
+			this._mouseDownPromise.attach().then((evt) => {
+				this._chooseClickOrStart(evt);
+			}).catch(warnIfError);
 		}
 
-		_decide(mouseDownEvent)
-		{
-			Promise.race([this._mouseMove.attach(), this._mouseUp.attach()])
+		_chooseClickOrStart(mouseDownEvent) {
+			Promise.race([this._mouseMovePromise.attach(), this._mouseUpPromise.attach()])
 			.then((evt) => {
-				this._mouseMove.remove();
-				this._mouseUp.remove();
+				this._mouseMovePromise.remove();
+				this._mouseUpPromise.remove();
 
-				if (evt.type === this._mouseMove.type) {
-					this._onStart.trigger(mouseDownEvent);
-					this._onMove.trigger(evt);
-					this._attachListeners();
+				if (evt.type === this._mouseMovePromise.type) {
+					this._onStart.trigger(mouseDownEvent, this._options.data);
+					this._onMove.trigger(evt, this._options.data);
+					this._mouseMoveListener.attach();
+					this._attachEndListeners();
 				} else {
-					this._onClick.trigger(mouseDownEvent, evt);
-					if (this._options.loop === true)
-					{
+					this._onClick.trigger(mouseDownEvent, evt, this._options.data);
+					if (this._options.loop === true) {
 						this._start();
 					}
 				}
-			});
+			}).catch(warnIfError);
 		}
 
-		_attachListeners()
-		{	
-			this._mouseMove2.attach();
-
+		_attachEndListeners() {
 			let p;
-			if (this._options.exitOnMouseLeave)
-			{
-				p = Promise.race([this._mouseUp.attach(), this._mouseLeave.attach()])
+			if (this._options.exitOnMouseLeave) {
+				p = Promise.race([this._mouseUpPromise.attach(), this._mouseLeavePromise.attach()])
 					.finally(() => {
-						this._mouseMove2.remove();
-						this._mouseUp.remove();
-						this._mouseLeave.remove();
+						this._mouseUpPromise.remove();
+						this._mouseLeavePromise.remove();
 					});
 			}
-			else
-			{
-				p = this._mouseUp.attach().finally(() => {
-					this._mouseMove2.remove();
-				});
+			else {
+				p = this._mouseUpPromise.attach();
 			}
 
-			p.then((evt) => {
-				this._onExit.trigger(evt);
-				if (this._options.loop === true)
-				{
+			p.finally(() => {
+				this._mouseMoveListener.remove();
+			}).then((evt) => {
+				this._onEnd.trigger(evt, this._options.data);
+				if (this._options.loop === true) {
 					this._start();
 				}
-			}).catch((err) => {
-				if (err) {
-					console.warn(err);
-				}
-			});
+			}).catch(warnIfError);
 		}
 	};
-})(); 
+})();
 
-class MouseActionManager {
-	constructor()
-	{
-		addEvent(this, "onClick");
-		addEvent(this, "onStart");
-		addEvent(this, "onMove");
-		addEvent(this, "onExit");
-	}
+class ActionPiper extends Action {
+	constructor(inputNames, outputNames) {
+		super();
 
-	add(action, data)
-	{
-		this._pipeEvent(action, data, "onClick");
-		this._pipeEvent(action, data, "onStart");
-		this._pipeEvent(action, data, "onMove");
-		this._pipeEvent(action, data, "onExit");
-	}
+		new Enforcer(ActionPiper, this, "ActionPiper").enforceAbstract();
 
-	_pipeEvent(action, data, event1, event2)
-	{
-		if (isUdf(event2))
-		{
-			event2 = "_" + event1;
-		}
+		this._inputNames = inputNames;
+		this._outputNames = outputNames || inputNames;
 
-		action[event1].addListener((...args) => {
-			this[event2].trigger(data, ...args);
+		this._outputNames.forEach((n) => {
+			addEvent(this, n, "_" + n);
 		});
+
+		this._removeFunctions = [];
+	}
+
+	dispose() {
+		this._removeFunctions.forEach((f) => {
+			f();
+		});
+		this._removeFunctions = [];
+	}
+
+	pipe(action) {
+		forEach(this._inputNames, this._outputNames, (i, o) => {
+			let a = action[i];
+			let l = this._getListener("_" + o);
+			a.addListener(l);
+			this._removeFunctions.push(() => {
+				a.removeListener(l);
+			});
+		});
+	}
+
+	_getListener(eventName) {
+		return (...a) => { 
+			this[eventName].trigger(...a);
+		};
+	}
+}
+
+class MouseActionPiper extends ActionPiper {
+	constructor() {
+		super(MouseAction.eventNames);
+	} 
+}
+
+class ActionHandler {
+	constructor(eventNames, functionNames) {
+		let ef = new Enforcer(ActionHandler, this, "ActionHandler");
+		ef.enforceAbstract();
+		ef.enforceFunctions(functionNames);
+
+		this._eventNames = eventNames;
+		functionNames.forEach((f) => {
+			this[f] = this[f].bind(this);
+		});
+		this._functionNames = functionNames;
+	}
+
+	handle(action) {
+		forEach(this._eventNames, this._functionNames, (e, n) => {
+			action[e].addListener(this[n]);
+		});
+	}
+
+	stopHandling(action) {
+		forEach(this._eventNames, this._functionNames, (e, n) => {
+			action[e].removeListener(this[n]);
+		});	
+	}
+}
+
+class MouseActionHandler extends ActionHandler {
+	constructor() {
+		let names = MouseAction.eventNames;
+		super(names, names.map(n => "_" + n));
+		new Enforcer(MouseActionHandler, this, "MouseActionHandler").enforceAbstract();
+	}
+
+	_getMousePosition(evt) {
+		return new Vector2(evt.clientX, evt.clientY);
 	}
 }

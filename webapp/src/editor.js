@@ -1,39 +1,33 @@
 
 import { LayerManager } from "./layer";
-import { CommandFactory, CommandStack } from "./command";
-import { CreateLayer, RemoveLayer, Move } from "./defaultCommands";
-import { MoveTool } from "./tool";
+import { MultiCommand, CommandStack } from "./command";
+import { AddLayerCommand, RemoveLayerCommand } from "./defaultCommands";
+import { MoveTool, TestTool } from "./tool";
 import { removeChildren, addGetter, extend, isUdf } from "./utility";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
 
-const DEFAULTS = { primaryColor: "#fff", 
+const DEFAULTS = { viewport: null,
+				   primaryColor: "#fff",
 				   secondaryColor: "#000",
 				   stackLimit: null };
 
 export default class {
-	constructor(options)
-	{
+	constructor(options) {
 		this._options = extend(DEFAULTS, options);
-		addGetter(this, "layerManager", new LayerManager());
+		const lm = new LayerManager(this._options.viewport);
+		addGetter(this, "layerManager", lm);
 
 		this._initStack();
 		this._initGlobals();
 		this._initTools();
 	}
 
-	_initStack()
-	{
-		this._factory = new CommandFactory();
-		this._factory.register("create_layer", CreateLayer);
-		this._factory.register("remove_layer", RemoveLayer);
-		this._factory.register("move", Move);
-
-		const stack = new CommandStack(this._factory, this._options.stackLimit);
+	_initStack() {
+		const stack = new CommandStack(this._options.stackLimit);
 		addGetter(this, "stack", stack);
 	}
 
-	_initGlobals()
-	{
+	_initGlobals() {
 		const globals = new EventDictionary();
 		addGetter(this, "globals", globals);
 
@@ -41,48 +35,56 @@ export default class {
 		globals.put("secondary_color", this._options.secondaryColor);
 	}
 
-	_initTools()
-	{
-		this._tools = new ConstantDictionary();
-		let parent = document.createElement("div");
-		addGetter(this, "toolOptionsParent", parent);
+	_initTools() {
+		let d = document.createElement("div");
+		addGetter(this, "toolOptionsParent", d);
 
-		let t = new MoveTool(this, { cursor: "all-scroll" });
+		this._tools = new ConstantDictionary();
+
+		let t;
+		t = new MoveTool(this._layerManager, this._stack, { cursor: "all-scroll" });
 		this._tools.put("move", t);
+		t = new TestTool(this._layerManager, this._stack);
+		this._tools.put("test", t);
 	}
 
-	get tools()
-	{
+	get tools() {
 		return this._tools.keys;
 	}
 
-	selectTool(toolName)
-	{
+	selectTool(toolName) {
 		let tool = this._tools.get(toolName);
-		if (isUdf(tool))
-		{
-			throw new Error(`tool with name '${toolName}' does not exist.`);
+		if (isUdf(tool)) {
+			throw new Error(`Tool with name '${toolName}' does not exist.`);
 		}
 
-		if (this._selectedTool)
-		{
+		if (this._selectedTool) {
 			this._selectedTool.disable();
 		}
-		removeChildren(this._toolOptionsParent);
-		this._toolOptionsParent.appendChild(tool.ui.parent);
+		// removeChildren(this._toolOptionsParent);
+		// this._toolOptionsParent.appendChild(tool.ui.parent);
 		tool.enable();
 		this._selectedTool = tool;
 	}
 
-	createLayer(layer)
-	{
-		this._stack.create("create_layer", this._layerManager);
-		this._stack.execute(layer);
+	addLayer(layer) {
+		let c = new AddLayerCommand(this._layerManager, layer);
+		this._stack.add(c);
+		c.execute();
 	}
 
-	removeLayer(layer)
-	{
-		this._stack.create("remove_layer", this._layerManager);
-		this._stack.execute(layer);
+	removeLayer(layer) {
+		const c = new RemoveLayerCommand(this._layerManager, layer);
+		this._stack.add(c);
+		c.execute();
+	}
+
+	removeLayers(layers) {
+		const commands = layers.map((layer) => {
+			return new RemoveLayerCommand(this._layerManager, layer);
+		});
+		const c = new MultiCommand(commands);
+		this._stack.add(c);
+		c.execute();
 	}
 }

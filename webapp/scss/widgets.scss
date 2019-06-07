@@ -1,0 +1,72 @@
+
+@import "master";
+
+$move-ratio: 5;
+$move-border-size: 3.5px;
+$move-handle-size: $move-border-size * $move-ratio;
+@function get-coord($m) {
+	@return calc(-50% - #{$m} * #{$move-border-size/2});
+}
+@mixin get-handle-transform($m1, $m2) {
+	transform: translate(get-coord($m2), get-coord($m1));
+}
+.move-box {
+	position: absolute;
+	z-index: 3; }
+.move-box__background {
+	@extend %max-size;
+	position: absolute;
+	top: -$move-border-size;
+	left: -$move-border-size;
+	z-index: 1;
+	border: $move-border-size solid $blue; }
+.move-box__test-handle {
+	position: absolute;
+	z-index: 10;
+	width: $move-handle-size;
+	height: $move-handle-size;
+	background: $red; }
+.move-box__resize-handle {
+	position: absolute;
+	z-index: 3;
+	width: $move-handle-size;
+	height: $move-handle-size;
+	background: $dark-blue;
+	cursor: pointer; }
+.move-box__resize-handle.tl {
+	top: 0;
+	left: 0;
+	@include get-handle-transform(1, 1); }
+.move-box__resize-handle.tr {
+	top: 0;
+	left: 100%;
+	@include get-handle-transform(1, -1); }
+.move-box__resize-handle.br {
+	top: 100%;
+	left: 100%;
+	@include get-handle-transform(-1, -1); }
+.move-box__resize-handle.bl {
+	top: 100%;
+	left: 0;
+	@include get-handle-transform(-1, 1); }
+$rotate-handle-top: 40px;
+.move-box__rotate-handle {
+	position: absolute;
+	z-index: 3;
+	top: -$rotate-handle-top;
+	left: 50%;
+	@include get-handle-transform(1, 0);
+	width: $move-handle-size;
+	height: $move-handle-size;
+	background: $dark-blue;
+	border-radius: 50%;
+	cursor: pointer; }
+.move-box__rotate-connector {
+	position: absolute;
+	z-index: 1;
+	top: -$rotate-handle-top/2;
+	left: 50%;
+	@include get-handle-transform(1, 0);
+	width: $move-border-size + 1px;
+	height: $rotate-handle-top;
+	background: $blue; }

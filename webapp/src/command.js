@@ -1,19 +1,26 @@
 
-import { addGetter, extend, noop } from "./utility";
-import { ConstantDictionary } from "./dictionary";
+import Enforcer from "./enforcer";
+import { addGetter } from "./utility";
 import { addEvent } from "./event";
 
-export { Command, CommandStack, CommandFactory };
+export { Command, MultiCommand, CommandStack };
 
 const Command = (function(){
-	const invalidStateMessage = "Cannot invoke this operation when another operation is executing.";
+	const invalidStateMessage = "Cannot invoke this operation when another operation is executing.",
+		  notClosed = n => "Cannot call " + n + " if this Command is not closed.",
+		  invalidDone = (n, d) => "Cannot call " + n + " if this Command is " + (d ? "" : "not ") + "done.";
 
 	return class {
-		// execute and undo should be called with a layer argument.
-		constructor(type)
-		{
-			if (type !== Command.immediate && type !== Command.continuous)
-			{
+		constructor(type) {
+			let ef = new Enforcer(Command, this, "Command");
+			ef.enforceAbstract();
+			ef.enforceFunctions(["_execute", "_undo", "_redo"]);
+			ef.preventOverride(["execute", "close", "undo", "redo"]);
+
+			if (type === Command.immediate) {/*ignore*/}
+			else if (type === Command.continuous) {
+				ef.enforceFunctions(["_close"]);
+			} else {
 				throw new Error("type is not valid.");
 			}
 			addGetter(this, "type", type);
@@ -21,55 +28,45 @@ const Command = (function(){
 			addGetter(this, "open", true);
 			addGetter(this, "executing", false);
 			addGetter(this, "done", false);
+			this._firstTime = true;
+
+			addEvent(this, "onDone");
+			addEvent(this, "onUndo");
+			addEvent(this, "onRedo");
 		}
 
-		static get immediate()
-		{
+		static get immediate() {
 			return 0;
 		}
 
-		static get continuous()
-		{
+		static get continuous() {
 			return 1;
 		}
 
-		_execute(){}
-		_close(){}
-		_undo(){}
-		_redo(){}
-
-		execute()
-		{
-			if (this._executing)
-			{
+		execute(...args) {
+			if (this._executing) {
 				throw new Error(invalidStateMessage);
-			}
-			if (!this._open)
-			{
-				throw new Error("Cannot call execute after Command is closed.");
+			} else if (!this._open) {
+				throw new Error("Cannot call execute, this Command is closed.");
 			}
 
 			this._executing = true;
-			this._execute.apply(this, arguments);
+			this._execute(...args);
 			this._executing = false;
-			if (this._type === Command.immediate)
-			{
+			this._firstTime = false;
+			if (this._type === Command.immediate) {
 				this._open = false;
 				this._done = true;
+				this._onDone.trigger();
 			}
 		}
 
-		close()
-		{
-			if (this._type === Command.continuous)
-			{
-				if (this._executing)
-				{
+		close() {
+			if (this._type === Command.continuous) {
+				if (this._executing) {
 					throw new Error(invalidStateMessage);
-				}
-				if (!this._open)
-				{
-					throw new Error("this Command is already closed.");
+				} else if (!this._open) {
+					throw new Error("Cannot call close, this Command is already closed.");
 				}
 
 				this._executing = true;
@@ -77,185 +74,151 @@ const Command = (function(){
 				this._executing = false;
 				this._open = false;
 				this._done = true;
-			}
-			else
-			{
-				throw new Error("Cannot call close on a command that is not continuous.");
+				this._onDone.trigger();
+			} else {
+				throw new Error("Cannot call close on an immediate Command");
 			}
 		}
 
-		undo()
-		{
-			if (this._executing)
-			{
+		get canUndo() {
+			return !this._executing && !this._open && this._done;
+		}
+
+		undo() {
+			if (this._executing) {
 				throw new Error(invalidStateMessage);
-			}
-			if (this._open)
-			{
-				throw new Error("Cannot call undo if Command is not closed.");
-			}
-			if (!this._done)
-			{
-				throw new Error("Cannot call undo if Command is not done.");	
+			} else if (this._open) {
+				throw new Error(notClosed("undo"));
+			} else if (!this._done) {
+				throw new Error(invalidDone("undo", false));	
 			}
 
 			this._executing = true;
 			this._undo();
 			this._executing = false;
 			this._done = false;
+			this._onUndo.trigger();
 		}
 
-		redo()
-		{
-			if (this._executing)
-			{
+		get canRedo() {
+			return !this._executing && !this._open && !this._done;
+		}
+
+		redo() {
+			if (this._executing) {
 				throw new Error(invalidStateMessage);
-			}
-			if (this._open)
-			{
-				throw new Error("Cannot call redo if Command is not closed.");
-			}
-			if (this._done)
-			{
-				throw new Error("Cannot call redo if Command is done.");	
+			} else if (this._open) {
+				throw new Error(notClosed("redo"));
+			} else if (this._done) {
+				throw new Error(invalidDone("redo", true));	
 			}
 
 			this._executing = true;
 			this._redo();
 			this._executing = false;
 			this._done = true;
+			this._onRedo.trigger();
 		}
 	};
 })();
 
-class CommandFactory {
-	constructor()
-	{
-		this._builders = new ConstantDictionary();
+class MultiCommand extends Command {
+	constructor(commands) {
+		const allImmediate = commands.every(c => c.type === Command.immediate);
+		const type = allImmediate ? Command.immediate : Command.continuous;
+		super(type);
+
+		this._commands = commands;
 	}
 
-	register()
-	{
-		let b = this._builders;
-		b.put.apply(b, arguments);
+	_execute(...args) {
+		this._commands.forEach((c) => {
+			c.execute(...args);
+		});
 	}
 
-	create(name, ...args)
-	{
-		try {
-			let builder = this._builders.get(name);
-			if (!builder)
-			{
-				throw new Error(`No builder with name '${name}' is registered.`);
-			}
+	_close() {
+		this._commands.forEach((c) => {
+			c.close();
+		});
+	}
 
-			let command = new builder(...args);
-			if (!(command instanceof Command))
-			{
-				throw new Error("builder did not return an object of type Command");
-			}
+	_undo() {
+		this._commands.forEach((c) => {
+			c.undo();
+		});
+	}
 
-			return command;
-		} catch (e) {
-			console.warn(e);
-			return null;
-		}
+	_redo() {
+		this._commands.forEach((c) => {
+			c.redo();
+		});
 	}
 }
 
-const CommandStack = (function(){
-	const emptyStackMessage = "Cannot call execute, there are no current commands in the stack.";
+class CommandStack {
+	constructor(limit) {
+		this._limit = typeof limit === "number" ? limit : Infinity;
 
-	return class {
-		constructor(factory, limit)
-		{
-			this._factory = factory;
-			this._limit = typeof limit === "number" ? limit : Infinity;
-
-			this._stack = [];
-			this._currentIndex = -1;
-			addEvent(this, "onChange");
-		}
-		
-		get open()
-		{
-			return this._current ? this._current.open : false;
-		}
-
-		get _current()
-		{
-			return this._stack[this._currentIndex];
-		}
-
-		create()
-		{
-			let command = this._factory.create.apply(this._factory, arguments);
-			if (!command)
-			{
-				return;
+		this._stack = [];
+		this._currentIndex = -1;
+		addEvent(this, "onChange");
+	}
+	
+	add(command) {
+		if (this.current) {
+			if (this.current.open) {
+				throw new Error("Cannot add Command, current Command is not closed.");
+			} else if (this.current.executing) {
+				throw new Error("Cannot add Command, current Command is executing.");
 			}
+		}
 
-			let b = this._stack.length >= this._limit ? 1 : 0;
-			this._stack = this._stack.slice(b, this._currentIndex + 1);
-			this._stack.push(command);
+		let start = this._stack.length >= this._limit ? 1 : 0;
+		this._stack = this._stack.slice(start, this._currentIndex + 1);
+		this._stack.push(command);
+		this._currentIndex += 1;
+		command.onDone.addListener(() => {			
+			this._onChange.trigger();
+		});
+		command.onUndo.addListener(() => {
+			this._currentIndex -= 1;
+			this._onChange.trigger();
+		});
+		command.onRedo.addListener(() => {
 			this._currentIndex += 1;
-		}
-
-		execute()
-		{
-			if (this._current)
-			{
-				this._current.execute.apply(this._current, arguments);
-				this._onChange.trigger();
-			}
-			else
-			{
-				throw new Error(emptyStackMessage);
-			}
-		}
-
-		close()
-		{
-			if (this._current)
-			{
-				this._current.close();
-			}
-			else
-			{
-				throw new Error(emptyStackMessage);
-			}
-		}
-
-		get canUndo()
-		{
-			return this._currentIndex !== -1;
-		}
-
-		undo(n)
-		{
-			n = n || 1;
-			for (let i = 0; i < n && this.canUndo; i+=1)
-			{	
-				this._current.undo();
-				this._currentIndex -= 1;
-			}
 			this._onChange.trigger();
-		}
+		});
+	}
 
-		get canRedo()
-		{
-			return this._currentIndex + 1 < this._stack.length;
-		}
+	get current() {
+		return this._stack[this._currentIndex] || null;
+	}
 
-		redo(n)
-		{
-			n = n || 1;
-			for (let i = 0; i < n && this.canRedo; i+=1)
-			{
-				this._currentIndex += 1;
-				this._current.redo();
-			}
-			this._onChange.trigger();
+	get next() {
+		return this._stack[this._currentIndex + 1] || null;
+	}
+
+	get canUndo() {
+		const c = this.current;
+		return c && c.canUndo;
+	}
+
+	get canRedo() {
+		const n = this.next,
+			  c = this.current;
+		return n && n.canRedo && (!c || (!c.open && !c.executing));
+	}
+
+	undo() {
+		if (this.canUndo) {
+			this.current.undo();
 		}
-	};
-})();
+	}
+
+	redo () {
+		if (this.canRedo) {
+			this.next.redo();
+		}
+	}
+}

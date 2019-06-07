@@ -1,29 +1,40 @@
 
-export { noop, isUdf, wrap, bindWrap, extend, removeItem, addGetter, Vector2,
-         getRandomString, show, hide, removeChildren, createSVG, setDisabled };
+export { noop, isUdf, isFunction, snap, clamp, wrap, bindWrap, warnIfError, extend, 
+         removeItem, forEach, addGetter, addGetterRaw, getRandomString, 
+         preventBubble, show, hide, removeChildren, createSVG, setDisabled };
 
 function noop(){}
 
 function isUdf(a) { return typeof a === "undefined"; }
 
-function wrap(f, ...args)
-{
+function isFunction(f) { return typeof f === "function"; }
+
+function snap(a, b) { return a - (a % b); }
+
+function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+function wrap(f, ...args) {
 	return new Promise((resolve, reject) => {
 		f(...args, resolve, reject);
 	});
 }
 
-function bindWrap(f, context, ...args)
-{
+function bindWrap(f, context, ...args) {
 	return wrap(f.bind(context), ...args);
 }
 
-function extend()
-{
-    var master = {};
-    for (var i = 0, l = arguments.length; i < l; i+=1) {
-        var object = arguments[i];
-        for (var key in object) {
+function warnIfError(e) {
+    if (!isUdf(e)) {
+        console.warn(e);
+    }
+}
+
+function extend() {
+    let master = {};
+    let object;
+    for (let i = 0, l = arguments.length; i < l; i+=1) {
+        object = arguments[i];
+        for (let key in object) {
             if (object.hasOwnProperty(key)) {
                 master[key] = object[key];
             }
@@ -32,28 +43,31 @@ function extend()
     return master;
 }
 
-function removeItem(arr, item)
-{
+function removeItem(arr, item) {
     let i = arr.findIndex(n => n === item);
-    if (i === -1)
-    {
+    if (i === -1) {
         return false;
     }
-    else
-    {
+    else {
         arr.splice(i, 1);
         return true;
     }
 }
 
-function addGetter(obj, publicName, value, privateName)
-{
-    if (isUdf(privateName))
-    {
+function forEach(a, b, cb) {
+    if (a.length !== b.length) {
+        throw new Error("a and b must have the same length.");
+    }
+    for (let i = 0; i < a.length; i+=1) {
+        cb(a[i], b[i]);
+    }
+}
+
+function addGetter(obj, publicName, value, privateName) {
+    if (isUdf(privateName)) {
         privateName = "_" + publicName;
     }
-    if (!isUdf(value))
-    {
+    if (!isUdf(value)) {
         obj[privateName] = value;
     }
     Object.defineProperty(obj, publicName, {
@@ -63,22 +77,8 @@ function addGetter(obj, publicName, value, privateName)
     });
 }
 
-class Vector2 {
-    constructor(x, y)
-    {
-        addGetter(this, "x", x);
-        addGetter(this, "y", y);
-    }
-
-    static add(r, l)
-    {
-        return new Vector2(r.x + l.x, r.y + l.y);
-    }
-
-    static subtract(r, l)
-    {
-        return new Vector2(r.x - l.x, r.y - l.y);
-    }
+function addGetterRaw(obj, publicName, value) {
+    Object.defineProperty(obj, publicName, { get: () => value });
 }
 
 const getRandomString = (function(){
@@ -87,8 +87,7 @@ const getRandomString = (function(){
     return function(len) {
         let s = "";
         let allLen = all.length;
-        for (let i = 0; i < len; i+=1)
-        {
+        for (let i = 0; i < len; i+=1) {
             let rand = Math.floor(Math.random() * allLen);
             s += all.charAt(rand);
         }
@@ -96,21 +95,24 @@ const getRandomString = (function(){
     };
 })();
 
-function show(elm)
-{
+function preventBubble(elm, eventName) {
+    elm.addEventListener(eventName, (evt) => {
+        evt.stopPropagation();
+    });
+}
+
+function show(elm) {
 	elm.classList.remove("noshow");
 }
 
-function hide(elm)
-{
+function hide(elm) {
 	elm.classList.add("noshow");
 }
 
-function removeChildren(elm)
-{
-    while(elm.firstChild)
-    {
-        elm.removeChild(elm.firstChild);
+function removeChildren(elm) {
+    let n;
+    while ((n = elm.firstChild)) {
+        elm.removeChild(n);
     }
 }
 
@@ -128,14 +130,10 @@ const createSVG = (function(){
     };
 })();
 
-function setDisabled(elm, disable)
-{
-    if (disable)
-    {
+function setDisabled(elm, disable) {
+    if (disable) {
         elm.setAttribute("disabled", "disabled");
-    }
-    else
-    {
+    } else {
         elm.removeAttribute("disabled");
     }
 }
