@@ -7,6 +7,7 @@ const fileInput = document.getElementById("file-upload"),
 	  undoBtn = document.getElementById("undo-btn"),
 	  redoBtn = document.getElementById("redo-btn"),
 	  toolOptionsParent = document.getElementById("tool-options"),
+	  toolbar = document.getElementById("toolbar"),
 	  viewportWrapper = document.getElementById("viewport-wrapper"),
 	  viewport = document.getElementById("viewport"),
 	  layerCards = document.getElementById("layer-cards");
@@ -14,6 +15,8 @@ const fileInput = document.getElementById("file-upload"),
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
 	  cl_layerParent = "viewport__layers",
+	  cl_toolBtn = "toolbar__tool",
+	  cl_toolName = "text",
 	  cl_layerCard = "infobar__layer-card",
 	  cl_layerCardSelected = "selected",
 	  cl_layerCardHelper = "helper",
@@ -134,8 +137,17 @@ function attachMenubarListeners() {
 }
 
 function attachToolListeners() {
-	const tools = document.querySelectorAll(".toolbar__tool");
-	forEach(tools, g_editor.tools, selectToolOnClick);
+	g_editor.tools.forEach((t) => {
+		const btn = document.createElement("button");
+		btn.classList.add(cl_toolBtn);
+		const name = document.createElement("span");
+		name.innerText = t;
+		name.classList.add(cl_toolName);
+		btn.appendChild(name);
+		toolbar.appendChild(btn);
+
+		selectToolOnClick(btn, t);
+	})
 }
 
 function selectToolOnClick(button, toolName) {
@@ -189,7 +201,7 @@ function createLayerCard(layer) {
 			const ctxt = canvas.getContext("2d");
 			ctxt.clearRect(0, 0, 100, 100);
 			ctxt.drawImage(layer.canvas, 0, 0, layer.sourceWidth, layer.sourceHeight, 0, 0, 100, 100);
-		})
+		});
 	};
 	drawCanvas();
 	g_editor.stack.onChange.addListener(drawCanvas);

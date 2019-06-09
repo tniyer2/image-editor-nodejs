@@ -1,10 +1,12 @@
 
-import { LayerManager } from "./layer";
-import { MultiCommand, CommandStack } from "./command";
-import { AddLayerCommand, RemoveLayerCommand } from "./defaultCommands";
-import { MoveTool, TestTool } from "./tool";
 import { removeChildren, addGetter, extend, isUdf } from "./utility";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
+import { MultiCommand, ToggleLayerCommand, CommandStack } from "./command";
+import { TestTool } from "./tool";
+import { MoveTool } from "./transform";
+import { PaintTool } from "./paint";
+import { CirclePattern } from "./pattern";
+import { LayerManager } from "./layer";
 
 const DEFAULTS = { viewport: null,
 				   primaryColor: "#fff",
@@ -43,9 +45,11 @@ export default class {
 
 		let t;
 		t = new MoveTool(this._layerManager, this._stack, { cursor: "all-scroll" });
-		this._tools.put("move", t);
+		this._tools.put("Move", t);
+		t = new PaintTool(this._layerManager, this._stack, new CirclePattern());
+		this._tools.put("Paint", t);
 		t = new TestTool(this._layerManager, this._stack);
-		this._tools.put("test", t);
+		this._tools.put("Test", t);
 	}
 
 	get tools() {
@@ -68,20 +72,20 @@ export default class {
 	}
 
 	addLayer(layer) {
-		let c = new AddLayerCommand(this._layerManager, layer);
+		let c = new ToggleLayerCommand(this._layerManager, layer, true);
 		this._stack.add(c);
 		c.execute();
 	}
 
 	removeLayer(layer) {
-		const c = new RemoveLayerCommand(this._layerManager, layer);
+		const c = new ToggleLayerCommand(this._layerManager, layer, false);
 		this._stack.add(c);
 		c.execute();
 	}
 
 	removeLayers(layers) {
 		const commands = layers.map((layer) => {
-			return new RemoveLayerCommand(this._layerManager, layer);
+			return new ToggleLayerCommand(this._layerManager, layer, false);
 		});
 		const c = new MultiCommand(commands);
 		this._stack.add(c);

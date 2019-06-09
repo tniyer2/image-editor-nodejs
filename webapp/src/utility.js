@@ -1,11 +1,13 @@
 
-export { noop, isUdf, isFunction, snap, clamp, wrap, bindWrap, warnIfError, extend, 
-         removeItem, forEach, addGetter, addGetterRaw, getRandomString, 
+export { noop, isUdf, init, isFunction, snap, clamp, wrap, bindWrap, warnIfError, 
+         extend, removeItem, forEach, addGetter, addGetterRaw, getRandomString, 
          preventBubble, show, hide, removeChildren, createSVG, setDisabled };
 
 function noop(){}
 
 function isUdf(a) { return typeof a === "undefined"; }
+
+function init(a, defaultvalue) { return isUdf(a) ? defaultValue : a; }
 
 function isFunction(f) { return typeof f === "function"; }
 

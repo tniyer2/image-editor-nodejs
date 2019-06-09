@@ -2,56 +2,9 @@
 import Enforcer from "./enforcer";
 import { forEach, extend, snap } from "./utility";
 import { Vector2 } from "./geometry";
-import { Layer } from "./layer";
 import { Command } from "./command";
 
-export { AddLayerCommand, RemoveLayerCommand, DragCommand, ResizeCommand, RotateCommand };
-
-class LayerCommand extends Command {
-	constructor(layerManager, layer, add) {
-		super(Command.immediate);
-
-		let ef = new Enforcer(LayerCommand, this, "LayerCommand");
-		ef.enforceAbstract();
-		ef.preventOverride(["_doAction", "_execute", "_undo", "_redo"]);
-
-		this._layerManager = layerManager;
-		this._layer = layer;
-		this._add = add;
-	}
-
-	_doAction(b) {
-		if (this._add === b) {
-			this._layerManager.add(this._layer);
-		} else {
-			this._layerManager.remove(this._layer);
-		}
-	}
-
-	_execute() {
-		this._doAction(true);
-	}
-
-	_undo() {
-		this._doAction(false);
-	}
-
-	_redo() {
-		this._doAction(true);
-	}
-}
-
-class AddLayerCommand extends LayerCommand {
-	constructor(layerManager, layer) {
-		super(layerManager, layer, true);
-	}
-}
-
-class RemoveLayerCommand extends LayerCommand {
-	constructor(layerManager, layer) {
-		super(layerManager, layer, false);
-	}
-}
+export { DragCommand, ResizeCommand, RotateCommand };
 
 class BoxCommand extends Command {
 	constructor(boxes, pos) {
