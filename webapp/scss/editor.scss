@@ -124,7 +124,8 @@ body {
 .viewport__canvas-wrapper.selected {
 	z-index: 2; }
 .viewport__canvas {
-	@extend %default-absolute; }
+	@extend %default-absolute;
+	transform-origin: top left; }
 
 
 .infobar {

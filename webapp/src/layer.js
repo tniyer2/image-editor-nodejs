@@ -1,16 +1,13 @@
 
-import { addGetter, removeItem, extend, isUdf } from "./utility";
+import { AddToEventLoop, addGetter, removeItem, extend, isUdf } from "./utility";
 import { addEvent, MouseAction, MouseActionPiper } from "./event";
-import { Box } from "./geometry";
+import { Box, Vector2 } from "./geometry";
 
 export { Layer, LayerManager };
 
 const Layer = (function(){
 	const ID_LENGTH = 40;
-	const DEFAULTS = { canvasWidth: 2000, 
-					   canvasHeight: 2000, 
-					   canvasWidthIncrement: 1000, 
-					   canvasHeightIncrement: 1000 };
+	const DEFAULTS = {};
 
 	function checkValidImage(image) {
 		if (!(image instanceof HTMLImageElement)) {
@@ -24,27 +21,78 @@ const Layer = (function(){
 	return class extends Box {
 		constructor(image, options) {
 			checkValidImage(image);
-			let d = document.createElement("div");
+			const d = document.createElement("div");
 			super(d);
 			addGetter(this, "image", image);
 
 			this._options = extend(DEFAULTS, options);
 
-			let canvas = document.createElement("canvas");
-			canvas.width = this._options.canvasWidth;
-			canvas.height = this._options.canvasHeight;
+			const canvas = document.createElement("canvas");
 			this._element.appendChild(canvas);
 			addGetter(this, "canvas", canvas);
+
+			this._addDraw = new AddToEventLoop(() => {
+				createImageBitmap(this._canvas).then((m) => {
+					this._drawCanvas(this._canvas, m);
+				});
+			});
+			this._addScale = new AddToEventLoop(() => {
+				this._scaleCanvas();
+			});
+
+			const nw = this._image.naturalWidth, 
+				  nh = this._image.naturalHeight;
 
 			this._defineDrawProperty("innerTop", 0);
 			this._defineDrawProperty("innerLeft", 0);
 			this._defineDrawProperty("sourceTop", 0);
 			this._defineDrawProperty("sourceLeft", 0);
-			this._defineDrawProperty("sourceWidth", this._image.naturalWidth);
-			this._defineDrawProperty("sourceHeight", this._image.naturalHeight);
-			this.width  = this._options.width  || this._image.naturalWidth;
-			this.height = this._options.height || this._image.naturalHeight;
-			this._draw();
+			this._defineDrawProperty("sourceWidth", nw);
+			this._defineDrawProperty("sourceHeight", nh);
+
+			super.width  = nw;
+			super.height = nh;
+			canvas.width = nw;
+			canvas.height = nh;
+			this._canvasScaleY = 1;
+			this._canvasScaleX = 1;
+
+			setTimeout(() => {
+				this._drawCanvas(this._canvas, this._image);
+			});
+		}
+
+		get aspectRatio() {
+			return this._image.naturalHeight / this._image.naturalWidth;
+		}
+
+		get width() {
+			return super.width;
+		}
+
+		set width(value) {
+			super.width = value;
+			this._addScale.call();
+		}
+
+		get height() {
+			return super.height;
+		}
+
+		set height(value) {
+			super.height = value;
+			this._addScale.call();	
+		}
+
+		get canvasScale() {
+			const x = this.width / this._canvas.width,
+				  y = this.height / this._canvas.height;
+			return new Vector2(x, y);
+		}
+
+		_scaleCanvas() {
+			const s = this.canvasScale;
+			this._canvas.style.transform = `scale(${s.x}, ${s.y})`;
 		}
 
 		_defineDrawProperty(name, defaultValue) {
@@ -58,56 +106,36 @@ const Layer = (function(){
 				return this[privateName];
 			}, set: (value) => {
 				this[privateName] = value;
-				this._draw();
+				this._addDraw.call();
 			}});
 		}
 
-		get aspectRatio() {
-			return this._image.naturalHeight / this._image.naturalWidth;
+		get innerWidth() {
+			return this._canvas.width;
 		}
 
-		get width() {
-			return super.width;
+		set innerWidth(value) {
+			this._canvas.width = value;
 		}
 
-		set width(value) {
-			super.width = value;
-			if (value > this._canvas.width) {
-				this._canvas.width += this._options.canvasWidthIncrement;
-			}
-			this._draw();
+		get innerHeight() {
+			return this._canvas.height;
 		}
 
-		get height() {
-			return super.height;
+		set innerHeight(value) {
+			this._canvas.height = value;
 		}
 
-		set height(value) {
-			super.height = value;
-			if (value > this._canvas.height) {
-				this._canvas.height += this._options.canvasHeightIncrement;
-			}
-			this._draw();
-		}
-
-		_draw() {
-			if (!this._setDraw) {
-				this._setDraw = true;
-				setTimeout(() => {
-					this._innerDraw();
-					this._setDraw = false;
-				});
-			}
-		}
-
-		_innerDraw() {
-			const context = this._canvas.getContext("2d");
-			context.clearRect(0, 0, this._canvas.width, this._canvas.height);
-			context.drawImage(this._image, 
+		_drawCanvas(canvas, source) {
+			const context = canvas.getContext("2d"),
+				  w = canvas.width,
+				  h = canvas.height;
+			context.clearRect(0, 0, w, h);
+			context.drawImage(source, 
 							  this._sourceTop, this._sourceLeft, 
 							  this._sourceWidth, this._sourceHeight, 
 							  this._innerTop, this._innerLeft,
-							  this.width, this.height);
+							  w, h);
 		}
 	};
 })();
@@ -123,8 +151,9 @@ const LayerManager = (function(){
 
 			let d = document.createElement("div");
 			addGetter(this, "parent", d);
-			viewport = viewport || d;
+			viewport = viewport;
 			addGetter(this, "viewport", viewport);
+			this._scale = 1;
 			this.resetCursor();
 
 			addEvent(this, "onAdd");
@@ -139,8 +168,6 @@ const LayerManager = (function(){
 
 			let a = new MouseActionPiper();
 			addGetter(this, "layerMouseAction", a);
-
-			this._scale = 1;
 		}
 
 		get layers() {
@@ -158,10 +185,6 @@ const LayerManager = (function(){
 		set scale(value) {
 			this._scale = value;
 			viewport.style.transform = "scale(" + value + ")";
-		}
-
-		get inverseScale() {
-			return 1 / this._scale;
 		}
 
 		add(layer) {

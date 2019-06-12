@@ -2,7 +2,7 @@
 import { addGetter, extend, init, clamp, isUdf } from "./utility";
 import { Box, Vector2 } from "./geometry";
 import { Command } from "./command";
-import { Widget } from "./widget";
+import { CanvasWidget } from "./widget";
 import { Tool } from "./tool";
 
 export { ImageDataRect, PaintTool };
@@ -140,12 +140,14 @@ class PaintCommand extends Command {
 
 		const x = this._layer.innerLeft,
 			  y = this._layer.innerTop,
-			  imageData = this._context.getImageData(x, y, this._layer.width, this._layer.height);
+			  w = this._layer.innerWidth,
+			  h = this._layer.innerHeight,
+			  imageData = this._context.getImageData(x, y, w, h);
 		this._initialRect = new ImageDataRect(imageData, x, y);
 	}
 
-	_execute(rect) {
-		rect.drawOn(this._context);
+	_execute(pattern, prevPos, pos) {
+		pattern.draw(this._context, prevPos, pos);
 	}
 
 	_close() {
@@ -170,52 +172,36 @@ class PaintCommand extends Command {
 	}
 }
 
-class PaintWidget extends Widget {
+class PaintWidget extends CanvasWidget {
 	constructor(stack, pattern, options) {
 		super(options);
+
 		this._stack = stack;
 		this._pattern = pattern;
 	}
 
-	_onClick(mdEvt, muEvt, layer) {
-		this._onStartWrapper(mdEvt, layer);
-		this._onMoveWrapper(mdEvt, layer);
-		this._onEndWrapper(muEvt, layer);
-	}
-
 	_onStart(evt, layer) {
-		this._onStartWrapper(evt, layer);
-	}
-	_onMove(evt, layer) {
-		this._onMoveWrapper(evt, layer);
-	}
-	_onEnd(evt, layer) {
-		this._onEndWrapper(evt, layer);
-	}
-
-	_onStartWrapper(evt, layer) {
 		this._command = new PaintCommand(layer);
 		this._stack.add(this._command);
+
+		this._prevPosition = this._getMousePosition(evt, layer);
 	}
 
-	_onMoveWrapper(evt, layer) {
-		const pos = this._getMousePosition(evt)
-			  		.subtract(layer.origin)
-			  		.multiply(this._getScale())
-			  		.subtract(layer.position);
+	_onMove(evt, layer) {
+		const pos = this._getMousePosition(evt, layer);
 
-		const rect = this._pattern.getRect();
-		rect.position = pos.subtract(rect.position);
-
-		const context = layer.canvas.getContext("2d");
-		const oldRect = rect.getOverlappingRect(context);
-		const blend = ImageDataRect.combine(oldRect, rect);
-
-		this._command.execute(blend);
+		this._command.execute(this._pattern, this._prevPosition, pos);
+		this._prevPosition = pos;
 	}
 
-	_onEndWrapper(evt, layer) {
+	_onEnd(evt, layer) {
 		this._command.close();
+	}
+
+	_onClick(mdEvt, muEvt, layer) {
+		this._onStart(mdEvt, layer);
+		this._onMove(mdEvt, layer);
+		this._onEnd(muEvt, layer);
 	}
 }
 
@@ -224,7 +210,8 @@ class PaintTool extends Tool {
 		super(lm, stack, options);
 
 		this._widget = new PaintWidget(this._stack, pattern, 
-					   { scale: () => this._layerManager.inverseScale });
+					   { origin: () => Box.getOrigin(this._layerManager.parent), 
+					   	 scale: () => this._layerManager.scale });
 	}
 
 	_enable() {

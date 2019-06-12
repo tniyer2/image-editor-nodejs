@@ -5,38 +5,80 @@ import { Box, Vector2 } from "./geometry";
 import { MouseAction } from "./event";
 import { Tool } from "./tool";
 import { DragCommand, ResizeCommand, RotateCommand } from "./transformCommands";
-import { Widget, SelectWidget } from "./widget";
+import { BoxWidget, SelectWidget } from "./widget";
 
 export { MoveTool };
 
-const TransformWidget = (function(){
-	const DEFAULTS = { boxes: () => [], offStackBoxes: () => [] };
+class DragWidget extends BoxWidget {
+	constructor(stack, options, dragOptions) {
+		super(options);
 
-	return class extends Widget {
-		constructor(stack, options) {
+		this._stack = stack;
+		this._dragOptions = dragOptions;
+	}
+
+	_onClick(mdEvt, muEvt){}
+
+	_onStart(evt) {
+		const args = [ this._getMousePosition(evt), 
+					   this._dragOptions ];
+
+		this._command = new DragCommand(this._boxes, ...args);
+		this._stack.add(this._command);
+		this._offStackCommand = new DragCommand(this._offStackBoxes, ...args);
+	}
+
+	_onMove(evt) {
+		const args = [ this._getMousePosition(evt), 
+					   evt.shiftKey, 
+					   evt.ctrlKey ];
+
+		this._command.execute(...args);
+		this._offStackCommand.execute(...args);
+	}
+
+	_onEnd(evt) {
+		this._command.close();
+		this._offStackCommand.close();
+	}
+}
+
+const ResizeWidget = (function(){
+	const DEFAULTS = { angle: 0 };
+
+	return class extends BoxWidget {
+		constructor(stack, options, resizeOptions) {
 			options = extend(DEFAULTS, options);
 			super(options);
-
-			let ef = new Enforcer(TransformWidget, this, "TransformWidget");
-			ef.enforceAbstract();
+			this._addOptionGetter("angle");
 
 			this._stack = stack;
+			this._resizeOptions = resizeOptions;
 		}
 
-		_getBoxes() {
-			return this._evaluate(this._options.boxes);
-		}
-
-		_getOffStackBoxes() {
-			return this._evaluate(this._options.offStackBoxes);
-		}
-
-		_getMousePosition(evt) {
-			const mousePosition = super._getMousePosition(evt);
-			return mousePosition.subtract(this._getOrigin()).multiply(this._getScale());
+		setResizeOptions(options) {
+			this._resizeOptions = extend(this._resizeOptions, options);
 		}
 
 		_onClick(mdEvt, muEvt){}
+
+		_onStart(evt) {
+			const args = [ this._getMousePosition(evt), 
+						   this._angle,
+						   this._resizeOptions ];
+
+			this._command = new ResizeCommand(this._boxes, ...args);
+			this._stack.add(this._command);
+			this._offStackCommand = new ResizeCommand(this._offStackBoxes, ...args);
+		}
+
+		_onMove(evt) {
+			const pos = this._getMousePosition(evt),
+				  args = [pos, evt.shiftKey, evt.ctrlKey];
+
+			this._command.execute(...args);
+			this._offStackCommand.execute(...args);
+		}
 
 		_onEnd(evt) {
 			this._command.close();
@@ -45,77 +87,38 @@ const TransformWidget = (function(){
 	};
 })();
 
-class DragWidget extends TransformWidget {
-	constructor(stack, options, dragOptions) {
-		super(stack, options);
-		this._dragOptions = dragOptions;
-	}
-
-	_onStart(evt) {
-		const args = [ this._getMousePosition(evt), this._dragOptions ];
-		this._command = new DragCommand(this._getBoxes(), ...args);
-		this._stack.add(this._command);
-		this._offStackCommand = new DragCommand(this._getOffStackBoxes(), ...args);
-	}
-
-	_onMove(evt) {
-		const args = [ this._getMousePosition(evt), evt.shiftKey, evt.ctrlKey ];
-		this._command.execute(...args);
-		this._offStackCommand.execute(...args);
-	}
-}
-
-const ResizeWidget = (function(){
-	const DEFAULTS = { angle: 0 };
-
-	return class extends TransformWidget {
-		constructor(stack, options, resizeOptions) {
-			options = extend(DEFAULTS, options);
-			super(stack, options);
-			this._resizeOptions = resizeOptions;
-		}
-
-		setResizeOptions(options) {
-			this._resizeOptions = extend(this._resizeOptions, options);
-		}
-
-		_onStart(evt) {
-			const args = [ this._getMousePosition(evt), 
-						   this._evaluate(this._options.angle),
-						   this._resizeOptions ];
-			this._command = new ResizeCommand(this._getBoxes(), ...args);
-			this._stack.add(this._command);
-			this._offStackCommand = new ResizeCommand(this._getOffStackBoxes(), ...args);
-		}
-
-		_onMove(evt) {
-			const pos = this._getMousePosition(evt);
-			const args = [pos, evt.shiftKey, evt.ctrlKey];
-			this._command.execute.apply(this._command, args);
-			this._offStackCommand.execute.apply(this._offStackCommand, args);
-		}
-	};
-})();
-
 const RotateWidget = (function(){
 	const DEFAULTS = { center: Vector2.zero };
-	return class extends TransformWidget {
+
+	return class extends BoxWidget {
 		constructor(stack, options) {
 			options = extend(DEFAULTS, options);
-			super(stack, options);
+			super(options);
+			this._addOptionGetter("center");
+
+			this._stack = stack;
 		}
 
+		_onClick(mdEvt, muEvt){}
+
 		_onStart(evt) {
-			const pos = this._evaluate(this._options.center);
-			this._command = new RotateCommand(this._getBoxes(), pos);
+			const pos = this._center;
+
+			this._command = new RotateCommand(this._boxes, pos);
 			this._stack.add(this._command);
-			this._offStackCommand = new RotateCommand(this._getOffStackBoxes(), pos);
+			this._offStackCommand = new RotateCommand(this._offStackBoxes, pos);
 		}
 
 		_onMove(evt) {
 			const args = [ this._getMousePosition(evt), evt.shiftKey ];
+
 			this._command.execute(...args);
 			this._offStackCommand.execute(...args);
+		}
+
+		_onEnd(evt) {
+			this._command.close();
+			this._offStackCommand.close();
 		}
 	};
 })();
@@ -142,7 +145,7 @@ const MoveTool = (function(){
 		}
 
 		_createBoxes() {
-			const bounds = this._layerManager.viewport;
+			const bounds = this._layerManager.parent;
 
 			const d = document.createElement("div");
 			d.classList.add(cl_moveBox);
@@ -180,20 +183,26 @@ const MoveTool = (function(){
 		}
 
 		_createWidgets() {
-			this._selectWidget = new SelectWidget(this._layerManager, this._stack);
-			this._selectWidget.handle(new MouseAction(this._moveBox));
+			const bounds = this._layerManager.viewport;
+			this._moveBoxAction = new MouseAction(this._moveBox.element, bounds);
 
-			const boxWidgetOptions = { boxes: () => this._layerManager.selected,
-									   offStackBoxes: [this._moveBox],
-									   origin: () => this._moveBox.origin,
-									   scale: () => this._layerManager.inverseScale };
+			this._selectWidget = new SelectWidget(this._layerManager);
+			this._selectWidget.handle(this._moveBoxAction);
+
+			const boxWidgetOptions = { origin: () => this._moveBox.origin,
+									   scale: () => this._layerManager.scale,
+									   boxes: () => this._layerManager.selected,
+									   offStackBoxes: [this._moveBox] };
 
 			this._dragWidget = new DragWidget(this._stack, boxWidgetOptions);
-			this._dragWidget.handle(new MouseAction(this._moveBox));
+			this._dragWidget.handle(this._moveBoxAction);
 
-			const rotateWidgetOptions = extend(boxWidgetOptions, { center: () => this._moveBox.center.multiply(this._layerManager.inverseScale) });
-			this._rotateWidget = new RotateWidget(this._stack, rotateWidgetOptions);
-			this._rotateWidget.handle(new MouseAction(this._rotateBox));
+			const rotOptions = extend(boxWidgetOptions, 
+				{ center: () => this._moveBox.center.divide(this._layerManager.scale) });
+			const rotAction = new MouseAction(this._rotateBox.element, bounds);
+
+			this._rotateWidget = new RotateWidget(this._stack, rotOptions);
+			this._rotateWidget.handle(rotAction);
 
 			this._resizeWidgets = this._resizeBoxes.map((box, i) => {
 				const options = extend(boxWidgetOptions, { angle: () => this._moveBox.angle });
@@ -201,7 +210,8 @@ const MoveTool = (function(){
 											  	options,
 											  	{ direction: i * 2,
 											  	  fixAspectRatio: false });
-				widget.handle(new MouseAction(box));
+				const action = new MouseAction(box.element, bounds); 
+				widget.handle(action);
 				return widget;
 			});
 		}
@@ -218,7 +228,7 @@ const MoveTool = (function(){
 					selected.forEach((layer) => {
 						const rect = layer.rect;
 						["top", "left", "bottom", "right"].forEach((p, i) => {
-							const n = rect[p] * this._layerManager.inverseScale;
+							const n = rect[p] / this._layerManager.scale;
 							if (isUdf(fitRect[p]) || 
 								(i < 2 && n < fitRect[p]) || 
 								(i >= 2 && n > fitRect[p])) {

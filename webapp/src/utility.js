@@ -1,7 +1,8 @@
 
-export { noop, isUdf, init, isFunction, snap, clamp, wrap, bindWrap, warnIfError, 
-         extend, removeItem, forEach, addGetter, addGetterRaw, getRandomString, 
-         preventBubble, show, hide, removeChildren, createSVG, setDisabled };
+export { noop, isUdf, init, isFunction, snap, toPrecision, clamp, wrap, bindWrap, 
+         warnIfError, extend, removeItem, forEach, addGetter, addGetterRaw, 
+         AddToEventLoop, getRandomString, preventBubble, show, hide, removeChildren,
+         createSVG, setDisabled };
 
 function noop(){}
 
@@ -12,6 +13,8 @@ function init(a, defaultvalue) { return isUdf(a) ? defaultValue : a; }
 function isFunction(f) { return typeof f === "function"; }
 
 function snap(a, b) { return a - (a % b); }
+
+function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p)); }
 
 function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
@@ -81,6 +84,23 @@ function addGetter(obj, publicName, value, privateName) {
 
 function addGetterRaw(obj, publicName, value) {
     Object.defineProperty(obj, publicName, { get: () => value });
+}
+
+class AddToEventLoop {
+    constructor(cb) {
+        this._callback = cb;
+        this._added = false;
+    }
+
+    call() {
+        if (!this._added) {
+            this._added = true;
+            setTimeout(() => {
+                this._callback();
+                this._added = false;
+            });
+        }
+    }
 }
 
 const getRandomString = (function(){

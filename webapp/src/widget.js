@@ -4,7 +4,7 @@ import { preventBubble, show, hide, forEach, addGetter, extend, isUdf } from "./
 import { Vector2 } from "./geometry";
 import { MouseActionHandler } from "./event";
 
-export { Widget, SelectWidget };
+export { BoxWidget, CanvasWidget, SelectWidget };
 
 const Widget = (function(){
 	const DEFAULTS = { origin: Vector2.zero, scale: 1 };
@@ -12,32 +12,80 @@ const Widget = (function(){
 	return class extends MouseActionHandler {
 		constructor(options) {
 			super();
+
+			const ef = new Enforcer(Widget, this, "Widget");
+			ef.enforceAbstract();
+			ef.preventOverride(["_addOptionGetter", "_evaluate"]);
+
 			this._options = extend(DEFAULTS, options);
+			this._addOptionGetter("origin");
+			this._addOptionGetter("scale");
 		}
 
-		_evaluate(arr) {
-			if (typeof arr === "function") {
-				return arr();
-			} else {
-				return arr;
+		_evaluate(a) {
+			return typeof a === "function" ? a() : a;
+		}
+
+		_addOptionGetter(optionName, propertyName) {
+			if (isUdf(propertyName)) {
+				propertyName = "_" + optionName;
 			}
+
+			Object.defineProperty(this, propertyName, { get: () => {
+				return this._evaluate(this._options[optionName]);
+			}});
 		}
 
-		_getOrigin() {
-			return this._evaluate(this._options.origin);
+		_getMousePosition(evt) {
+			const mousePosition = super._getMousePosition(evt);
+			return mousePosition.subtract(this._origin).divide(this._scale);
 		}
+	}
+})();
 
-		_getScale() {
-			return this._evaluate(this._options.scale);
+const BoxWidget = (function(){
+	const DEFAULTS = { boxes: () => [], offStackBoxes: () => [] };
+
+	return class extends Widget {
+		constructor(options) {
+			options = extend(DEFAULTS, options);
+			super(options);
+
+			const ef = new Enforcer(BoxWidget, this, "BoxWidget");
+			ef.enforceAbstract();
+
+			this._addOptionGetter("boxes");
+			this._addOptionGetter("offStackBoxes");
 		}
 	};
 })();
 
-class SelectWidget extends Widget {
-	constructor(lm, stack) {
+class CanvasWidget extends Widget {
+	constructor(options) {
+		super(options);
+
+		const ef = new Enforcer(CanvasWidget, this, "CanvasWidget");
+		ef.enforceAbstract();
+	}
+
+	_getMousePosition(evt, layer) {
+		const l = layer;
+		const rotPosition = l.position
+			   				.subtract(l.center)
+			   				.rotate(l.angle)
+			   				.add(l.center);
+
+		return super._getMousePosition(evt)
+			   .subtract(rotPosition)
+			   .rotate(-l.angle)
+			   .divide(l.canvasScale);
+	}
+}
+
+class SelectWidget extends MouseActionHandler {
+	constructor(lm) {
 		super();
 		this._layerManager = lm;
-		this._stack = stack;
 	}
 
 	_onClick(mdEvt, muEvt, layer) {

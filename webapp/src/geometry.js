@@ -1,5 +1,5 @@
 
-import { addGetter, addGetterRaw, extend, isUdf } from "./utility";
+import { toPrecision, addGetter, addGetterRaw, extend, isUdf } from "./utility";
 
 export { Vector2, Box };
 
@@ -41,12 +41,18 @@ class Vector2 {
         return new Vector2(this._x - v.x, this._y - v.y);
     }
 
+    _parseFactor(a) {
+    	return a instanceof Vector2 ? [a.x, a.y] : [a, a];
+    }
+
     multiply(a) {
-    	return new Vector2(this._x * a, this._y * a);
+    	const [x, y] = this._parseFactor(a);
+    	return new Vector2(this._x * x, this._y * y);
     }
 
     divide(a) {
-    	return new Vector2(this._x / a, this._y / a);
+    	const [x, y] = this._parseFactor(a);
+    	return new Vector2(this._x / x, this._y / y);
     }
 
     negate() {
@@ -88,8 +94,8 @@ class Vector2 {
     		  sn = Math.sin(a);
 		let px = (this._x * cs) - (this._y * sn),
     		py = (this._x * sn) + (this._y * cs);
-    	px = Number.parseFloat(px).toPrecision(PRECISION);
-    	py = Number.parseFloat(py).toPrecision(PRECISION);
+    	px = toPrecision(px, PRECISION);
+    	py = toPrecision(py, PRECISION);
     	return new Vector2(px, py);
     }
 
@@ -117,16 +123,29 @@ class Box {
 		this._bounds = value;
 	}
 
+	static getOrigin(elm) {
+		const b = elm.getBoundingClientRect();
+		return new Vector2(b.left, b.top);
+	}
+
+	get origin() {
+		if (this._bounds) {
+			return Box.getOrigin(this._bounds);
+		} else {
+			return Vector2.zero;
+		}
+	}
+
 	get rect() {
-		const b = this._element.offsetParent.getBoundingClientRect(),
-			  e = this._element.getBoundingClientRect(),
+		const e = this._element.getBoundingClientRect(),
+			  origin = this.origin,
 			  r = {};
 
-		r.top = e.top - b.top;
-		r.bottom = e.bottom - b.top;
-		r.left = e.left - b.left;
-		r.right = e.right - b.left;
-		r.width = e.width;
+		r.top 	 = e.top 	- origin.y;
+		r.bottom = e.bottom - origin.y;
+		r.left 	 = e.left 	- origin.x;
+		r.right  = e.right 	- origin.x;
+		r.width  = e.width;
 		r.height = e.height;
 
 		return r;
@@ -180,11 +199,6 @@ class Box {
 	set dimensions(value) {
 		this.width = value.x;
 		this.height = value.y;
-	}
-
-	get origin() {
-		const b = this._bounds.getBoundingClientRect();
-		return new Vector2(b.left, b.top);	
 	}
 
 	get center() {

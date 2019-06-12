@@ -5,6 +5,7 @@ import { EventDictionary } from "./dictionary";
 
 export { Tool, TestTool };
 
+/*
 class ToolUI {
 	constructor(settings) {
 		let ef = new Enforcer(ToolUI, this, "ToolUI");
@@ -26,6 +27,7 @@ class ToolUI {
 		this._initialized = true;
 	}
 }
+*/
 
 const Tool = (function(){
 	const DEFAULTS = { cursor: "default" };
@@ -39,13 +41,11 @@ const Tool = (function(){
 			this._layerManager = lm;
 			this._stack = stack;
 			this._options = extend(DEFAULTS, options);
-			this._firstTime = true;
 		}
 
 		enable() {
 			this._layerManager.cursor = this._options.cursor;
 			this._enable();
-			this._firstTime = false;
 		}
 
 		disable() {

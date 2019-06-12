@@ -1,7 +1,7 @@
 
 import Enforcer from "./enforcer";
 import { addGetter, forEach, removeItem, extend, warnIfError, isUdf } from "./utility";
-import { Vector2, Box } from "./geometry";
+import { Vector2 } from "./geometry";
 
 export { MyEvent, addEvent, MouseAction, MouseActionPiper, MouseActionHandler };
 
@@ -132,15 +132,8 @@ const MouseAction = (function(){
 		constructor(target, bounds, options) {
 			super();
 
-			if (target instanceof Box) {
-				this._target = target.element;
-				this._bounds = target.bounds;
-				options = bounds;
-			} else {
-				this._target = target;
-				this._bounds = bounds;
-			}
-
+			this._target = target;
+			this._bounds = bounds;
 			this._options = extend(DEFAULTS, options);
 
 			MouseAction.eventNames.forEach((n) => {

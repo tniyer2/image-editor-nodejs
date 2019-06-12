@@ -2,92 +2,68 @@
 import Enforcer from "./enforcer";
 import { extend } from "./utility";
 import { Vector2 } from "./geometry";
-import { ImageDataRect } from "./paint";
 
 export { CirclePattern };
 
 const Pattern = (function(){
-	const DEFAULTS = { radius: 20, color: [0, 0, 0, 255] };
+	const DEFAULTS = { width: 10, minDistance: 5, color: "#ccc" };
 
 	return class {
 		constructor(options) {
 			const ef = new Enforcer(Pattern, this, "Pattern");
-			ef.enforceFunctions(["getRect"]);
+			ef.enforceAbstract();
+			ef.enforceFunctions(["draw"]);
 
 			this._options = extend(DEFAULTS, options);
-		}
-
-		_initOptions() {
-			this._options.radius = Math.trunc(this._options.radius);
 		}
 	};
 })();
 
-class CirclePattern extends Pattern {
-	getRect() {
-		if (!this._rect) {
-			this._rect = this._createRect();
-		}
+class SmoothPattern extends Pattern {
+	constructor(options) {
+		super(options);
 
-		return new ImageDataRect(this._rect.imageData, this._rect.position.x, this._rect.position.y);
+		const ef = new Enforcer(SmoothPattern, this, "SmoothPattern");
+		ef.enforceAbstract();
+		ef.enforceFunctions(["_draw"]);
 	}
 
-	_createRect() {
-		const r = this._options.radius, 
-			  color = this._options.color,
-			  xCoords = this._getXCoordinates(r);
-
-		console.log("xCoords:", xCoords);
-
-		const arr = [];
-		for (let y = 0; y < r; y+=1) {
-			const xMax = xCoords[y];
-			for (let x = 0; x < r; x+=1) {
-				const c = x < xMax ? color : [0, 0, 0, 0];
-				arr.push.apply(arr, c);
-			}
+	draw(context, prevPos, pos) {
+		let dir = pos.subtract(prevPos);
+		const mag = dir.magnitude, 
+			  t = Math.floor(mag / this._options.minDistance),
+			  diff = dir.divide(t);
+		
+		this._draw(context, prevPos);
+		for (let i = 0; i <= t; i+=1) {
+			let v = prevPos.add(diff.multiply(i));
+			this._draw(context, v);
 		}
-
-		const uint8 = new Uint8ClampedArray(arr),
-			  imageData = new ImageData(uint8, r, r),
-			  brRect = new ImageDataRect(imageData, 0, 0);
-
-		const tlRect = brRect.flip(true, true), 
-			  trRect = brRect.flip(false, true), 
-			  blRect = brRect.flip(true, false);
-
-		tlRect.position = tlRect.position.subtract(new Vector2(brRect.width, brRect.height));
-		trRect.position = trRect.position.subtract(new Vector2(0, brRect.height));
-		blRect.position = blRect.position.subtract(new Vector2(brRect.width, 0));
-
-		const rect = ImageDataRect.combine(tlRect, trRect, blRect, brRect);
-		rect.position = new Vector2(r, r);
-
-		return rect;
-	}
-
-	_getXCoordinates(radius) {
-		radius = radius/2;
-		let x = radius, 
-			y = 0, 
-			d = 3 - 2 * radius; 
-		const arr = [x];
-
-	    while (x >= y) {    
-	        y+=1; 
-
-	        if (d > 0) {
-	            x-=1;  
-	            d = d + 4 * (y - x) + 10; 
-	        } 
-	        else {
-	            d = d + 4 * y + 6; 
-	        }
-
-	        arr.push(x);
-	    }
-
-	    const rev = arr.slice().reverse().map(a => radius - a);
-	    return arr.concat(rev);
+		this._draw(context, pos);
 	}
 }
+
+const CirclePattern = (function(){
+	const MAX_ANGLE = Math.PI * 2;
+	const DEFAULTS = {};
+
+	return class extends SmoothPattern {
+		constructor(options) {
+			options = extend(DEFAULTS, options);
+			super(options);
+			this._initOptions();
+		}
+
+		_initOptions() {
+			this._radius = this._options.width / 2;
+		}
+
+		_draw(context, pos) {
+			context.beginPath();
+			context.arc(pos.x, pos.y, this._radius, 0, MAX_ANGLE);
+			context.fillStyle = this._options.color;
+			context.fill();
+			context.closePath();
+		}
+	};
+})();

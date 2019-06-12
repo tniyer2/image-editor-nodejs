@@ -198,9 +198,9 @@ function createLayerCard(layer) {
 	canvas.height = 100;
 	const drawCanvas = () => {
 		setTimeout(() => {
-			const ctxt = canvas.getContext("2d");
-			ctxt.clearRect(0, 0, 100, 100);
-			ctxt.drawImage(layer.canvas, 0, 0, layer.sourceWidth, layer.sourceHeight, 0, 0, 100, 100);
+			const context = canvas.getContext("2d");
+			context.clearRect(0, 0, 100, 100);
+			context.drawImage(layer.canvas, 0, 0, layer.sourceWidth, layer.sourceHeight, 0, 0, 100, 100);
 		});
 	};
 	drawCanvas();
