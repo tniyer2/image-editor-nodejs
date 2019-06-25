@@ -1,2 +1,130 @@
 
+@import "master";
 
+.tool-options {
+	* {
+		margin-right: 10px; }
+}
+
+
+%option-text {
+	display: inline-block;
+	vertical-align: middle;
+	margin-right: 10px;
+	@extend %regular-font;
+}
+
+
+$toggle-height: 20px;
+$toggle-padding: 3px;
+.toggle {
+	user-select: none; }
+.toggle label {
+	display: inline-block;
+	vertical-align: bottom;
+	cursor: pointer; }
+.toggle input {
+	position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0; }
+.toggle__slider {
+	position: relative;
+	display: block;
+	width: 2 * $toggle-height;
+	height: $toggle-height;
+	border-radius: 10px;
+	background: #ccc; }
+$before-height: $toggle-height - 2 * $toggle-padding;
+.toggle__slider:before {
+	position: absolute;
+	top: 50%;
+	left: $toggle-padding;
+	transform: translate(0, -50%);
+	width: $before-height;
+	height: $before-height;
+	content: "";
+	border-radius: 50%;
+	background: white;
+	transition: transform 0.2s; }
+.toggle .noanim ~ .toggle__slider:before {
+	transition: none; }
+.toggle input:checked ~ .toggle__slider {
+	background: $blue; }
+.toggle input:checked ~ .toggle__slider:before {
+	transform: translate($toggle-height - $toggle-padding / 2, -50%); }
+.toggle__text {
+	@extend %option-text; }
+
+
+$slider-width: 100px;
+$slider-height: $regular-font-size;
+.slider {
+	display: inline-block; }
+.slider input {
+	-webkit-appearance: none;
+	display: inline-block;
+	vertical-align: middle;
+	width: $slider-width;
+	height: $slider-height / 2;
+	margin: 0;
+	background: #ccc;
+	border-radius: $slider-height / 5.5;
+	outline: none;
+	cursor: pointer; }
+.slider input::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: $slider-height;
+	height: $slider-height;
+	background: #444;
+	border-radius: 50%; }
+.slider__text {
+	@extend %option-text;
+	user-select: none; }
+
+.color-picker {
+	position: fixed;
+	top: 0;
+	left: 0;
+	padding: 5px;
+	background: #666;
+
+	$child-height: 20px;
+	* {
+		vertical-align: middle;
+		height: $child-height; }
+
+	.hex-input {
+		margin-right: 5px;
+		border: none;
+		outline: none;
+		box-sizing: border-box;
+		padding: 2px;
+		@extend %regular-font; }
+	.close {
+		@extend %remove-button-defaults;
+		width: $child-height;
+		margin: 0;
+		background: #aaa;
+		border-radius: 25%;
+		user-select: none;
+		@extend %regular-font;
+		font-size: $child-height;
+		text-align: center; }
+	.alpha-slider {
+		margin-top: 5px; }
+}
+
+.color-box {
+	$dim: 64px;
+	position: relative;
+	overflow: hidden;
+	width: $dim;
+	height: $dim; }
+.color-box__hex {
+	position: absolute;
+	top: calc(100% - 2px);
+	left: 5px;
+	transform: translateY(-100%);
+	@extend %regular-font;
+	font-size: 14px; }

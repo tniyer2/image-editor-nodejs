@@ -3,17 +3,19 @@ import Enforcer from "./enforcer";
 import { preventBubble, show, hide, forEach, addGetter, extend, isUdf } from "./utility";
 import { Box, Vector2 } from "./geometry";
 import { MouseAction } from "./event";
-import { Tool } from "./tool";
 import { DragCommand, ResizeCommand, RotateCommand } from "./transformCommands";
 import { BoxWidget, SelectWidget } from "./widget";
+import { Tool } from "./tool";
+import { ToolUI } from "./toolUI";
+import { Toggle } from "./input";
 
-export { MoveTool };
+export { MoveTool, MoveToolUI, DragWidget };
 
 class DragWidget extends BoxWidget {
-	constructor(stack, options, dragOptions) {
+	constructor(options, dragOptions) {
 		super(options);
 
-		this._stack = stack;
+		this._stack = this._options.stack;
 		this._dragOptions = dragOptions;
 	}
 
@@ -23,8 +25,10 @@ class DragWidget extends BoxWidget {
 		const args = [ this._getMousePosition(evt), 
 					   this._dragOptions ];
 
-		this._command = new DragCommand(this._boxes, ...args);
-		this._stack.add(this._command);
+		if (this._stack) {
+			this._command = new DragCommand(this._boxes, ...args);
+			this._stack.add(this._command);
+		}
 		this._offStackCommand = new DragCommand(this._offStackBoxes, ...args);
 	}
 
@@ -33,12 +37,16 @@ class DragWidget extends BoxWidget {
 					   evt.shiftKey, 
 					   evt.ctrlKey ];
 
-		this._command.execute(...args);
+		if (this._command) {
+			this._command.execute(...args);
+		}
 		this._offStackCommand.execute(...args);
 	}
 
 	_onEnd(evt) {
-		this._command.close();
+		if (this._command) {
+			this._command.close();
+		}
 		this._offStackCommand.close();
 	}
 }
@@ -47,12 +55,12 @@ const ResizeWidget = (function(){
 	const DEFAULTS = { angle: 0 };
 
 	return class extends BoxWidget {
-		constructor(stack, options, resizeOptions) {
+		constructor(options, resizeOptions) {
 			options = extend(DEFAULTS, options);
 			super(options);
 			this._addOptionGetter("angle");
 
-			this._stack = stack;
+			this._stack = this._options.stack;
 			this._resizeOptions = resizeOptions;
 		}
 
@@ -67,21 +75,26 @@ const ResizeWidget = (function(){
 						   this._angle,
 						   this._resizeOptions ];
 
-			this._command = new ResizeCommand(this._boxes, ...args);
-			this._stack.add(this._command);
+			if (this._stack) {
+				this._command = new ResizeCommand(this._boxes, ...args);
+				this._stack.add(this._command);
+			}
 			this._offStackCommand = new ResizeCommand(this._offStackBoxes, ...args);
 		}
 
 		_onMove(evt) {
 			const pos = this._getMousePosition(evt),
 				  args = [pos, evt.shiftKey, evt.ctrlKey];
-
-			this._command.execute(...args);
+			if (this._command) {
+				this._command.execute(...args);
+			}
 			this._offStackCommand.execute(...args);
 		}
 
 		_onEnd(evt) {
-			this._command.close();
+			if (this._command) {
+				this._command.close();
+			}
 			this._offStackCommand.close();
 		}
 	};
@@ -91,12 +104,12 @@ const RotateWidget = (function(){
 	const DEFAULTS = { center: Vector2.zero };
 
 	return class extends BoxWidget {
-		constructor(stack, options) {
+		constructor(options) {
 			options = extend(DEFAULTS, options);
 			super(options);
 			this._addOptionGetter("center");
 
-			this._stack = stack;
+			this._stack = this._options.stack;
 		}
 
 		_onClick(mdEvt, muEvt){}
@@ -104,20 +117,26 @@ const RotateWidget = (function(){
 		_onStart(evt) {
 			const pos = this._center;
 
-			this._command = new RotateCommand(this._boxes, pos);
-			this._stack.add(this._command);
+			if (this._stack) {
+				this._command = new RotateCommand(this._boxes, pos);
+				this._stack.add(this._command);
+			}
 			this._offStackCommand = new RotateCommand(this._offStackBoxes, pos);
 		}
 
 		_onMove(evt) {
 			const args = [ this._getMousePosition(evt), evt.shiftKey ];
 
-			this._command.execute(...args);
+			if (this._command) {
+				this._command.execute(...args);
+			}
 			this._offStackCommand.execute(...args);
 		}
 
 		_onEnd(evt) {
-			this._command.close();
+			if (this._command) {
+				this._command.close();
+			}
 			this._offStackCommand.close();
 		}
 	};
@@ -133,8 +152,8 @@ const MoveTool = (function(){
 		  cl_rotateConnector = "move-box__rotate-connector";
 
 	return class extends Tool {
-		constructor(lm, stack, options) {
-			super(lm, stack, options);
+		constructor(lm, stack, ui, options) {
+			super(lm, stack, ui, options);
 
 			this._updateMoveBox = this._updateMoveBox.bind(this);
 			this._updateDOM = this._updateDOM.bind(this);
@@ -189,27 +208,30 @@ const MoveTool = (function(){
 			this._selectWidget = new SelectWidget(this._layerManager);
 			this._selectWidget.handle(this._moveBoxAction);
 
-			const boxWidgetOptions = { origin: () => this._moveBox.origin,
+			const boxWidgetOptions = { stack: this._stack,
+									   origin: () => this._moveBox.origin,
 									   scale: () => this._layerManager.scale,
 									   boxes: () => this._layerManager.selected,
 									   offStackBoxes: [this._moveBox] };
 
-			this._dragWidget = new DragWidget(this._stack, boxWidgetOptions);
+			this._dragWidget = new DragWidget(boxWidgetOptions);
 			this._dragWidget.handle(this._moveBoxAction);
 
 			const rotOptions = extend(boxWidgetOptions, 
 				{ center: () => this._moveBox.center.divide(this._layerManager.scale) });
 			const rotAction = new MouseAction(this._rotateBox.element, bounds);
 
-			this._rotateWidget = new RotateWidget(this._stack, rotOptions);
+			this._rotateWidget = new RotateWidget(rotOptions);
 			this._rotateWidget.handle(rotAction);
 
 			this._resizeWidgets = this._resizeBoxes.map((box, i) => {
 				const options = extend(boxWidgetOptions, { angle: () => this._moveBox.angle });
-				const widget = new ResizeWidget(this._stack,
-											  	options,
+				const widget = new ResizeWidget(options,
 											  	{ direction: i * 2,
-											  	  fixAspectRatio: false });
+											  	  fixAspectRatio: this._ui.settings.get("fixAspectRatio") });
+				this._ui.settings.addListener("fixAspectRatio", (v) => {
+					widget.setResizeOptions({fixAspectRatio: v});
+				});
 				const action = new MouseAction(box.element, bounds); 
 				widget.handle(action);
 				return widget;
@@ -290,6 +312,33 @@ const MoveTool = (function(){
 			this._stack.onChange.removeListener(this._updateMoveBox);
 
 			this._moveBox.element.remove();
+		}
+	};
+})();
+
+const MoveToolUI = (function(){
+	const cl_fixAspectRatio = "fix-aspect-ratio";
+	const txt_fixAspectRatio = "Keep Aspect Ratio";
+	const DEFAULT_SETTINGS = { fixAspectRatio: true };
+
+	return class extends ToolUI {
+		constructor() {
+			super(DEFAULT_SETTINGS);
+		}
+
+		_createUI() {
+			const d = document.createElement("div");
+
+			const initValue = this.settings.get("fixAspectRatio");
+			const toggle = new Toggle(initValue, { text: txt_fixAspectRatio });
+			toggle.onToggle.addListener((b) => {
+				this.settings.put("fixAspectRatio", b);
+			});
+			const t = toggle.root;
+			t.classList.add(cl_fixAspectRatio);
+			d.appendChild(t);
+
+			return d;
 		}
 	};
 })();

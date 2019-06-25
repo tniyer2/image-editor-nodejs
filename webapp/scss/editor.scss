@@ -65,25 +65,26 @@ body {
 	fill: #444; }
 .menubar__tool-options { 
 	@extend %menubar__div; }
+.menubar__tool-options2 {
+	@extend %max-size; }
 
 
 .editor-content {
 	flex: 1;
 	display: flex;
 	flex-direction: row; }
-%sidebar {
-	display: flex;
-	align-content: flex-start;
-	@extend %editor-box;
-	border-top-width: 0; }
 
 
 .toolbar {
-	@extend %sidebar;
 	width: 138px;
 	padding: 10px;
-	flex-wrap: wrap;
-	justify-content: space-between; }
+	@extend %editor-box;
+	border-top-width: 0;  }
+.toolbar__tools {
+	display: flex;
+	align-content: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap; }
 .toolbar__tool {
 	@extend %remove-button-defaults;
 	width: 64px;
@@ -95,6 +96,8 @@ body {
 .toolbar__tool .text {
 	@extend %regular-font;
 	font-size: $big-font-size; }
+.toolbar__options {
+	display: flex; }
 
 
 .viewport-wrapper {
@@ -129,7 +132,10 @@ body {
 
 
 .infobar {
-	@extend %sidebar;
+	display: flex;
+	align-content: flex-start;
+	@extend %editor-box;
+	border-top-width: 0;
 	width: 160px; 
 	flex-direction: column; }
 $layer-cards-spacing: 10px;

@@ -6,6 +6,7 @@
 	<link rel="stylesheet" type="text/css" href="../css/toolOptions.css">
 	<link rel="stylesheet" type="text/css" href="../css/widgets.css">
 	<link rel="stylesheet" type="text/css" href="../css/editor.css">
+	<meta charset="UTF-8">
 </head>
 <body>
 	<svg style="position:absolute;width:0px;height:0px;">
@@ -25,7 +26,7 @@
           </symbol>
         </defs>
      </svg>
-	<div class="root">
+	<div id="root" class="root">
 		<div class="editor">
 			<div class="menubar">
 				<div class="menubar__main-options">
@@ -47,7 +48,10 @@
 				<div id="tool-options" class="menubar__tool-options"></div>
 			</div>
 			<div class="editor-content">
-				<div id="toolbar" class="toolbar"></div>
+				<div id="toolbar" class="toolbar">
+					<div id="tools" class="toolbar__tools"></div>
+					<div id="toolbar-options" class="toolbar__options"></div>
+				</div>
 				<div id="viewport-wrapper" class="viewport-wrapper" tabindex="0">
 					<div id="viewport" class="viewport">
 						<div class="viewport__background"></div>

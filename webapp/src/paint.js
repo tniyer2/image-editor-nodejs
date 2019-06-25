@@ -206,12 +206,17 @@ class PaintWidget extends CanvasWidget {
 }
 
 class PaintTool extends Tool {
-	constructor(lm, stack, pattern, options) {
-		super(lm, stack, options);
+	constructor(lm, stack, ui, pattern, options) {
+		super(lm, stack, ui, options);
 
-		this._widget = new PaintWidget(this._stack, pattern, 
-					   { origin: () => Box.getOrigin(this._layerManager.parent), 
-					   	 scale: () => this._layerManager.scale });
+		const paintWidgetOptions = { origin: () => Box.getOrigin(this._layerManager.parent), 
+					   	 			 scale: () => this._layerManager.scale };
+		this._widget = new PaintWidget(this._stack, pattern, paintWidgetOptions);
+
+		this._ui.settings.put("patternOptions", pattern.getOptions());
+		this._ui.settings.addListener("patternOptions", (v) => {
+			pattern.setOptions(v);
+		});
 	}
 
 	_enable() {

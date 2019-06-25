@@ -1,20 +1,24 @@
 
 import Editor from "./editor";
 import { Layer } from "./layer";
-import { createSVG, setDisabled, forEach, clamp, noop } from "./utility";
+import { $, make, createSVG, setDisabled, forEach, clamp, noop } from "./utility";
 
-const fileInput = document.getElementById("file-upload"),
-	  undoBtn = document.getElementById("undo-btn"),
-	  redoBtn = document.getElementById("redo-btn"),
-	  toolOptionsParent = document.getElementById("tool-options"),
-	  toolbar = document.getElementById("toolbar"),
-	  viewportWrapper = document.getElementById("viewport-wrapper"),
-	  viewport = document.getElementById("viewport"),
-	  layerCards = document.getElementById("layer-cards");
+const root = $("#root"),
+	  fileInput = $("#file-upload"),
+	  undoBtn = $("#undo-btn"),
+	  redoBtn = $("#redo-btn"),
+	  toolOptionsParent = $("#tool-options"),
+	  toolbar = $("#toolbar"),
+	  toolsParent = $("#tools"),
+	  toolbarOptions = $("#toolbar-options"),
+	  viewportWrapper = $("#viewport-wrapper"),
+	  viewport = $("#viewport"),
+	  layerCards = $("#layer-cards");
 
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
 	  cl_layerParent = "viewport__layers",
+	  cl_toolOptionsParent2 = "menubar__tool-options2",
 	  cl_toolBtn = "toolbar__tool",
 	  cl_toolName = "text",
 	  cl_layerCard = "infobar__layer-card",
@@ -34,22 +38,28 @@ let g_editor;
 function main() {
 	g_editor = new Editor({ viewport: viewportWrapper });
 
-	const parent = g_editor.layerManager.parent;
-	parent.classList.add(cl_layerParent);
-	viewport.appendChild(parent);
-	toolOptionsParent.appendChild(g_editor.toolOptionsParent);
+	const d = g_editor.layerManager.parent;
+	d.classList.add(cl_layerParent);
+	viewport.appendChild(d);
 
-	attachCommandListeners();
-	attachViewportListeners();
-	attachMenubarListeners();
-	attachToolListeners();
-	attachLayerListeners();
+	const d2 = g_editor.toolOptionsParent;
+	d2.classList.add(cl_toolOptionsParent2);
+	toolOptionsParent.appendChild(d2);
+
+	root.appendChild(g_editor.colorPicker.root);
+	toolbarOptions.appendChild(g_editor.primaryColorBox.root);
+
+	listenCommands();
+	listenViewport();
+	listenMenubar();
+	listenTools();
+	listenLayers();
 
 	window.onbeforeunload = () => true;
 }
 
-function attachCommandListeners() {
-	attachUndoRedoListeners();
+function listenCommands() {
+	listenUndoRedo();
 
 	viewportWrapper.addEventListener("keydown", deleteListener);
 	layerCards.addEventListener("keydown", deleteListener);
@@ -64,7 +74,7 @@ function deleteListener(evt) {
 	}
 }
 
-function attachUndoRedoListeners() {
+function listenUndoRedo() {
 	const listener = (evt) => {
 		if (evt.ctrlKey) {
 			const key = evt.key.toLowerCase(),
@@ -93,7 +103,7 @@ function attachUndoRedoListeners() {
 	attach();
 }
 
-function attachViewportListeners() {
+function listenViewport() {
 	viewportWrapper.addEventListener("wheel", (evt) => {
 		const current = g_editor.stack.current;
 		if (!(current && current.open)) {
@@ -107,7 +117,7 @@ function attachViewportListeners() {
 	});
 }
 
-function attachMenubarListeners() {
+function listenMenubar() {
 	fileInput.addEventListener("change", (evt) => {
 		const file = evt.target.files[0];
 		if (!file) return;
@@ -136,18 +146,18 @@ function attachMenubarListeners() {
 	});
 }
 
-function attachToolListeners() {
+function listenTools() {
 	g_editor.tools.forEach((t) => {
-		const btn = document.createElement("button");
+		const btn = make("button");
 		btn.classList.add(cl_toolBtn);
-		const name = document.createElement("span");
+		const name = make("span");
 		name.innerText = t;
 		name.classList.add(cl_toolName);
 		btn.appendChild(name);
-		toolbar.appendChild(btn);
+		toolsParent.appendChild(btn);
 
 		selectToolOnClick(btn, t);
-	})
+	});
 }
 
 function selectToolOnClick(button, toolName) {
@@ -156,7 +166,7 @@ function selectToolOnClick(button, toolName) {
 	});
 }
 
-function attachLayerListeners() {
+function listenLayers() {
 	g_editor.layerManager.onAdd.addListener((layer) => {
 		layer.canvas.classList.add(cl_canvas);
 		layer.element.classList.add(cl_canvasParent);
@@ -177,7 +187,7 @@ function attachLayerListeners() {
 }
 
 function createLayerCard(layer) {
-	const card = document.createElement("div");
+	const card = make("div");
 	card.classList.add(cl_layerCard);
 	card.addEventListener("click", (evt) => {
 		if (evt.ctrlKey) {
@@ -193,7 +203,7 @@ function createLayerCard(layer) {
 		}
 	});
 
-	const canvas = document.createElement("canvas");
+	const canvas = make("canvas");
 	canvas.width = 100;
 	canvas.height = 100;
 	const drawCanvas = () => {
@@ -208,11 +218,11 @@ function createLayerCard(layer) {
 	canvas.classList.add(cl_layerCardCanvas);
 	card.appendChild(canvas);
 
-	const span = document.createElement("span");
+	const span = make("span");
 	span.classList.add(cl_layerCardHelper);
 	card.appendChild(span);
 
-	const removeBtn = document.createElement("button");
+	const removeBtn = make("button");
 	removeBtn.classList.add(cl_layerCardRemoveBtn);
 	removeBtn.addEventListener("click", (evt) => {
 		evt.stopPropagation();

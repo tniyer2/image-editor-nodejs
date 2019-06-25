@@ -1,8 +1,9 @@
 
-export { noop, isUdf, init, isFunction, snap, toPrecision, clamp, wrap, bindWrap, 
-         warnIfError, extend, removeItem, forEach, addGetter, addGetterRaw, 
-         AddToEventLoop, getRandomString, preventBubble, show, hide, removeChildren,
-         createSVG, setDisabled };
+export { noop, isUdf, init, isFunction, snap, toPrecision, clamp, average, 
+         wrap, bindWrap, warnIfError, extend, removeItem, forEach, addGetter, 
+         addGetterRaw, AddToEventLoop, getRandomString, preventBubble, make, 
+         show, hide,  isDescendant, removeChildren, createSVG, setDisabled, 
+         setChecked, $, clampAlpha };
 
 function noop(){}
 
@@ -17,6 +18,8 @@ function snap(a, b) { return a - (a % b); }
 function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p)); }
 
 function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+function average() { return Array.from(arguments).reduce((a, b) => a + b) / arguments.length; }
 
 function wrap(f, ...args) {
 	return new Promise((resolve, reject) => {
@@ -123,12 +126,25 @@ function preventBubble(elm, eventName) {
     });
 }
 
+const make = document.createElement.bind(document);
+
 function show(elm) {
 	elm.classList.remove("noshow");
 }
 
 function hide(elm) {
 	elm.classList.add("noshow");
+}
+
+function isDescendant(parent, child) {
+    let node = child.parentNode;
+     while (node !== null) {
+         if (node === parent) {
+             return true;
+         }
+         node = node.parentNode;
+     }
+     return false;
 }
 
 function removeChildren(elm) {
@@ -152,10 +168,47 @@ const createSVG = (function(){
     };
 })();
 
-function setDisabled(elm, disable) {
-    if (disable) {
-        elm.setAttribute("disabled", "disabled");
+function _setAttribute(elm, attribute, b) {
+    if (b) {
+        elm.setAttribute(attribute, attribute);
     } else {
-        elm.removeAttribute("disabled");
+        elm.removeAttribute(attribute);
+    }
+}
+
+function setDisabled(elm, b) {
+    _setAttribute(elm, "disabled", b);
+}
+
+function setChecked(elm, b) {
+    _setAttribute(elm, "checked", b);
+}
+
+function $(selector, elm, all) {
+    if (typeof elm === "boolean") {
+        all = elm;
+        elm = document;
+    } else if (isUdf(elm)) {
+        all = false;
+        elm = document;
+    } else if (isUdf(all)) {
+        all = false;
+    }
+
+    if (all) {
+        return elm.querySelectorAll(selector);
+    } else {
+        return elm.querySelector(selector);
+    }
+}
+
+function clampAlpha(arr) {
+    if (typeof arr === "object" && arr.constructor === Array && arr.length === 4) {
+        arr = arr.slice();
+        arr[3] /= 255;
+        return arr;
+    } else {
+        console.warn("Was not able to convert color:", arr);
+        return arr;
     }
 }

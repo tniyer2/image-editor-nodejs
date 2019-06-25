@@ -151,7 +151,6 @@ const LayerManager = (function(){
 
 			let d = document.createElement("div");
 			addGetter(this, "parent", d);
-			viewport = viewport;
 			addGetter(this, "viewport", viewport);
 			this._scale = 1;
 			this.resetCursor();

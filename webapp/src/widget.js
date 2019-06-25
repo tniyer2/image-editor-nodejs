@@ -40,7 +40,7 @@ const Widget = (function(){
 			const mousePosition = super._getMousePosition(evt);
 			return mousePosition.subtract(this._origin).divide(this._scale);
 		}
-	}
+	};
 })();
 
 const BoxWidget = (function(){

@@ -3,7 +3,7 @@ import Enforcer from "./enforcer";
 import { addGetter, forEach, removeItem, extend, warnIfError, isUdf } from "./utility";
 import { Vector2 } from "./geometry";
 
-export { MyEvent, addEvent, MouseAction, MouseActionPiper, MouseActionHandler };
+export { MyEvent, addEvent, Listener, MouseAction, MouseActionPiper, MouseActionHandler };
 
 const MyEvent = (function(){
 	class MyEventInterface {
@@ -19,6 +19,7 @@ const MyEvent = (function(){
 			removeItem(this._queue, l);
 		}
 	}
+	
 	return class {
 		constructor() {
 			this._queue = [];
@@ -27,9 +28,43 @@ const MyEvent = (function(){
 		}
 
 		trigger() {
-			let a = arguments;
 			this._queue.forEach((f) => {
-				f.apply(null, a);
+				f.apply(null, arguments);
+			});
+		}
+
+		triggerWithParams(getParams) {
+			this._queue.forEach((f) => {
+				const p = getParams();
+				if (typeof p !== "object" || p.constructor !== Array) {
+					throw new Error("Callback return value must be an array:", p);
+				}
+				f.apply(null, p);
+			});
+		}
+
+		clear() {
+			this._queue.splice(0, this._queue.length);
+		}
+
+		linkTo(a) {
+			let n, invalidArgument = false;
+			if (!a || typeof a !== "object") {
+				invalidArgument = true;
+			} else if (a.constructor === MyEventInterface) {
+				n = a;
+			} else if (a.constructor === MyEvent) {
+				n = a.interface;
+			} else {
+				invalidArgument = true;
+			}
+
+			if (invalidArgument) {
+				throw new Error("Invalid argument:", a);
+			}
+
+			n.addListener((...args) => {
+				this.trigger(...args);
 			});
 		}
 	};

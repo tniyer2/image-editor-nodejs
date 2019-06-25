@@ -83,7 +83,7 @@ class EventDictionary extends Dictionary {
 
     addListener(name, listener) {
         if (!this._events.has(name)) {
-            this._events.put(new MyEvent());
+            this._events.put(name, new MyEvent());
         }
         this._events.get(name).interface.addListener(listener);
     }
