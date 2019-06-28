@@ -1,14 +1,13 @@
 
 import Editor from "./editor";
 import { Layer } from "./layer";
-import { $, make, createSVG, setDisabled, forEach, clamp, noop } from "./utility";
+import { $, clamp, setDisabled, make, createSVG } from "./utility";
 
 const root = $("#root"),
 	  fileInput = $("#file-upload"),
 	  undoBtn = $("#undo-btn"),
 	  redoBtn = $("#redo-btn"),
 	  toolOptionsParent = $("#tool-options"),
-	  toolbar = $("#toolbar"),
 	  toolsParent = $("#tools"),
 	  toolbarOptions = $("#toolbar-options"),
 	  viewportWrapper = $("#viewport-wrapper"),
@@ -18,6 +17,7 @@ const root = $("#root"),
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
 	  cl_layerParent = "viewport__layers",
+	  cl_layerSelected = "selected",
 	  cl_toolOptionsParent2 = "menubar__tool-options2",
 	  cl_toolBtn = "toolbar__tool",
 	  cl_toolName = "text",
@@ -36,7 +36,7 @@ const SCALE_FACTOR = -0.0005,
 let g_editor;
 
 function main() {
-	g_editor = new Editor({ viewport: viewportWrapper });
+	g_editor = new Editor({ viewport: viewportWrapper, innerViewport: viewport });
 
 	const d = g_editor.layerManager.parent;
 	d.classList.add(cl_layerParent);
@@ -106,13 +106,15 @@ function listenUndoRedo() {
 function listenViewport() {
 	viewportWrapper.addEventListener("wheel", (evt) => {
 		const current = g_editor.stack.current;
+		const vp = g_editor.layerManager.innerViewport;
 		if (!(current && current.open)) {
-			let scale = g_editor.layerManager.scale;
+			let scale = vp.scaleX;
 
 			scale += evt.deltaY * SCALE_FACTOR;
 			scale = clamp(scale, MIN_SCALE, MAX_SCALE);
 
-			g_editor.layerManager.scale = scale;
+			vp.scaleX = scale;
+			vp.scaleY = scale;
 		}
 	});
 }
@@ -134,7 +136,6 @@ function listenMenubar() {
 		image.src = URL.createObjectURL(file);
 	});
 	g_editor.stack.onChange.addListener(() => {
-		const current = g_editor.stack.current;
 		setDisabled(undoBtn, !g_editor.stack.canUndo);
 		setDisabled(redoBtn, !g_editor.stack.canRedo);
 	});
@@ -179,9 +180,11 @@ function listenLayers() {
 		layerCards.removeChild(layer["data-card"]);
 	});
 	g_editor.layerManager.onSelect.addListener((layer) => {
+		layer.element.classList.add(cl_layerSelected);
 		layer["data-card"].classList.add(cl_layerCardSelected);
 	});
 	g_editor.layerManager.onDeselect.addListener((layer) => {
+		layer.element.classList.remove(cl_layerSelected);
 		layer["data-card"].classList.remove(cl_layerCardSelected);
 	});
 }
@@ -191,7 +194,7 @@ function createLayerCard(layer) {
 	card.classList.add(cl_layerCard);
 	card.addEventListener("click", (evt) => {
 		if (evt.ctrlKey) {
-			if (layer.selected) {
+			if (layer["data-selected"]) {
 				g_editor.layerManager.deselect(layer);
 			} else {
 				g_editor.layerManager.select(layer);

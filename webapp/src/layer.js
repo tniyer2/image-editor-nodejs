@@ -1,31 +1,29 @@
 
-import { AddToEventLoop, addGetter, removeItem, extend, isUdf } from "./utility";
-import { addEvent, MouseAction, MouseActionPiper } from "./event";
-import { Box, Vector2 } from "./geometry";
+import Enforcer from "./enforcer";
+import { isUdf, removeItem, addGetter, AddToEventLoop } from "./utility";
+import { addEvent } from "./event";
+import { MouseAction, MouseActionPiper } from "./action";
+import { Anchor, Box } from "./geometry";
 
 export { Layer, LayerManager };
 
 const Layer = (function(){
-	const ID_LENGTH = 40;
-	const DEFAULTS = {};
-
 	function checkValidImage(image) {
 		if (!(image instanceof HTMLImageElement)) {
 			throw new Error("image is not an HTMLImageElement");
 		}
 		if (!image.complete) {
-			throw new Error("image must have finished loading before creating layer.");
+			throw new Error("image should be loaded before creating layer.");
 		}
 	}
 
 	return class extends Box {
-		constructor(image, options) {
+		constructor(image) {
 			checkValidImage(image);
 			const d = document.createElement("div");
 			super(d);
+			// make a copy?
 			addGetter(this, "image", image);
-
-			this._options = extend(DEFAULTS, options);
 
 			const canvas = document.createElement("canvas");
 			this._element.appendChild(canvas);
@@ -33,66 +31,32 @@ const Layer = (function(){
 
 			this._addDraw = new AddToEventLoop(() => {
 				createImageBitmap(this._canvas).then((m) => {
-					this._drawCanvas(this._canvas, m);
+					this._drawCanvas(m);
 				});
 			});
-			this._addScale = new AddToEventLoop(() => {
-				this._scaleCanvas();
-			});
 
-			const nw = this._image.naturalWidth, 
-				  nh = this._image.naturalHeight;
+			const w = this._image.naturalWidth, 
+				  h = this._image.naturalHeight;
+
+			canvas.width = w;
+			canvas.height = h;
+			this._element.style.width = w + "px";
+			this._element.style.height = h + "px";
 
 			this._defineDrawProperty("innerTop", 0);
 			this._defineDrawProperty("innerLeft", 0);
 			this._defineDrawProperty("sourceTop", 0);
 			this._defineDrawProperty("sourceLeft", 0);
-			this._defineDrawProperty("sourceWidth", nw);
-			this._defineDrawProperty("sourceHeight", nh);
-
-			super.width  = nw;
-			super.height = nh;
-			canvas.width = nw;
-			canvas.height = nh;
-			this._canvasScaleY = 1;
-			this._canvasScaleX = 1;
+			this._defineDrawProperty("sourceWidth", w);
+			this._defineDrawProperty("sourceHeight", h);
 
 			setTimeout(() => {
-				this._drawCanvas(this._canvas, this._image);
+				this._drawCanvas(this._image);
 			});
 		}
 
 		get aspectRatio() {
 			return this._image.naturalHeight / this._image.naturalWidth;
-		}
-
-		get width() {
-			return super.width;
-		}
-
-		set width(value) {
-			super.width = value;
-			this._addScale.call();
-		}
-
-		get height() {
-			return super.height;
-		}
-
-		set height(value) {
-			super.height = value;
-			this._addScale.call();	
-		}
-
-		get canvasScale() {
-			const x = this.width / this._canvas.width,
-				  y = this.height / this._canvas.height;
-			return new Vector2(x, y);
-		}
-
-		_scaleCanvas() {
-			const s = this.canvasScale;
-			this._canvas.style.transform = `scale(${s.x}, ${s.y})`;
 		}
 
 		_defineDrawProperty(name, defaultValue) {
@@ -106,7 +70,7 @@ const Layer = (function(){
 				return this[privateName];
 			}, set: (value) => {
 				this[privateName] = value;
-				this._addDraw.call();
+				this._addDraw.invoke();
 			}});
 		}
 
@@ -126,10 +90,10 @@ const Layer = (function(){
 			this._canvas.height = value;
 		}
 
-		_drawCanvas(canvas, source) {
-			const context = canvas.getContext("2d"),
-				  w = canvas.width,
-				  h = canvas.height;
+		_drawCanvas(source) {
+			const context = this._canvas.getContext("2d"),
+				  w = this._canvas.width,
+				  h = this._canvas.height;
 			context.clearRect(0, 0, w, h);
 			context.drawImage(source, 
 							  this._sourceTop, this._sourceLeft, 
@@ -142,30 +106,40 @@ const Layer = (function(){
 
 const LayerManager = (function(){
 	const DEFAULT_CURSOR = "default";
-	const cl_selected = "selected";
 
 	return class {
-		constructor(viewport) {
+		constructor(viewport, innerViewport) {
 			this._layers = [];
 			this._selected = [];
 
-			let d = document.createElement("div");
+			const d = document.createElement("div");
 			addGetter(this, "parent", d);
-			addGetter(this, "viewport", viewport);
-			this._scale = 1;
+
+			const vp = new Anchor(viewport);
+			addGetter(this, "viewport", vp);
 			this.resetCursor();
+
+			const ivp = new Box(innerViewport, this._viewport);
+			addGetter(this, "innerViewport", ivp);
 
 			addEvent(this, "onAdd");
 			addEvent(this, "onRemove");
 			addEvent(this, "onSelect");
 			addEvent(this, "onDeselect");
 			addEvent(this, "onSelectedChange");
-			this.onAdd.addListener(this._defaultOnAddListener.bind(this));
-			this.onRemove.addListener(this._defaultOnRemoveListener.bind(this));
-			this.onSelect.addListener(this._defaultOnSelectListener.bind(this));
-			this.onDeselect.addListener(this._defaultOnDeselectListener.bind(this));
 
-			let a = new MouseActionPiper();
+			const ef = new Enforcer(LayerManager, this, "LayerManager");
+			ef.bindFunctions(["_defaultOnAddListener", 
+							  "_defaultOnRemoveListener", 
+							  "_defaultOnSelectListener", 
+							  "_defaultOnDeselectListener"]);
+			this.onAdd.addListener(this._defaultOnAddListener);
+			this.onRemove.addListener(this._defaultOnRemoveListener);
+			this.onSelect.addListener(this._defaultOnSelectListener);
+			this.onDeselect.addListener(this._defaultOnDeselectListener);
+
+			const a = new MouseActionPiper();
+			// @todo change to globalMouseAction
 			addGetter(this, "layerMouseAction", a);
 		}
 
@@ -177,28 +151,23 @@ const LayerManager = (function(){
 			return this._selected.slice();
 		}
 
-		get scale() {
-			return this._scale;
-		}
-
-		set scale(value) {
-			this._scale = value;
-			viewport.style.transform = "scale(" + value + ")";
-		}
-
 		add(layer) {
 			this._layers.push(layer);
 			this._onAdd.trigger(layer);
 		}
 
 		remove(layer) {
-			removeItem(this._layers, layer);
-			this._onRemove.trigger(layer);
+			const removed = removeItem(this._layers, layer);
+			if (removed) {
+				this._onRemove.trigger(layer);
+			} else {
+				console.warn("Could not remove layer from this._layers: ", layer);
+			}
 		}
 
 		_initLayer(layer) {
-			layer.bounds = this._parent;
-			let m = new MouseAction(layer.element, this._viewport, 
+			layer.parent = this._innerViewport;
+			const m = new MouseAction(layer.element, this._viewport.element, 
 						{ data: layer, 
 						  loop: true, 
 						  exitOnMouseLeave: false });
@@ -214,8 +183,10 @@ const LayerManager = (function(){
 		}
 
 		_defaultOnRemoveListener(layer) {
-			layer.element.remove(); 
-			this.deselect(layer);
+			layer.element.remove();
+			if (layer["data-selected"]) {
+				this.deselect(layer);
+			} 
 		}
 
 		select(layer) {
@@ -225,25 +196,29 @@ const LayerManager = (function(){
 		}
 
 		deselect(layer) {
-			removeItem(this._selected, layer);
-			this._onDeselect.trigger(layer);
-			this._onSelectedChange.trigger();
+			const removed = removeItem(this._selected, layer);
+			if (removed) {
+				this._onDeselect.trigger(layer);
+				this._onSelectedChange.trigger();
+			} else {
+				console.warn("Could not remove layer from this._selected: ", layer);
+			}
 		}
 		
 		deselectAll() {
-			let s = this._selected;
+			const old = this._selected;
 			this._selected = [];
-			s.forEach((layer) => {
+
+			old.forEach((layer) => {
 				this._onDeselect.trigger(layer);
 			});
 			this._onSelectedChange.trigger();
 		}
 
 		_defaultOnSelectListener(layer) {
-			layer.selected = true;
-			layer.element.classList.add(cl_selected);
+			layer["data-selected"] = true;
 
-			let len = this._selected.length;
+			const len = this._selected.length;
 			if (len > 1) {
 				this._parent.insertBefore(layer.element, this._selected[len-2].element);
 			} else {
@@ -252,12 +227,11 @@ const LayerManager = (function(){
 		}
 
 		_defaultOnDeselectListener(layer) {
-			layer.selected = false;
-			layer.element.classList.remove(cl_selected);
+			layer["data-selected"] = false;
 		}
 
 		set cursor(value) {
-			this._viewport.style.cursor = value;	
+			this._viewport.element.style.cursor = value;	
 		}
 
 		resetCursor() {

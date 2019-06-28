@@ -1,6 +1,6 @@
 
 import Enforcer from "./enforcer";
-import { addGetter } from "./utility";
+import { isNumber, addGetter } from "./utility";
 import { addEvent } from "./event";
 
 export { Command, MultiCommand, ToggleLayerCommand, CommandStack };
@@ -17,8 +17,8 @@ const Command = (function(){
 			ef.enforceFunctions(["_execute", "_undo", "_redo"]);
 			ef.preventOverride(["execute", "close", "undo", "redo"]);
 
-			if (type === Command.immediate) {/*ignore*/}
-			else if (type === Command.continuous) {
+			if (type === Command.IMMEDIATE) {/*ignore*/}
+			else if (type === Command.CONTINUOUS) {
 				ef.enforceFunctions(["_close"]);
 			} else {
 				throw new Error("type is not valid.");
@@ -35,11 +35,11 @@ const Command = (function(){
 			addEvent(this, "onRedo");
 		}
 
-		static get immediate() {
+		static get IMMEDIATE() {
 			return 0;
 		}
 
-		static get continuous() {
+		static get CONTINUOUS() {
 			return 1;
 		}
 
@@ -54,7 +54,7 @@ const Command = (function(){
 			this._execute(...args);
 			this._executing = false;
 			this._firstTime = false;
-			if (this._type === Command.immediate) {
+			if (this._type === Command.IMMEDIATE) {
 				this._open = false;
 				this._done = true;
 				this._onDone.trigger();
@@ -62,22 +62,20 @@ const Command = (function(){
 		}
 
 		close() {
-			if (this._type === Command.continuous) {
-				if (this._executing) {
-					throw new Error(invalidStateMessage);
-				} else if (!this._open) {
-					throw new Error("Cannot call close, this Command is already closed.");
-				}
-
-				this._executing = true;
-				this._close();
-				this._executing = false;
-				this._open = false;
-				this._done = true;
-				this._onDone.trigger();
-			} else {
+			if (this._type === Command.IMMEDIATE) {
 				throw new Error("Cannot call close on an immediate Command");
+			} else if (this._executing) {
+				throw new Error(invalidStateMessage);
+			} else if (!this._open) {
+				throw new Error("Cannot call close, this Command is already closed.");
 			}
+
+			this._executing = true;
+			this._close();
+			this._executing = false;
+			this._open = false;
+			this._done = true;
+			this._onDone.trigger();
 		}
 
 		get canUndo() {
@@ -124,8 +122,8 @@ const Command = (function(){
 
 class MultiCommand extends Command {
 	constructor(commands) {
-		const allImmediate = commands.every(c => c.type === Command.immediate);
-		const type = allImmediate ? Command.immediate : Command.continuous;
+		const allImmediate = commands.every(c => c.type === Command.IMMEDIATE);
+		const type = allImmediate ? Command.IMMEDIATE : Command.CONTINUOUS;
 		super(type);
 
 		this._commands = commands;
@@ -158,7 +156,7 @@ class MultiCommand extends Command {
 
 class ToggleLayerCommand extends Command {
 	constructor(layerManager, layer, add) {
-		super(Command.immediate);
+		super(Command.IMMEDIATE);
 
 		this._layerManager = layerManager;
 		this._layer = layer;
@@ -188,7 +186,7 @@ class ToggleLayerCommand extends Command {
 
 class CommandStack {
 	constructor(limit) {
-		this._limit = typeof limit === "number" ? limit : Infinity;
+		this._limit = isNumber(limit) ? limit : Infinity;
 
 		this._stack = [];
 		this._currentIndex = -1;

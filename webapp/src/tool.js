@@ -1,6 +1,6 @@
 
 import Enforcer from "./enforcer";
-import { extend } from "./utility";
+import { addOptions } from "./options";
 
 export { Tool, TestTool };
 
@@ -8,26 +8,23 @@ const Tool = (function(){
 	const DEFAULTS = { cursor: "default" };
 
 	return class {
-		constructor(lm, stack, ui, options) {
+		constructor(lm, stack, options) {
 			let ef = new Enforcer(Tool, this, "Tool");
 			ef.enforceAbstract();
 			ef.enforceFunctions(["_enable", "_disable"]);
 
 			this._layerManager = lm;
 			this._stack = stack;
-			this._ui = ui;
-			this._options = extend(DEFAULTS, options);
+			addOptions(this, DEFAULTS, options);
 		}
 
-		enable(parent) {
-			this._layerManager.cursor = this._options.cursor;
-			this._ui.enable(parent);
+		enable() {
+			this._layerManager.cursor = this._options.get("cursor");
 			this._enable();
 		}
 
 		disable() {
 			this._layerManager.resetCursor();
-			this._ui.disable();
 			this._disable();
 		}
 	};

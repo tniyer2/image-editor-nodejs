@@ -1,17 +1,23 @@
 
-export { noop, isUdf, init, isFunction, snap, toPrecision, clamp, average, 
+export { noop, isUdf, isNumber, isFunction, isType, init, snap, toPrecision, clamp, average, 
          wrap, bindWrap, warnIfError, extend, removeItem, forEach, addGetter, 
-         addGetterRaw, AddToEventLoop, getRandomString, preventBubble, make, 
+         addGetterRaw, AddToEventLoop, getRandomString, preventBubble, $, make, 
          show, hide,  isDescendant, removeChildren, createSVG, setDisabled, 
-         setChecked, $, clampAlpha };
+         setChecked, clampAlpha };
 
 function noop(){}
 
 function isUdf(a) { return typeof a === "undefined"; }
 
-function init(a, defaultvalue) { return isUdf(a) ? defaultValue : a; }
+function isNumber(n) { return typeof n === "number" && !isNaN(n); }
 
 function isFunction(f) { return typeof f === "function"; }
+
+function isType(obj, t) {
+    return obj !== null && typeof obj === "object" && obj.constructor === t;
+}
+
+function init(a, def) { return isUdf(a) ? def : a; }
 
 function snap(a, b) { return a - (a % b); }
 
@@ -19,7 +25,7 @@ function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p));
 
 function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
-function average() { return Array.from(arguments).reduce((a, b) => a + b) / arguments.length; }
+function average(...n) { return n.reduce((a, b) => a + b) / n.length; }
 
 function wrap(f, ...args) {
 	return new Promise((resolve, reject) => {
@@ -38,7 +44,7 @@ function warnIfError(e) {
 }
 
 function extend() {
-    let master = {};
+    const master = {};
     let object;
     for (let i = 0, l = arguments.length; i < l; i+=1) {
         object = arguments[i];
@@ -52,11 +58,10 @@ function extend() {
 }
 
 function removeItem(arr, item) {
-    let i = arr.findIndex(n => n === item);
+    const i = arr.findIndex(n => n === item);
     if (i === -1) {
         return false;
-    }
-    else {
+    } else {
         arr.splice(i, 1);
         return true;
     }
@@ -95,7 +100,7 @@ class AddToEventLoop {
         this._added = false;
     }
 
-    call() {
+    invoke() {
         if (!this._added) {
             this._added = true;
             setTimeout(() => {
@@ -111,9 +116,9 @@ const getRandomString = (function(){
 
     return function(len) {
         let s = "";
-        let allLen = all.length;
+        const allLen = all.length;
         for (let i = 0; i < len; i+=1) {
-            let rand = Math.floor(Math.random() * allLen);
+            const rand = Math.floor(Math.random() * allLen);
             s += all.charAt(rand);
         }
         return s;
@@ -124,6 +129,24 @@ function preventBubble(elm, eventName) {
     elm.addEventListener(eventName, (evt) => {
         evt.stopPropagation();
     });
+}
+
+function $(selector, elm, all) {
+    if (typeof elm === "boolean") {
+        all = elm;
+        elm = document;
+    } else if (isUdf(elm)) {
+        all = false;
+        elm = document;
+    } else if (isUdf(all)) {
+        all = false;
+    }
+
+    if (all) {
+        return elm.querySelectorAll(selector);
+    } else {
+        return elm.querySelector(selector);
+    }
 }
 
 const make = document.createElement.bind(document);
@@ -141,8 +164,9 @@ function isDescendant(parent, child) {
      while (node !== null) {
          if (node === parent) {
              return true;
+         } else {
+            node = node.parentNode;
          }
-         node = node.parentNode;
      }
      return false;
 }
@@ -159,8 +183,8 @@ const createSVG = (function(){
     const XLINKNS = "http://www.w3.org/1999/xlink";
 
     return function (href) {
-        let svg = document.createElementNS(SVGNS, "svg");
-        let use = document.createElementNS(SVGNS, "use");
+        const svg = document.createElementNS(SVGNS, "svg");
+        const use = document.createElementNS(SVGNS, "use");
         use.setAttributeNS(XLINKNS,"href", href);
         svg.appendChild(use);
 
@@ -182,24 +206,6 @@ function setDisabled(elm, b) {
 
 function setChecked(elm, b) {
     _setAttribute(elm, "checked", b);
-}
-
-function $(selector, elm, all) {
-    if (typeof elm === "boolean") {
-        all = elm;
-        elm = document;
-    } else if (isUdf(elm)) {
-        all = false;
-        elm = document;
-    } else if (isUdf(all)) {
-        all = false;
-    }
-
-    if (all) {
-        return elm.querySelectorAll(selector);
-    } else {
-        return elm.querySelector(selector);
-    }
 }
 
 function clampAlpha(arr) {

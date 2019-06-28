@@ -1,11 +1,11 @@
 
 import Enforcer from "./enforcer";
 import { extend } from "./utility";
-import { Vector2 } from "./geometry";
 import { ToolUI } from "./toolUI";
 import { Slider } from "./input";
+import { addOptions } from "./options";
 
-export { SmoothArcPattern, SmoothArcPatternToolUI };
+export { SmoothCirclePattern, SmoothCirclePatternToolUI };
 
 const Pattern = (function(){
 	const DEFAULTS = { width: 10, color: [0, 0, 0, 255] };
@@ -16,23 +16,11 @@ const Pattern = (function(){
 			ef.enforceAbstract();
 			ef.enforceFunctions(["draw"]);
 
-			this._options = extend(DEFAULTS, options);
-		}
-
-		setOptions(options) {
-			this._options = extend(this._options, options);
-			this._initOptions(options);
-		}
-
-		_initOptions(options) {
-			if (options.color) {
-				const c = options.color;
+			addOptions(this);
+			this._options.addListener("color", (c) => {
 				this._color = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]})`;
-			}
-		}
-
-		getOptions() {
-			return extend(this._options);
+			});
+			this._options.set(DEFAULTS, options);
 		}
 	};
 })();
@@ -53,8 +41,11 @@ const SmoothPattern = (function(){
 
 		draw(context, prevPos, pos) {
 			let dir = pos.subtract(prevPos);
-			const mag = dir.magnitude,
-				  distance = Math.max(this._options.width * this._options.distance / 100, 1);
+			const mag = dir.magnitude;
+
+			let distance = this._options.get("width") * this._options.get("distance") / 100;
+			distance = Math.max(distance, 1);
+
 			const t = Math.floor(mag / distance),
 				  diff = dir.divide(t);
 			
@@ -72,61 +63,50 @@ const SmoothPattern = (function(){
 	};
 })();
 
-const SmoothArcPattern = (function(){
-	return class extends SmoothPattern {
-		_draw(context, pos) {
-			context.beginPath();
-			context.arc(pos.x, pos.y, this._options.width / 2, 0, this._MAX_ANGLE);
-			context.fillStyle = this._color;
-			context.fill();
-			context.closePath();
-		}
-	};
-})();
-
-class PatternToolUI extends ToolUI {
-	constructor(globals) {
-		super({ patternOptions: {} });
-		this._globals = globals;
-	}
-
-	_getPatternOptions() {
-		return this.settings.get("patternOptions");
-	}
-
-	_setPatternOptions(options) {
-		const oldOptions = this._getPatternOptions();
-		const newOptions = extend(oldOptions, options);
-		this.settings.put("patternOptions", newOptions);
+class SmoothCirclePattern extends SmoothPattern {
+	_draw(context, pos) {
+		context.beginPath();
+		context.arc(pos.x, pos.y, this._options.get("width") / 2, 0, this._MAX_ANGLE);
+		context.fillStyle = this._color;
+		context.fill();
+		context.closePath();
 	}
 }
 
-const SmoothArcPatternToolUI = (function(){
+class PatternToolUI extends ToolUI {
+	constructor(settings, patternSettings, globals) {
+		super();
+		this._settings = settings;
+		this._patternSettings = patternSettings;
+		this._globals = globals;
+	}
+}
+
+const SmoothCirclePatternToolUI = (function(){
 	const txt_widthSlider = "Width", 
 		  txt_smoothSlider = "Smoothness";
 
 	return class extends PatternToolUI {
 		_createUI() {
 			const d = document.createElement("div");
-			const current = this._getPatternOptions();
 
-			const widthSlider = new Slider(current.width, 1, 25, 
+			const widthSlider = new Slider(this._patternSettings.get("width"), 1, 25, 
 										   { text: txt_widthSlider });
-			widthSlider.onChange.addListener((v) => {
-				this._setPatternOptions({ width: v });
+			widthSlider.onChange.addListener((val) => {
+				this._patternSettings.put("width", val);
 			});
 			d.appendChild(widthSlider.root);
 
-			const smoothSlider = new Slider(current.distance, 1, 40, 
+			const smoothSlider = new Slider(this._patternSettings.get("distance"), 1, 40, 
 											{ text: txt_smoothSlider, 
 											  reverse: true });
-			smoothSlider.onChange.addListener((v) => {
-				this._setPatternOptions({ distance: v });
+			smoothSlider.onChange.addListener((val) => {
+				this._patternSettings.put("distance", val);
 			});
 			d.appendChild(smoothSlider.root);
 
-			const updateColor = (c) => {
-				this._setPatternOptions({ color: c.slice() });
+			const updateColor = (val) => {
+				this._patternSettings.put("color", val.slice());
 			};
 			updateColor(this._globals.get("primaryColor"));
 			this._globals.addListener("primaryColor", updateColor);

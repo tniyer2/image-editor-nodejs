@@ -1,14 +1,15 @@
 
 import Enforcer from "./enforcer";
-import { forEach, extend, snap } from "./utility";
+import { snap, forEach } from "./utility";
 import { Vector2 } from "./geometry";
 import { Command } from "./command";
+import { addOptions } from "./options";
 
 export { DragCommand, ResizeCommand, RotateCommand };
 
 class BoxCommand extends Command {
 	constructor(boxes, pos) {
-		super(Command.continuous);
+		super(Command.CONTINUOUS);
 
 		new Enforcer(BoxCommand, this, "BoxCommand").enforceAbstract();
 
@@ -44,14 +45,14 @@ const DragCommand = (function(){
 	return class extends BoxCommand {
 		constructor(box, pos, options) {
 			super(box, pos);
-			this._options = extend(DEFAULTS, options);
+			addOptions(this, DEFAULTS, options);
 		}
 
 		_execute(mousePosition, snapMovement, lock) {
 			let diff = mousePosition.subtract(this._referencePosition);
 
 			if (snapMovement) {
-				diff = diff.map(a => snap(a, this._options.snapOffset));
+				diff = diff.map(a => snap(a, this._options.get("snapOffset")));
 			}
 
 			if (lock && !this._ignore) {
@@ -90,13 +91,13 @@ const ResizeCommand = (function(){
 	return class extends BoxCommand {
 		constructor(boxes, pos, angle, options) {
 			super(boxes, pos);
+			addOptions(this, DEFAULTS, options);
 
 			this._right = Vector2.right.rotate(angle);
 			this._down = Vector2.down.rotate(angle);
-			this._options = extend(DEFAULTS, options);
 			this._initialDimensions = this._getBoxDimensions();
 
-			const d = this._options.direction;
+			const d = this._options.get("direction");
 			this._moveTop = MOVE_TOP[d]; 
 			this._moveLeft = MOVE_LEFT[d]; 
 			this._freezeX = FREEZE_X[d];
@@ -108,11 +109,12 @@ const ResizeCommand = (function(){
 		}
 
 		_execute(mousePosition, snapMovement, lock) {
-			const fixAspectRatio = this._options.fixAspectRatio,
+			const fixAspectRatio = this._options.get("fixAspectRatio"),
 				  setX = !(this._freezeX || (this._freezeY && fixAspectRatio)),
 				  setY = !(this._freezeY || (this._freezeX && fixAspectRatio)),
 				  setAspectRatio = fixAspectRatio && (setX || setY),
-				  snapOffset = snapMovement ? this._options.snapOffset : this._options.defaultSnapOffset;
+				  snapOffset = snapMovement ? this._options.get("snapOffset") : 
+				  							  this._options.get("defaultSnapOffset");
 
 			const diff = mousePosition.subtract(this._referencePosition);
 			let diffX = snap(diff.dot(this._right), snapOffset),
@@ -142,17 +144,17 @@ const ResizeCommand = (function(){
 				}
 
 				if (setX) {
-					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this._options.minWidth);
+					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this._options.get("minWidth"));
 					box.left = x[0];
-					box.width = x[1];
+					box.scaleX = x[1] / box.width;
 				} else {
 					box.left = pos.x;
 					box.width = dim.x;
 				}
 				if (setY) {
-					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this._options.minHeight);
+					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this._options.get("minHeight"));
 					box.top = y[0];
-					box.height = y[1];
+					box.scaleY = y[1] / box.height;
 				} else {
 					box.top = pos.y;
 					box.height = dim.y;
@@ -201,9 +203,9 @@ const RotateCommand = (function(){
 		constructor(boxes, pos, options) {
 			super(boxes, pos);
 			
-			this._options = extend(DEFAULTS, options);
-			this._snapOffset = this._options.snapOffset * Vector2.degToRad;
+			addOptions(this, DEFAULTS, options);
 
+			this._snapOffset = this._options.get("snapOffset") * Vector2.degToRad;
 			this._initialAngles = this._getBoxAngles();
 		}
 
@@ -213,12 +215,12 @@ const RotateCommand = (function(){
 
 		_execute(mousePosition, snapMovement) {
 			const dir = mousePosition.subtract(this._referencePosition);
-			let d = dir.angle + Vector2.angleOffset;
+			let a = dir.angle + Vector2.angleOffset;
 			if (snapMovement) {
-				d = d - (d % this._snapOffset);
+				a -= (a % this._snapOffset);
 			}
 			this._boxes.forEach((box) => {
-				box.angle = d;
+				box.angle = a;
 			});
 		}
 

@@ -1,12 +1,13 @@
 
-import { make, removeChildren, addGetter, extend, isUdf } from "./utility";
+import { isUdf, addGetter, make } from "./utility";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
 import { MultiCommand, ToggleLayerCommand, CommandStack } from "./command";
 import { MoveTool, MoveToolUI } from "./transform";
 import { PaintTool } from "./paint";
-import { SmoothArcPattern, SmoothArcPatternToolUI } from "./pattern";
-import { ColorPicker, ColorBox } from "./input";
+import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
+import { ColorPicker, ColorBox } from "./colorInput";
 import { LayerManager } from "./layer";
+import { addOptions } from "./options";
 
 const DEFAULTS = { viewport: null,
 				   primaryColor: [0, 0, 0, 255],
@@ -14,8 +15,10 @@ const DEFAULTS = { viewport: null,
 
 export default class {
 	constructor(options) {
-		this._options = extend(DEFAULTS, options);
-		const lm = new LayerManager(this._options.viewport);
+		addOptions(this, DEFAULTS, options);
+
+		const lm = new LayerManager(this._options.get("viewport"),
+									this._options.get("innerViewport"));
 		addGetter(this, "layerManager", lm);
 
 		this._initStack();
@@ -33,7 +36,7 @@ export default class {
 	}
 
 	_initStack() {
-		const stack = new CommandStack(this._options.stackLimit);
+		const stack = new CommandStack(this._options.get("stackLimit"));
 		addGetter(this, "stack", stack);
 	}
 
@@ -41,7 +44,7 @@ export default class {
 		const g = new EventDictionary();
 		addGetter(this, "globals", g);
 
-		g.put("primaryColor", this._options.primaryColor);
+		g.put("primaryColor", this._options.get("primaryColor"));
 	}
 
 	_initTools() {
@@ -50,15 +53,18 @@ export default class {
 
 		this._tools = new ConstantDictionary();
 
-		let t;
-		t = new MoveTool(this._layerManager, this._stack, 
-						 new MoveToolUI(), 
-						 { cursor: "all-scroll" });
-		this._tools.put("Move", t);
-		t = new PaintTool(this._layerManager, this._stack, 
-						  new SmoothArcPatternToolUI(this._globals), 
-						  new SmoothArcPattern());
-		this._tools.put("Paint", t);
+		const t1 = {};
+		t1.tool = new MoveTool(this._layerManager, this._stack, { cursor: "all-scroll" });
+		t1.ui 	= new MoveToolUI(t1.tool.options, this._globals);
+		this._tools.put("Move", t1);
+
+		const t2 = {};
+		const pattern1 = new SmoothCirclePattern();
+		t2.tool = new PaintTool(this._layerManager, this._stack, pattern1);
+		t2.ui 	= new SmoothCirclePatternToolUI(t2.tool.options, 
+												pattern1.options, 
+												this._globals);
+		this._tools.put("Paint", t2);
 	}
 
 	get tools() {
@@ -66,17 +72,19 @@ export default class {
 	}
 
 	selectTool(toolName) {
-		const tool = this._tools.get(toolName);
-		if (isUdf(tool)) {
+		const toolInfo = this._tools.get(toolName);
+		if (isUdf(toolInfo)) {
 			throw new Error(`Tool with name '${toolName}' does not exist.`);
 		}
 
 		if (this._selectedTool) {
-			this._selectedTool.disable();
+			this._selectedTool.tool.disable();
+			this._selectedTool.ui.disable();
 		}
 
-		tool.enable(this._toolOptionsParent);
-		this._selectedTool = tool;
+		toolInfo.tool.enable();
+		toolInfo.ui.enable(this._toolOptionsParent);
+		this._selectedTool = toolInfo;
 	}
 
 	addLayer(layer) {
@@ -92,8 +100,8 @@ export default class {
 	}
 
 	removeLayers(layers) {
-		const commands = layers.map((layer) => {
-			return new ToggleLayerCommand(this._layerManager, layer, false);
+		const commands = layers.map((l) => {
+			return new ToggleLayerCommand(this._layerManager, l, false);
 		});
 		const c = new MultiCommand(commands);
 		this._stack.add(c);

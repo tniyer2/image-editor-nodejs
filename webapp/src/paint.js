@@ -1,5 +1,5 @@
 
-import { addGetter, extend, init, clamp, isUdf } from "./utility";
+import { addGetter } from "./utility";
 import { Box, Vector2 } from "./geometry";
 import { Command } from "./command";
 import { CanvasWidget } from "./widget";
@@ -133,7 +133,7 @@ class ImageDataRect {
 
 class PaintCommand extends Command {
 	constructor(layer) {
-		super(Command.continuous);
+		super(Command.CONTINUOUS);
 
 		this._layer = layer;
 		this._context = this._layer.canvas.getContext("2d");
@@ -206,17 +206,12 @@ class PaintWidget extends CanvasWidget {
 }
 
 class PaintTool extends Tool {
-	constructor(lm, stack, ui, pattern, options) {
-		super(lm, stack, ui, options);
+	constructor(lm, stack, pattern, options) {
+		super(lm, stack, options);
 
 		const paintWidgetOptions = { origin: () => Box.getOrigin(this._layerManager.parent), 
 					   	 			 scale: () => this._layerManager.scale };
 		this._widget = new PaintWidget(this._stack, pattern, paintWidgetOptions);
-
-		this._ui.settings.put("patternOptions", pattern.getOptions());
-		this._ui.settings.addListener("patternOptions", (v) => {
-			pattern.setOptions(v);
-		});
 	}
 
 	_enable() {

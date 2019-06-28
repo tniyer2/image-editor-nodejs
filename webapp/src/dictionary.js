@@ -1,91 +1,104 @@
 
-import { removeItem, isUdf } from "./utility";
 import { MyEvent } from "./event";
 
 export { Dictionary, ConstantDictionary, EventDictionary };
 
-class Dictionary {
-    constructor(options) {
-        this._inner = Object.create(options || null);
-    }
+const Dictionary = (function(){
+    const PROTO_PROP = "__proto__";
 
-    get keys() {
-        return Object.keys(this._inner);
-    }
-
-    get values() {
-        return Object.values(this._inner);
-    }
-
-    _checkValidName(name) {
-        if (name === "__proto__") {
-            throw new Error("name cannot have the value '__proto__'");
+    return class {
+        constructor(proto) {
+            this._inner = Object.create(proto || null);
         }
-    }
 
-    put(name, value) {
-        this._checkValidName(name);
-        this._inner[name] = value;
-    }
+        get keys() {
+            return Object.keys(this._inner);
+        }
 
-    remove(name) {
-        this._checkValidName(name);
-        delete this._inner[name]; 
-    }
+        get values() {
+            return Object.values(this._inner);
+        }
 
-    has(name) {
-        this._checkValidName(name);
-        return name in this._inner;
-    }
+        _checkValidName(name) {
+            if (name === PROTO_PROP) {
+                throw new Error(`name cannot have the value '${PROTO_PROP}'`);
+            }
+        }
 
-    get(name) {
-        this._checkValidName(name);
-        return this._inner[name];
-    }
-}
+        put(name, value) {
+            this._checkValidName(name);
+            this._inner[name] = value;
+        }
+
+        remove(name) {
+            this._checkValidName(name);
+            delete this._inner[name]; 
+        }
+
+        has(name) {
+            this._checkValidName(name);
+            return name in this._inner;
+        }
+
+        get(name) {
+            this._checkValidName(name);
+            return this._inner[name];
+        }
+    };
+})();
 
 class ConstantDictionary extends Dictionary {
     put(name, value) {
         this._checkValidName(name);
         if (this.has(name)) {
             throw new Error(`Cannot set value, key '${name}' has already been set.`);
-        }
-        else {
+        } else {
             super.put(name, value);
         }
     }
 
     remove() {
-        throw new Error("Cannot call remove on an object of type ConstantDictionary");
+        throw new Error("Cannot call remove on ConstantDictionary");
     }
 }
 
 class EventDictionary extends Dictionary {
-    constructor(options) {
-        super(options);
+    constructor(proto) {
+        super(proto);
         this._events = new Dictionary();
     }
 
-    mutate(name, cb) {
-        let value = super.get(name);
-        cb(value);
+    _updateEvent(name, value) {
         if (this._events.has(name)) {
             this._events.get(name).trigger(value);
         }
+    }
+
+    mutate(name, cb) {
+        const value = super.get(name);
+        cb(value);
+        this._updateEvent(name, value);
     }
 
     put(name, value) {
         super.put(name, value);
-        if (this._events.has(name)) {
-            this._events.get(name).trigger(value);
-        }
+        this._updateEvent(name, value);
+    }
+
+    remove(name, value) {
+        super.remove(name, value);
+        this._updateEvent(name);
     }
 
     addListener(name, listener) {
-        if (!this._events.has(name)) {
-            this._events.put(name, new MyEvent());
+        let event;
+        if (this._events.has(name)) {
+            event = this._events.get(name);
+        } else {
+            event = new MyEvent();
+            this._events.put(name, event);
         }
-        this._events.get(name).interface.addListener(listener);
+        event.interface.addListener(listener);
     }
 
     removeListener(name, listener) {
