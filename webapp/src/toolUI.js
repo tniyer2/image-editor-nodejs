@@ -1,18 +1,7 @@
 
-import Enforcer from "./enforcer";
-
-export { ToolUI, EmptyToolUI };
-
 const cl_element = "tool-options";
 
-class ToolUI {
-	constructor() {
-		const ef = new Enforcer(ToolUI, this, "ToolUI");
-		ef.enforceAbstract();
-		ef.enforceFunctions(["_createUI"]);
-		ef.preventOverride(["enable", "disable"]);
-	}
-
+export default class ToolUI {
 	_initialize() {
 		const d = this._createUI();
 		if (d instanceof HTMLElement) {
@@ -34,11 +23,5 @@ class ToolUI {
 
 	disable() {
 		this._element.remove();
-	}
-}
-
-class EmptyToolUI extends ToolUI {
-	_createUI() {
-		return document.createElement("div");
 	}
 }

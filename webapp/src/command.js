@@ -1,5 +1,4 @@
 
-import Enforcer from "./enforcer";
 import { isNumber, addGetter } from "./utility";
 import { addEvent } from "./event";
 
@@ -12,15 +11,8 @@ const Command = (function(){
 
 	return class {
 		constructor(type) {
-			let ef = new Enforcer(Command, this, "Command");
-			ef.enforceAbstract();
-			ef.enforceFunctions(["_execute", "_undo", "_redo"]);
-			ef.preventOverride(["execute", "close", "undo", "redo"]);
-
 			if (type === Command.IMMEDIATE) {/*ignore*/}
-			else if (type === Command.CONTINUOUS) {
-				ef.enforceFunctions(["_close"]);
-			} else {
+			else if (type === Command.CONTINUOUS) {/*ignore*/} else {
 				throw new Error("type is not valid.");
 			}
 			addGetter(this, "type", type);

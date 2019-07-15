@@ -3,16 +3,15 @@ import Editor from "./editor";
 import { Layer } from "./layer";
 import { $, clamp, setDisabled, make, createSVG } from "./utility";
 
-const root = $("#root"),
-	  fileInput = $("#file-upload"),
-	  undoBtn = $("#undo-btn"),
-	  redoBtn = $("#redo-btn"),
-	  toolOptionsParent = $("#tool-options"),
-	  toolsParent = $("#tools"),
-	  toolbarOptions = $("#toolbar-options"),
-	  viewportWrapper = $("#viewport-wrapper"),
-	  viewport = $("#viewport"),
-	  layerCards = $("#layer-cards");
+const elm_root = $("#root"),
+	  elm_fileInput = $("#file-upload"),
+	  elm_undoBtn = $("#undo-btn"),
+	  elm_redoBtn = $("#redo-btn"),
+	  elm_toolOptionsParent = $("#tool-options"),
+	  elm_toolsParent = $("#tools"),
+	  elm_toolbarOptions = $("#toolbar-options"),
+	  elm_viewportWrapper = $("#viewport-wrapper"),
+	  elm_viewport = $("#viewport");
 
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
@@ -21,11 +20,6 @@ const cl_canvas = "viewport__canvas",
 	  cl_toolOptionsParent2 = "menubar__tool-options2",
 	  cl_toolBtn = "toolbar__tool",
 	  cl_toolName = "text",
-	  cl_layerCard = "infobar__layer-card",
-	  cl_layerCardSelected = "selected",
-	  cl_layerCardHelper = "helper",
-	  cl_layerCardCanvas = "canvas",
-	  cl_layerCardRemoveBtn = "remove",
 	  svg_remove = "#icon-trash";
 
 const SCALE_FACTOR = -0.0005,
@@ -36,45 +30,35 @@ const SCALE_FACTOR = -0.0005,
 let g_editor;
 
 function main() {
-	g_editor = new Editor({ viewport: viewportWrapper, innerViewport: viewport });
+	g_editor = new Editor({ viewport: elm_viewportWrapper, 
+							innerViewport: elm_viewport });
 
-	const d = g_editor.layerManager.parent;
-	d.classList.add(cl_layerParent);
-	viewport.appendChild(d);
-
-	const d2 = g_editor.toolOptionsParent;
-	d2.classList.add(cl_toolOptionsParent2);
-	toolOptionsParent.appendChild(d2);
-
-	root.appendChild(g_editor.colorPicker.root);
-	toolbarOptions.appendChild(g_editor.primaryColorBox.root);
-
-	listenCommands();
-	listenViewport();
-	listenMenubar();
-	listenTools();
-	listenLayers();
+	appendDOM();
+	listenUndoRedoCommands();
+	elm_viewportWrapper.addEventListener("keydown", deleteLayerListener);
+	listenViewportScroll();
+	listenFileUpload();
+	listenUndoRedoButtons();
+	createToolButtons();
+	listenLayerEvents();
 
 	window.onbeforeunload = () => true;
 }
 
-function listenCommands() {
-	listenUndoRedo();
+function appendDOM() {
+	const d = g_editor.layerManager.parent;
+	d.classList.add(cl_layerParent);
+	elm_viewport.appendChild(d);
 
-	viewportWrapper.addEventListener("keydown", deleteListener);
-	layerCards.addEventListener("keydown", deleteListener);
+	const d2 = g_editor.toolOptionsParent;
+	d2.classList.add(cl_toolOptionsParent2);
+	elm_toolOptionsParent.appendChild(d2);
+
+	elm_root.appendChild(g_editor.colorPicker.root);
+	elm_toolbarOptions.appendChild(g_editor.primaryColorBox.root);
 }
 
-function deleteListener(evt) {
-	if (evt.key === "Delete") {	
-		const selected = g_editor.layerManager.selected;
-		if (selected.length) {
-			g_editor.removeLayers(selected);
-		}
-	}
-}
-
-function listenUndoRedo() {
+function listenUndoRedoCommands() {
 	const listener = (evt) => {
 		if (evt.ctrlKey) {
 			const key = evt.key.toLowerCase(),
@@ -103,27 +87,36 @@ function listenUndoRedo() {
 	attach();
 }
 
-function listenViewport() {
-	viewportWrapper.addEventListener("wheel", (evt) => {
+function deleteLayerListener(evt) {
+	if (evt.key === "Delete") {	
+		const selected = g_editor.layerManager.selected;
+		if (selected.length) {
+			g_editor.removeLayers(selected);
+		}
+	}
+}
+
+function listenViewportScroll() {
+	elm_viewportWrapper.addEventListener("wheel", (evt) => {
 		const current = g_editor.stack.current;
 		const vp = g_editor.layerManager.innerViewport;
-		if (!(current && current.open)) {
+
+		if (!current || !current.open) {
 			let scale = vp.scaleX;
 
 			scale += evt.deltaY * SCALE_FACTOR;
 			scale = clamp(scale, MIN_SCALE, MAX_SCALE);
 
-			vp.scaleX = scale;
-			vp.scaleY = scale;
+			vp.scaleX = vp.scaleY = scale;
 		}
 	});
 }
 
-function listenMenubar() {
-	fileInput.addEventListener("change", (evt) => {
+function listenFileUpload() {
+	elm_fileInput.addEventListener("change", (evt) => {
 		const file = evt.target.files[0];
-		if (!file) return;
 		evt.target.value = null;
+		if (!file) return;
 
 		const image = new Image();
 		image.addEventListener("load", () => {
@@ -135,19 +128,22 @@ function listenMenubar() {
 		});
 		image.src = URL.createObjectURL(file);
 	});
+}
+
+function listenUndoRedoButtons() {
 	g_editor.stack.onChange.addListener(() => {
-		setDisabled(undoBtn, !g_editor.stack.canUndo);
-		setDisabled(redoBtn, !g_editor.stack.canRedo);
+		setDisabled(elm_undoBtn, !g_editor.stack.canUndo);
+		setDisabled(elm_redoBtn, !g_editor.stack.canRedo);
 	});
-	undoBtn.addEventListener("click", () => {
+	elm_undoBtn.addEventListener("click", () => {
 		g_editor.stack.undo();
 	});
-	redoBtn.addEventListener("click", () => {
+	elm_redoBtn.addEventListener("click", () => {
 		g_editor.stack.redo();
 	});
 }
 
-function listenTools() {
+function createToolButtons() {
 	g_editor.tools.forEach((t) => {
 		const btn = make("button");
 		btn.classList.add(cl_toolBtn);
@@ -155,7 +151,7 @@ function listenTools() {
 		name.innerText = t;
 		name.classList.add(cl_toolName);
 		btn.appendChild(name);
-		toolsParent.appendChild(btn);
+		elm_toolsParent.appendChild(btn);
 
 		selectToolOnClick(btn, t);
 	});
@@ -167,76 +163,17 @@ function selectToolOnClick(button, toolName) {
 	});
 }
 
-function listenLayers() {
+function listenLayerEvents() {
 	g_editor.layerManager.onAdd.addListener((layer) => {
 		layer.canvas.classList.add(cl_canvas);
 		layer.element.classList.add(cl_canvasParent);
-		
-		const card = createLayerCard(layer);
-		layerCards.appendChild(card);
-		layer["data-card"] = card;
-	});
-	g_editor.layerManager.onRemove.addListener((layer) => {
-		layerCards.removeChild(layer["data-card"]);
 	});
 	g_editor.layerManager.onSelect.addListener((layer) => {
 		layer.element.classList.add(cl_layerSelected);
-		layer["data-card"].classList.add(cl_layerCardSelected);
 	});
 	g_editor.layerManager.onDeselect.addListener((layer) => {
 		layer.element.classList.remove(cl_layerSelected);
-		layer["data-card"].classList.remove(cl_layerCardSelected);
 	});
-}
-
-function createLayerCard(layer) {
-	const card = make("div");
-	card.classList.add(cl_layerCard);
-	card.addEventListener("click", (evt) => {
-		if (evt.ctrlKey) {
-			if (layer["data-selected"]) {
-				g_editor.layerManager.deselect(layer);
-			} else {
-				g_editor.layerManager.select(layer);
-			}
-		}
-		else {
-			g_editor.layerManager.deselectAll();
-			g_editor.layerManager.select(layer);
-		}
-	});
-
-	const canvas = make("canvas");
-	canvas.width = 100;
-	canvas.height = 100;
-	const drawCanvas = () => {
-		setTimeout(() => {
-			const context = canvas.getContext("2d");
-			context.clearRect(0, 0, 100, 100);
-			context.drawImage(layer.canvas, 0, 0, layer.sourceWidth, layer.sourceHeight, 0, 0, 100, 100);
-		});
-	};
-	drawCanvas();
-	g_editor.stack.onChange.addListener(drawCanvas);
-	canvas.classList.add(cl_layerCardCanvas);
-	card.appendChild(canvas);
-
-	const span = make("span");
-	span.classList.add(cl_layerCardHelper);
-	card.appendChild(span);
-
-	const removeBtn = make("button");
-	removeBtn.classList.add(cl_layerCardRemoveBtn);
-	removeBtn.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		g_editor.removeLayer(layer);
-		g_editor.stack.onChange.removeListener(drawCanvas);
-	});
-	const svg = createSVG(svg_remove);
-	removeBtn.appendChild(svg);
-	card.appendChild(removeBtn);
-
-	return card;
 }
 
 main();

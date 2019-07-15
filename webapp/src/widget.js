@@ -1,33 +1,45 @@
 
-import Enforcer from "./enforcer";
+import { myeval } from "./utility";
 import { MouseActionHandler } from "./action";
-import { addOptions } from "./options";
 
 export { BoxWidget, CanvasWidget, SelectWidget };
 
-const BoxWidget = (function(){
-	const DEFAULTS = { boxes: [], offStackBoxes: [] };
-
-	return class extends MouseActionHandler {
-		constructor(options) {
-			super();
-			addOptions(this, DEFAULTS, options);
-
-			const ef = new Enforcer(BoxWidget, this, "BoxWidget");
-			ef.enforceAbstract();
-		}
-	};
-})();
-
-class CanvasWidget extends MouseActionHandler {
-	constructor(options) {
+class BoxWidget extends MouseActionHandler {
+	constructor(groups) {
 		super();
-		addOptions(this, options);
 
-		const ef = new Enforcer(CanvasWidget, this, "CanvasWidget");
-		ef.enforceAbstract();
+		if (groups.constructor !== Array) {
+			groups = [groups];
+		}
+		this._boxGroups = groups;
 	}
 
+	_onStart(evt) {
+		this._commands = this._boxGroups.map((g) => {
+			const c = this._getCommand(myeval(g.boxes), evt);
+			const s = myeval(g.stack);
+			if (s) {
+				s.add(c);
+			}
+			return c;
+		});
+	}
+
+	_onMove(evt) {
+		const args = this._getArguments(evt);
+		this._commands.forEach((c) => {
+			c.execute(...args);
+		});
+	}
+
+	_onEnd(evt) {
+		this._commands.forEach((c) => {
+			c.close();
+		});
+	}
+}
+
+class CanvasWidget extends MouseActionHandler {
 	_getMousePosition(evt, layer) {
 		const l = layer;
 		const rotPosition = l.position
@@ -44,34 +56,33 @@ class CanvasWidget extends MouseActionHandler {
 class SelectWidget extends MouseActionHandler {
 	constructor(lm) {
 		super();
-		this._layerManager = lm;
+		this._lm = lm;
 	}
 
 	_onClick(mdEvt, muEvt, layer) {
-		if (layer) {		
-			if (mdEvt.ctrlKey) {
-				this._layerManager.select(layer);
-			} else {
-				this._layerManager.deselectAll();
-				this._layerManager.select(layer);
+		if (layer) {
+			const ctrl = mdEvt.ctrlKey,
+				  shift = mdEvt.shiftKey;
+			if (ctrl && layer["data-selected"]) {
+				this._lm.deselect(layer);
+			} else if (shift && !layer["data-selected"]) {
+				this._lm.select(layer);
+			} else if (!ctrl && !shift) {
+				this._lm.deselectAll();
+				this._lm.select(layer);
 			}
-		} else if (this._layerManager.selected.length > 1) {
-			this._layerManager.deselectAll();
 		}
 	}
 
 	_onStart(evt, layer)
 	{
 		if (layer && !layer["data-selected"]) {
-			if (evt.ctrlKey) {
-				this._layerManager.select(layer);
+			if (evt.shiftKey) {
+				this._lm.select(layer);
 			} else {
-				this._layerManager.deselectAll();
-				this._layerManager.select(layer);
+				this._lm.deselectAll();
+				this._lm.select(layer);
 			}
 		}
 	}
-
-	_onMove(evt, layer){}
-	_onEnd(evt, layer){}
 }

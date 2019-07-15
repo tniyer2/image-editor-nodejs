@@ -1,9 +1,8 @@
 
 import { addGetter } from "./utility";
-import { Box, Vector2 } from "./geometry";
+import { Vector2 } from "./geometry";
 import { Command } from "./command";
 import { CanvasWidget } from "./widget";
-import { Tool } from "./tool";
 
 export { ImageDataRect, PaintTool };
 
@@ -141,8 +140,8 @@ class PaintCommand extends Command {
 		const x = this._layer.innerLeft,
 			  y = this._layer.innerTop,
 			  w = this._layer.innerWidth,
-			  h = this._layer.innerHeight,
-			  imageData = this._context.getImageData(x, y, w, h);
+			  h = this._layer.innerHeight;
+		const imageData = this._context.getImageData(x, y, w, h);
 		this._initialRect = new ImageDataRect(imageData, x, y);
 	}
 
@@ -173,8 +172,8 @@ class PaintCommand extends Command {
 }
 
 class PaintWidget extends CanvasWidget {
-	constructor(stack, pattern, options) {
-		super(options);
+	constructor(stack, pattern) {
+		super();
 
 		this._stack = stack;
 		this._pattern = pattern;
@@ -182,7 +181,9 @@ class PaintWidget extends CanvasWidget {
 
 	_onStart(evt, layer) {
 		this._command = new PaintCommand(layer);
-		this._stack.add(this._command);
+		if (this._stack) {
+			this._stack.add(this._command);
+		}
 
 		this._prevPosition = this._getMousePosition(evt, layer);
 	}
@@ -205,20 +206,19 @@ class PaintWidget extends CanvasWidget {
 	}
 }
 
-class PaintTool extends Tool {
-	constructor(lm, stack, pattern, options) {
-		super(lm, stack, options);
+class PaintTool {
+	constructor(editor, pattern) {
+		this._editor = editor;
+		this._pattern = pattern;
 
-		const paintWidgetOptions = { origin: () => Box.getOrigin(this._layerManager.parent), 
-					   	 			 scale: () => this._layerManager.scale };
-		this._widget = new PaintWidget(this._stack, pattern, paintWidgetOptions);
+		this._widget = new PaintWidget(this._editor.stack, this._pattern);
 	}
 
-	_enable() {
-		this._widget.handle(this._layerManager.layerMouseAction);
+	enable() {
+		this._widget.handle(this._editor.layerManager.layerMouseAction);
 	}
 
-	_disable() {
-		this._widget.stopHandling(this._layerManager.layerMouseAction);
+	disable() {
+		this._widget.stopHandling(this._editor.layerManager.layerMouseAction);
 	}
 }

@@ -12,11 +12,19 @@ const Toggle = (function(){
 	const DEFAULTS = { text: "" };
 
 	return class {
-		constructor(initialValue, options) {
+		constructor(iv, options) {
+			this._initialValue = iv;
 			addOptions(this, DEFAULTS, options);
 
+			this._createDOM();
+			this._initEvents();
+			this._attachListeners();
+		}
+
+		_createDOM() {
 			const d = make("div");
 			d.classList.add(cl_toggle.root);
+			addGetter(this, "root", d);
 
 			const text = make("span");
 			text.classList.add(cl_toggle.text);
@@ -27,21 +35,25 @@ const Toggle = (function(){
 
 			const input = make("input");
 			input.type = "checkbox";
-			setChecked(input, initialValue);
-			addEvent(this, "onToggle");
-			input.addEventListener("change", (evt) => {
-				this._onToggle.trigger(evt.target.checked);
-			});
-			this._input = input;
+			setChecked(input, this._initialValue);
 			label.appendChild(input);
+			this._input = input;
 
 			const slider = make("span");
 			slider.classList.add(cl_toggle.slider);
 			label.appendChild(slider);
 
 			d.appendChild(label);
+		}
 
-			addGetter(this, "root", d);
+		_initEvents() {
+			addEvent(this, "onToggle");
+		}
+
+		_attachListeners() {
+			this._input.addEventListener("change", (evt) => {
+				this._onToggle.trigger(evt.target.checked);
+			});
 		}
 
 		get toggled() {
@@ -54,10 +66,20 @@ const Slider = (function(){
 	const cl_slider = { root: "slider",
 						text: "slider__text" };
 	const DEFAULTS = { text: "", reverse: false };
+
 	return class {
-		constructor(initialValue, min, max, options) {
+		constructor(iv, min, max, options) {
+			this._initialValue = iv;
+			this._min = min;
+			this._max = max;
 			addOptions(this, DEFAULTS, options);
 
+			this._createDOM();
+			this._initEvents();
+			this._attachListeners();
+		}
+
+		_createDOM() {
 			const d = make("div");
 			d.classList.add(cl_slider.root);
 			addGetter(this, "root", d);
@@ -70,16 +92,22 @@ const Slider = (function(){
 			const input = make("input");
 			input.style.direction = this._options.get("reverse") ? "rtl" : "ltr";
 			input.type = "range";
-			input.min = min;
-			input.max = max;
-			input.value = initialValue;
+			input.min = this._min;
+			input.max = this._max;
+			input.value = this._initialValue;
+			d.appendChild(input);
+			this._input = input;
+		}
+
+		_initEvents() {
 			addEvent(this, "onChange");
-			input.addEventListener("change", (evt) => {
+		}
+
+		_attachListeners() {
+			this._input.addEventListener("change", (evt) => {
 				const v = Number(evt.target.value);
 				this._onChange.trigger(v);
 			});
-			this._input = input;
-			d.appendChild(input);
 		}
 
 		get value() {

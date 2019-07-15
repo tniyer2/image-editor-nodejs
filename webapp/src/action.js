@@ -1,6 +1,5 @@
 
-import Enforcer from "./enforcer";
-import { warnIfError, forEach } from "./utility";
+import { bindFunctions, warnIfError, forEach } from "./utility";
 import { Vector2 } from "./geometry";
 import { addOptions } from "./options";
 import { addEvent } from "./event";
@@ -10,77 +9,65 @@ export { Action, ActionHandler, ActionPiper,
 		 MouseAction, MouseActionHandler, MouseActionPiper };
 
 class Action {
-	constructor() {
-		const ef = new Enforcer(Action, this, "Action");
-		ef.enforceAbstract();
-		ef.enforceFunctions(["dispose"]);
-	}
+	constructor() {}
+	dispose() {}
 }
 
 class ActionHandler {
-	constructor(eventNames, functionNames) {
-		let ef = new Enforcer(ActionHandler, this, "ActionHandler");
-		ef.enforceAbstract();
-		ef.enforceFunctions(functionNames);
+	constructor(en, ln) {
+		this._eventNames = en;
 
-		this._eventNames = eventNames;
-		functionNames.forEach((f) => {
-			this[f] = this[f].bind(this);
-		});
-		this._functionNames = functionNames;
+		bindFunctions(this, ln, true);
+		this._listenerNames = ln;
 	}
 
 	handle(action) {
-		forEach(this._eventNames, this._functionNames, (e, n) => {
-			action[e].addListener(this[n]);
+		forEach(this._eventNames, this._listenerNames, (e, l) => {
+			const f = this[l];
+			if (f) {
+				action[e].addListener(f);
+			}
 		});
 	}
 
 	stopHandling(action) {
-		forEach(this._eventNames, this._functionNames, (e, n) => {
-			action[e].removeListener(this[n]);
-		});	
+		forEach(this._eventNames, this._listenerNames, (e, l) => {
+			const f = this[l];
+			if (f) {
+				action[e].removeListener(f);
+			}
+		});
 	}
 }
 
 class ActionPiper extends Action {
-	constructor(inputNames, outputNames) {
+	constructor(ien, oen) {
 		super();
 
-		new Enforcer(ActionPiper, this, "ActionPiper").enforceAbstract();
+		this._inputEventNames = ien;
+		this._outputEventNames = oen || ien;
 
-		this._inputNames = inputNames;
-		this._outputNames = outputNames || inputNames;
-
-		this._outputNames.forEach((n) => {
-			addEvent(this, n, "_" + n);
+		this._outputEventNames.forEach((n) => {
+			addEvent(this, n);
 		});
 
-		this._removeFunctions = [];
+		this._cleanUpFunctions = [];
 	}
 
 	dispose() {
-		this._removeFunctions.forEach((f) => {
-			f();
+		this._cleanUpFunctions.forEach((dispose) => {
+			dispose();
 		});
-		this._removeFunctions = [];
+		this._cleanUpFunctions = [];
 	}
 
 	pipe(action) {
-		forEach(this._inputNames, this._outputNames, (i, o) => {
-			let a = action[i];
-			let l = this._getListener("_" + o);
-			a.addListener(l);
-			this._removeFunctions.push(() => {
-				a.removeListener(l);
-			});
-		});
-	}
-
-	_getListener(eventName) {
-		return (...a) => { 
-			this[eventName].trigger(...a);
-		};
+		forEach(this._inputEventNames, 
+				this._outputEventNames, 
+				(i, o) => {
+					const rl = this["_" + o].linkTo(action[i]);
+					this._cleanUpFunctions.push(rl);
+				});
 	}
 }
 
@@ -206,9 +193,8 @@ const MouseAction = (function(){
 
 class MouseActionHandler extends ActionHandler {
 	constructor() {
-		let names = MouseAction.eventNames;
+		const names = MouseAction.eventNames;
 		super(names, names.map(n => "_" + n));
-		new Enforcer(MouseActionHandler, this, "MouseActionHandler").enforceAbstract();
 	}
 
 	_getMousePosition(evt) {

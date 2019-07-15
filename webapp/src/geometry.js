@@ -185,6 +185,7 @@ class Box {
 		createVectorProperty(this, "scale", "scaleX", "scaleY");
 		createVectorProperty(this, "localPosition", "localLeft", "localTop");
 		createVectorProperty(this, "position", "left", "top");
+		createVectorProperty(this, "localDimensions", "localWidth", "localHeight");
 		createVectorProperty(this, "dimensions", "width", "height");
 
 		this._updateCssTransform = new AddToEventLoop(() => {
@@ -246,6 +247,10 @@ class Box {
 		b.height = b.bottom - b.top;
 
 		return b;
+	}
+
+	toLocal(v) {
+		return v.divide(this._parent.scale);
 	}
 
 	get scaleX() {

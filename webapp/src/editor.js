@@ -1,13 +1,13 @@
 
 import { isUdf, addGetter, make } from "./utility";
-import { ConstantDictionary, EventDictionary } from "./dictionary";
-import { MultiCommand, ToggleLayerCommand, CommandStack } from "./command";
-import { MoveTool, MoveToolUI } from "./transform";
-import { PaintTool } from "./paint";
-import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
-import { ColorPicker, ColorBox } from "./colorInput";
-import { LayerManager } from "./layer";
 import { addOptions } from "./options";
+import { ConstantDictionary, EventDictionary } from "./dictionary";
+import { ColorPicker, ColorBox } from "./colorInput";
+import { MultiCommand, ToggleLayerCommand, CommandStack } from "./command";
+import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
+import { PaintTool } from "./paint";
+import { MoveTool, MoveToolUI } from "./moveTool";
+import { LayerManager } from "./layer";
 
 const DEFAULTS = { viewport: null,
 				   primaryColor: [0, 0, 0, 255],
@@ -36,8 +36,8 @@ export default class {
 	}
 
 	_initStack() {
-		const stack = new CommandStack(this._options.get("stackLimit"));
-		addGetter(this, "stack", stack);
+		const s = new CommandStack(this._options.get("stackLimit"));
+		addGetter(this, "stack", s);
 	}
 
 	_initGlobals() {
@@ -54,13 +54,13 @@ export default class {
 		this._tools = new ConstantDictionary();
 
 		const t1 = {};
-		t1.tool = new MoveTool(this._layerManager, this._stack, { cursor: "all-scroll" });
+		t1.tool = new MoveTool(this);
 		t1.ui 	= new MoveToolUI(t1.tool.options, this._globals);
 		this._tools.put("Move", t1);
 
 		const t2 = {};
 		const pattern1 = new SmoothCirclePattern();
-		t2.tool = new PaintTool(this._layerManager, this._stack, pattern1);
+		t2.tool = new PaintTool(this, pattern1);
 		t2.ui 	= new SmoothCirclePatternToolUI(t2.tool.options, 
 												pattern1.options, 
 												this._globals);

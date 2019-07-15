@@ -1,9 +1,10 @@
 
-export { noop, isUdf, isNumber, isFunction, isType, init, snap, toPrecision, clamp, average, 
-         wrap, bindWrap, warnIfError, extend, removeItem, forEach, addGetter, 
-         addGetterRaw, AddToEventLoop, getRandomString, preventBubble, $, make, 
-         show, hide,  isDescendant, removeChildren, createSVG, setDisabled, 
-         setChecked, clampAlpha };
+export { noop, isUdf, isNumber, isFunction, isType, init, myeval, snap,
+         toPrecision, clamp, average, bindFunctions, wrap, bindWrap,
+         warnIfError, extend, removeItem, forEach, addGetter, addGetterRaw,
+         AddToEventLoop, getRandomString, preventBubble, $, make, show, hide,
+         isDescendant, removeChildren, createSVG, setDisabled, setChecked,
+         clampAlpha };
 
 function noop(){}
 
@@ -19,6 +20,8 @@ function isType(obj, t) {
 
 function init(a, def) { return isUdf(a) ? def : a; }
 
+function myeval(a) { return isFunction(a) ? a() : a; }
+
 function snap(a, b) { return a - (a % b); }
 
 function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p)); }
@@ -26,6 +29,20 @@ function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p));
 function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
 function average(...n) { return n.reduce((a, b) => a + b) / n.length; }
+
+function bindFunctions(obj, names, ignoreEmpty=false) {
+    names.forEach((name) => {
+        const f = obj[name];
+        if (!isFunction(f)) {
+            if (ignoreEmpty) {
+                return;
+            } else {
+                throw new Error("Cannot bind function " + name);
+            } 
+        }
+        obj[name] = f.bind(obj);
+    });
+}
 
 function wrap(f, ...args) {
 	return new Promise((resolve, reject) => {

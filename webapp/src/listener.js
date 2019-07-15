@@ -18,9 +18,9 @@ const Listener = (function(){
 			if (this._attached) {
 				throw new Error(invalidAttachMessage);
 			} else {
-				let ret = this._attach.apply(this, arguments);
+				const r = this._attach.apply(this, arguments);
 				this._attached = true;
-				return ret;
+				return r;
 			}
 		}
 

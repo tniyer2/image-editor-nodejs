@@ -61,9 +61,13 @@ const MyEvent = (function(){
 				throw new Error("Invalid argument:", a);
 			}
 
-			n.addListener((...args) => {
+			const l = (...args) => {
 				this.trigger(...args);
-			});
+			};
+			n.addListener(l);
+			return () => {
+				n.removeListener(l);
+			};
 		}
 	};
 })();

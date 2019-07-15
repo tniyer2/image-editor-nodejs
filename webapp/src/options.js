@@ -1,8 +1,8 @@
 
 import { isFunction, extend, addGetter } from "./utility";
-import { EventDictionary } from "./dictionary";
+import { Dictionary, EventDictionary } from "./dictionary";
 
-export { OptionsDictionary, addOptions };
+export { OptionsDictionary, addOptions, addNamedOptions };
 
 const OptionsDictionary = (function(){
 	return class extends EventDictionary {
@@ -11,6 +11,12 @@ const OptionsDictionary = (function(){
 		}
 
 		set(...options) {
+			for (let i = 0, l = options.length; i < l; i++) {
+				const opt = options[i];
+				if (opt instanceof Dictionary) {
+					options[i] = opt.items;
+				}
+			}
 			const all = extend(...options);
 			for (const key in all) {
 				if (all.hasOwnProperty(key)) {
@@ -46,8 +52,12 @@ const OptionsDictionary = (function(){
 	};
 })(); 
 
-function addOptions(obj, ...options) {
+function addNamedOptions(obj, name, ...options) {
 	const dict = new OptionsDictionary();
 	dict.set(...options);
-	addGetter(obj, "options", dict);
+	addGetter(obj, name, dict);	
+}
+
+function addOptions(obj, ...options) {
+	addNamedOptions(obj, "options", ...options);
 }

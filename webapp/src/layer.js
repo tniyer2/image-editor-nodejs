@@ -1,6 +1,6 @@
 
-import Enforcer from "./enforcer";
-import { isUdf, removeItem, addGetter, AddToEventLoop } from "./utility";
+import { isUdf, bindFunctions, removeItem, 
+		 addGetter, AddToEventLoop, make } from "./utility";
 import { addEvent } from "./event";
 import { MouseAction, MouseActionPiper } from "./action";
 import { Anchor, Box } from "./geometry";
@@ -20,15 +20,15 @@ const Layer = (function(){
 	return class extends Box {
 		constructor(image) {
 			checkValidImage(image);
-			const d = document.createElement("div");
+			const d = make("div");
 			super(d);
-			// make a copy?
-			addGetter(this, "image", image);
+			addGetter(this, "image", image.cloneNode());
 
-			const canvas = document.createElement("canvas");
+			const canvas = make("canvas");
 			this._element.appendChild(canvas);
 			addGetter(this, "canvas", canvas);
 
+			// not tested
 			this._addDraw = new AddToEventLoop(() => {
 				createImageBitmap(this._canvas).then((m) => {
 					this._drawCanvas(m);
@@ -38,8 +38,17 @@ const Layer = (function(){
 			const w = this._image.naturalWidth, 
 				  h = this._image.naturalHeight;
 
-			canvas.width = w;
-			canvas.height = h;
+			this._initialLocalWidth = w;
+			this._initialLocalHeight = h;
+
+			this._canvas.width = w;
+			this._canvas.height = h;
+			this._canvasScaleX = 1;
+			this._canvasScaleY = 1;
+			this._updateCanvasCss = new AddToEventLoop(() => {
+				this._canvas.style.transform = `scale(${this._canvasScaleX}, ${this._canvasScaleY})`;
+			});
+
 			this._element.style.width = w + "px";
 			this._element.style.height = h + "px";
 
@@ -57,6 +66,26 @@ const Layer = (function(){
 
 		get aspectRatio() {
 			return this._image.naturalHeight / this._image.naturalWidth;
+		}
+
+		get localWidth() {
+			return super.localWidth;
+		}
+
+		set localWidth(val) {
+			super.localWidth = val;
+			this._canvasScaleX = super.localWidth / this._initialLocalWidth;
+			this._updateCanvasCss.invoke();
+		}
+
+		get localHeight() {
+			return super.localHeight;
+		}
+
+		set localHeight(val) {
+			super.localHeight = val;
+			this._canvasScaleY = super.localHeight / this._initialLocalHeight;
+			this._updateCanvasCss.invoke();
 		}
 
 		_defineDrawProperty(name, defaultValue) {
@@ -104,138 +133,123 @@ const Layer = (function(){
 	};
 })();
 
-const LayerManager = (function(){
-	const DEFAULT_CURSOR = "default";
+class LayerManager {
+	constructor(viewport, innerViewport) {
+		this._layers = [];
+		this._selected = [];
 
-	return class {
-		constructor(viewport, innerViewport) {
-			this._layers = [];
-			this._selected = [];
+		const d = make("div");
+		addGetter(this, "parent", d);
 
-			const d = document.createElement("div");
-			addGetter(this, "parent", d);
+		const vp = new Anchor(viewport);
+		addGetter(this, "viewport", vp);
 
-			const vp = new Anchor(viewport);
-			addGetter(this, "viewport", vp);
-			this.resetCursor();
+		const ivp = new Box(innerViewport, this._viewport);
+		addGetter(this, "innerViewport", ivp);
 
-			const ivp = new Box(innerViewport, this._viewport);
-			addGetter(this, "innerViewport", ivp);
+		addEvent(this, "onAdd");
+		addEvent(this, "onRemove");
+		addEvent(this, "onSelect");
+		addEvent(this, "onDeselect");
+		addEvent(this, "onSelectedChange");
 
-			addEvent(this, "onAdd");
-			addEvent(this, "onRemove");
-			addEvent(this, "onSelect");
-			addEvent(this, "onDeselect");
-			addEvent(this, "onSelectedChange");
+		bindFunctions(this, ["_defaultOnAddListener",
+							 "_defaultOnRemoveListener",
+							 "_defaultOnSelectListener",
+							 "_defaultOnDeselectListener"]);
+		this.onAdd.addListener(this._defaultOnAddListener);
+		this.onRemove.addListener(this._defaultOnRemoveListener);
+		this.onSelect.addListener(this._defaultOnSelectListener);
+		this.onDeselect.addListener(this._defaultOnDeselectListener);
 
-			const ef = new Enforcer(LayerManager, this, "LayerManager");
-			ef.bindFunctions(["_defaultOnAddListener", 
-							  "_defaultOnRemoveListener", 
-							  "_defaultOnSelectListener", 
-							  "_defaultOnDeselectListener"]);
-			this.onAdd.addListener(this._defaultOnAddListener);
-			this.onRemove.addListener(this._defaultOnRemoveListener);
-			this.onSelect.addListener(this._defaultOnSelectListener);
-			this.onDeselect.addListener(this._defaultOnDeselectListener);
+		const mp = new MouseActionPiper();
+		addGetter(this, "layerMouseAction", mp);
+	}
 
-			const a = new MouseActionPiper();
-			// @todo change to globalMouseAction
-			addGetter(this, "layerMouseAction", a);
+	get layers() {
+		return this._layers.slice();
+	}
+
+	get selected() {
+		return this._selected.slice();
+	}
+
+	add(layer) {
+		this._layers.push(layer);
+		this._onAdd.trigger(layer);
+	}
+
+	remove(layer) {
+		const removed = removeItem(this._layers, layer);
+		if (removed) {
+			this._onRemove.trigger(layer);
+		} else {
+			console.warn("Could not remove layer from this._layers: ", layer);
 		}
+	}
 
-		get layers() {
-			return this._layers.slice();
+	_initLayer(layer) {
+		layer.parent = this._innerViewport;
+		const m = new MouseAction(layer.element, this._viewport.element, 
+					{ data: layer, 
+					  loop: true, 
+					  exitOnMouseLeave: false });
+		this._layerMouseAction.pipe(m);
+	}
+
+	_defaultOnAddListener(layer) {
+		this._parent.appendChild(layer.element);
+		if (isUdf(layer.element.dataset.initialized)) {
+			this._initLayer(layer);
+			layer.element.dataset.initialized = true;
 		}
+	}
 
-		get selected() {
-			return this._selected.slice();
+	_defaultOnRemoveListener(layer) {
+		layer.element.remove();
+		if (layer["data-selected"]) {
+			this.deselect(layer);
+		} 
+	}
+
+	select(layer) {
+		this._selected.push(layer);
+		this._onSelect.trigger(layer);
+		this._onSelectedChange.trigger();
+	}
+
+	deselect(layer) {
+		const removed = removeItem(this._selected, layer);
+		if (removed) {
+			this._onDeselect.trigger(layer);
+			this._onSelectedChange.trigger();
+		} else {
+			console.warn("Could not remove layer from this._selected: ", layer);
 		}
+	}
+	
+	deselectAll() {
+		const old = this._selected;
+		this._selected = [];
 
-		add(layer) {
-			this._layers.push(layer);
-			this._onAdd.trigger(layer);
-		}
+		old.forEach((layer) => {
+			this._onDeselect.trigger(layer);
+		});
+		this._onSelectedChange.trigger();
+	}
 
-		remove(layer) {
-			const removed = removeItem(this._layers, layer);
-			if (removed) {
-				this._onRemove.trigger(layer);
-			} else {
-				console.warn("Could not remove layer from this._layers: ", layer);
-			}
-		}
+	_defaultOnSelectListener(layer) {
+		layer["data-selected"] = true;
 
-		_initLayer(layer) {
-			layer.parent = this._innerViewport;
-			const m = new MouseAction(layer.element, this._viewport.element, 
-						{ data: layer, 
-						  loop: true, 
-						  exitOnMouseLeave: false });
-			this._layerMouseAction.pipe(m);
-		}
-
-		_defaultOnAddListener(layer) {
+		const len = this._selected.length;
+		if (len > 1) {
+			this._parent.insertBefore(layer.element, this._selected[len-2].element);
+		} else {
 			this._parent.appendChild(layer.element);
-			if (isUdf(layer.element.dataset.initialized)) {
-				this._initLayer(layer);
-				layer.element.dataset.initialized = true;
-			}
 		}
+	}
 
-		_defaultOnRemoveListener(layer) {
-			layer.element.remove();
-			if (layer["data-selected"]) {
-				this.deselect(layer);
-			} 
-		}
-
-		select(layer) {
-			this._selected.push(layer);
-			this._onSelect.trigger(layer);
-			this._onSelectedChange.trigger();
-		}
-
-		deselect(layer) {
-			const removed = removeItem(this._selected, layer);
-			if (removed) {
-				this._onDeselect.trigger(layer);
-				this._onSelectedChange.trigger();
-			} else {
-				console.warn("Could not remove layer from this._selected: ", layer);
-			}
-		}
-		
-		deselectAll() {
-			const old = this._selected;
-			this._selected = [];
-
-			old.forEach((layer) => {
-				this._onDeselect.trigger(layer);
-			});
-			this._onSelectedChange.trigger();
-		}
-
-		_defaultOnSelectListener(layer) {
-			layer["data-selected"] = true;
-
-			const len = this._selected.length;
-			if (len > 1) {
-				this._parent.insertBefore(layer.element, this._selected[len-2].element);
-			} else {
-				this._parent.appendChild(layer.element);
-			}
-		}
-
-		_defaultOnDeselectListener(layer) {
-			layer["data-selected"] = false;
-		}
-
-		set cursor(value) {
-			this._viewport.element.style.cursor = value;	
-		}
-
-		resetCursor() {
-			this.cursor = DEFAULT_CURSOR;
-		}
-	};
-})();
+	_defaultOnDeselectListener(layer) {
+		layer["data-selected"] = false;
+	}
+}

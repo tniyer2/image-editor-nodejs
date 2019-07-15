@@ -1,5 +1,4 @@
 
-import Enforcer from "./enforcer";
 import { snap, forEach } from "./utility";
 import { Vector2 } from "./geometry";
 import { Command } from "./command";
@@ -11,30 +10,29 @@ class BoxCommand extends Command {
 	constructor(boxes, pos) {
 		super(Command.CONTINUOUS);
 
-		new Enforcer(BoxCommand, this, "BoxCommand").enforceAbstract();
-
 		this._boxes = boxes;
-		this._initialPositions = this._getBoxPositions();
+		this._initialPositions = this._boxes.map(b => b.position);
+		this._initialLocalPositions = this._getBoxPositions();
 		this._referencePosition = pos;
 	}
 
 	_getBoxPositions() {
-		return this._boxes.map(b => b.position);
+		return this._boxes.map(b => b.localPosition);
 	}
 
 	_close() {
-		this._finalPositions = this._getBoxPositions();
+		this._finalLocalPositions = this._getBoxPositions();
 	}
 
 	_undo() {
-		forEach(this._boxes, this._initialPositions, (b, initial) => {
-			b.position = initial;
+		forEach(this._boxes, this._initialLocalPositions, (b, initial) => {
+			b.localPosition = initial;
 		});
 	}
 
 	_redo() {
-		forEach(this._boxes, this._finalPositions, (b, final) => {
-			b.position = final;
+		forEach(this._boxes, this._finalLocalPositions, (b, final) => {
+			b.localPosition = final;
 		});
 	}
 }
@@ -95,7 +93,7 @@ const ResizeCommand = (function(){
 
 			this._right = Vector2.right.rotate(angle);
 			this._down = Vector2.down.rotate(angle);
-			this._initialDimensions = this._getBoxDimensions();
+			this._initialLocalDimensions = this._getBoxDimensions();
 
 			const d = this._options.get("direction");
 			this._moveTop = MOVE_TOP[d]; 
@@ -105,7 +103,7 @@ const ResizeCommand = (function(){
 		}
 
 		_getBoxDimensions() {
-			return this._boxes.map(b => b.dimensions);
+			return this._boxes.map(b => b.localDimensions);
 		}
 
 		_execute(mousePosition, snapMovement, lock) {
@@ -137,27 +135,30 @@ const ResizeCommand = (function(){
 			}
 
 			this._boxes.forEach((box, i) => {
-				const pos = this._initialPositions[i],
-					  dim = this._initialDimensions[i];
+				const pos = this._initialLocalPositions[i],
+					  dim = this._initialLocalDimensions[i];
+				const worldDiff = box.toLocal(new Vector2(diffX, diffY));
+				diffX = worldDiff.x;
+				diffY = worldDiff.y;
 				if (setAspectRatio) {
 					[diffX, diffY] = this._fixAspect(diffX, diffY, dim, this._moveLeft, this._moveTop);
 				}
 
 				if (setX) {
 					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this._options.get("minWidth"));
-					box.left = x[0];
-					box.scaleX = x[1] / box.width;
+					box.localLeft = x[0];
+					box.localWidth = x[1];
 				} else {
-					box.left = pos.x;
-					box.width = dim.x;
+					box.localLeft = pos.x;
+					box.localWidth = dim.x;
 				}
 				if (setY) {
 					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this._options.get("minHeight"));
-					box.top = y[0];
-					box.scaleY = y[1] / box.height;
+					box.localTop = y[0];
+					box.localHeight = y[1];
 				} else {
-					box.top = pos.y;
-					box.height = dim.y;
+					box.localTop = pos.y;
+					box.localHeight = dim.y;
 				}
 			});
 		}
@@ -177,20 +178,20 @@ const ResizeCommand = (function(){
 
 		_close() {
 			super._close();
-			this._finalDimensions = this._getBoxDimensions();
+			this._finalLocalDimensions = this._getBoxDimensions();
 		}
 
 		_undo() {
 			super._undo();
-			forEach(this._boxes, this._initialDimensions, (b, d) => {
-				b.dimensions = d;
+			forEach(this._boxes, this._initialLocalDimensions, (b, d) => {
+				b.localDimensions = d;
 			});
 		}
 
 		_redo() {
 			super._redo();
-			forEach(this._boxes, this._finalDimensions, (b, d) => {
-				b.dimensions = d;
+			forEach(this._boxes, this._finalLocalDimensions, (b, d) => {
+				b.localDimensions = d;
 			});
 		}
 	};

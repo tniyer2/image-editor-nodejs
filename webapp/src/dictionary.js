@@ -19,6 +19,10 @@ const Dictionary = (function(){
             return Object.values(this._inner);
         }
 
+        get items() {
+            return Object.assign({}, this._inner);
+        }
+
         _checkValidName(name) {
             if (name === PROTO_PROP) {
                 throw new Error(`name cannot have the value '${PROTO_PROP}'`);

@@ -1,7 +1,6 @@
 
-import Enforcer from "./enforcer";
 import { extend } from "./utility";
-import { ToolUI } from "./toolUI";
+import ToolUI from "./toolUI";
 import { Slider } from "./input";
 import { addOptions } from "./options";
 
@@ -12,10 +11,6 @@ const Pattern = (function(){
 
 	return class {
 		constructor(options) {
-			const ef = new Enforcer(Pattern, this, "Pattern");
-			ef.enforceAbstract();
-			ef.enforceFunctions(["draw"]);
-
 			addOptions(this);
 			this._options.addListener("color", (c) => {
 				this._color = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]})`;
@@ -33,10 +28,10 @@ const SmoothPattern = (function(){
 		constructor(options) {
 			options = extend(DEFAULTS, options);
 			super(options);
+		}
 
-			const ef = new Enforcer(SmoothPattern, this, "SmoothPattern");
-			ef.enforceAbstract();
-			ef.enforceFunctions(["_draw"]);
+		get _MAX_ANGLE() {
+			return MAX_ANGLE;
 		}
 
 		draw(context, prevPos, pos) {
@@ -55,10 +50,6 @@ const SmoothPattern = (function(){
 				this._draw(context, v);
 			}
 			this._draw(context, pos);
-		}
-
-		get _MAX_ANGLE() {
-			return MAX_ANGLE;
 		}
 	};
 })();

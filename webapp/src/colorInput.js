@@ -1,10 +1,10 @@
 
-import { isUdf, addGetter, make, show, hide, 
+import { isUdf, isNumber, addGetter, make, show, hide, 
 		 isDescendant, preventBubble, clampAlpha } from "./utility";
 import { addEvent, MyEvent } from "./event";
 import { Listener } from "./listener";
 import { MouseAction } from "./action";
-import { DragWidget } from "./transform";
+import { DragWidget } from "./boxWidgets";
 import { Box } from "./geometry";
 import { Slider } from "./input";
 import { addOptions } from "./options";
@@ -16,7 +16,7 @@ function validArray(arr, len) {
 }
 
 function validColorNumber(a) {
-	return typeof a === "number" && !isNaN(a) && a >= 0 && a <= 255;
+	return isNumber(a) && a >= 0 && a <= 255;
 }
 
 function validColor(arr, noAlpha=false) {
@@ -87,10 +87,9 @@ const ColorPicker = (function(){
 
 		_attachEventListeners() {
 			this._hexInput.addEventListener("change", (evt) => {
-				const hexCode = evt.target.value;
 				let color;
 				try {
-					color = chroma(hexCode);
+					color = chroma(evt.target.value);
 				} catch (e) {
 					return;
 				}
