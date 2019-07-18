@@ -4,6 +4,7 @@ import { isUdf, bindFunctions, removeItem,
 import { addEvent } from "./event";
 import { MouseAction, MouseActionPiper } from "./action";
 import { Anchor, Box } from "./geometry";
+import { Collection, BASE, SELECT } from "./collection";
 
 export { Layer, LayerManager };
 
@@ -133,10 +134,13 @@ const Layer = (function(){
 	};
 })();
 
-class LayerManager {
+class LayerManager extends Collection {
 	constructor(viewport, innerViewport) {
-		this._layers = [];
-		this._selected = [];
+		const base = Object.assign({}, BASE);
+		base.varName = "layers";
+		const select = Object.assign({}, SELECT);
+		select.onChange = "onSelectedChange";
+		super(base, select);
 
 		const d = make("div");
 		addGetter(this, "parent", d);
@@ -147,49 +151,15 @@ class LayerManager {
 		const ivp = new Box(innerViewport, this._viewport);
 		addGetter(this, "innerViewport", ivp);
 
-		addEvent(this, "onAdd");
-		addEvent(this, "onRemove");
-		addEvent(this, "onSelect");
-		addEvent(this, "onDeselect");
-		addEvent(this, "onSelectedChange");
-
-		bindFunctions(this, ["_defaultOnAddListener",
-							 "_defaultOnRemoveListener",
-							 "_defaultOnSelectListener",
-							 "_defaultOnDeselectListener"]);
-		this.onAdd.addListener(this._defaultOnAddListener);
-		this.onRemove.addListener(this._defaultOnRemoveListener);
-		this.onSelect.addListener(this._defaultOnSelectListener);
-		this.onDeselect.addListener(this._defaultOnDeselectListener);
-
 		const mp = new MouseActionPiper();
 		addGetter(this, "layerMouseAction", mp);
 	}
 
-	get layers() {
-		return this._layers.slice();
-	}
-
-	get selected() {
-		return this._selected.slice();
-	}
-
-	add(layer) {
-		this._layers.push(layer);
-		this._onAdd.trigger(layer);
-	}
-
-	remove(layer) {
-		const removed = removeItem(this._layers, layer);
-		if (removed) {
-			this._onRemove.trigger(layer);
-		} else {
-			console.warn("Could not remove layer from this._layers: ", layer);
-		}
-	}
-
 	_initLayer(layer) {
 		layer.parent = this._innerViewport;
+		if (this._layers.length === 1) {
+			this._innerViewport.localDimensions = layer.localDimensions;
+		}
 		const m = new MouseAction(layer.element, this._viewport.element, 
 					{ data: layer, 
 					  loop: true, 
@@ -197,7 +167,7 @@ class LayerManager {
 		this._layerMouseAction.pipe(m);
 	}
 
-	_defaultOnAddListener(layer) {
+	_defaultOnAdd(layer) {
 		this._parent.appendChild(layer.element);
 		if (isUdf(layer.element.dataset.initialized)) {
 			this._initLayer(layer);
@@ -205,41 +175,15 @@ class LayerManager {
 		}
 	}
 
-	_defaultOnRemoveListener(layer) {
+	_defaultOnRemove(layer) {
 		layer.element.remove();
-		if (layer["data-selected"]) {
+		if (layer.selected) {
 			this.deselect(layer);
 		} 
 	}
 
-	select(layer) {
-		this._selected.push(layer);
-		this._onSelect.trigger(layer);
-		this._onSelectedChange.trigger();
-	}
-
-	deselect(layer) {
-		const removed = removeItem(this._selected, layer);
-		if (removed) {
-			this._onDeselect.trigger(layer);
-			this._onSelectedChange.trigger();
-		} else {
-			console.warn("Could not remove layer from this._selected: ", layer);
-		}
-	}
-	
-	deselectAll() {
-		const old = this._selected;
-		this._selected = [];
-
-		old.forEach((layer) => {
-			this._onDeselect.trigger(layer);
-		});
-		this._onSelectedChange.trigger();
-	}
-
-	_defaultOnSelectListener(layer) {
-		layer["data-selected"] = true;
+	_defaultOnSelect(layer) {
+		layer.selected = true;
 
 		const len = this._selected.length;
 		if (len > 1) {
@@ -249,7 +193,7 @@ class LayerManager {
 		}
 	}
 
-	_defaultOnDeselectListener(layer) {
-		layer["data-selected"] = false;
+	_defaultOnDeselect(layer) {
+		layer.selected = false;
 	}
 }

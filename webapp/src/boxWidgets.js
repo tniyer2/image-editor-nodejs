@@ -52,7 +52,6 @@ const RotateWidget = (function(){
 	return class extends BoxWidget {
 		constructor(groups, options) {
 			super(groups);
-
 			addOptions(this, DEFAULTS, options);
 		}
 

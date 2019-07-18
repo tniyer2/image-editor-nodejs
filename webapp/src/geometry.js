@@ -249,8 +249,20 @@ class Box {
 		return b;
 	}
 
-	toLocal(v) {
+	toLocalDir(v) {
 		return v.divide(this._parent.scale);
+	}
+
+	toWorldDir(b) {
+		return v.multiply(this._parent.scale);
+	}
+
+	toLocalPoint(v) {
+		return v.subtract(this._parent.position).divide(this._parent.scale);
+	}
+
+	toWorldPoint(v) {
+		return v.multiply(this._parent.scale).add(this._parent.position);
 	}
 
 	get scaleX() {

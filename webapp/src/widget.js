@@ -42,14 +42,13 @@ class BoxWidget extends MouseActionHandler {
 class CanvasWidget extends MouseActionHandler {
 	_getMousePosition(evt, layer) {
 		const l = layer;
-		const rotPosition = l.position
-			   				.subtract(l.center)
+		const rotPosition = l.localPosition
+			   				.subtract(l.localCenter)
 			   				.rotate(l.angle)
-			   				.add(l.center);
-
-		return super._getMousePosition(evt)
-			   .subtract(rotPosition)
-			   .rotate(-l.angle);
+			   				.add(l.localCenter);
+		const mp = l.toLocalPoint(super._getMousePosition(evt));
+		return mp.subtract(rotPosition)
+			   	 .rotate(-l.angle);
 	}
 }
 
@@ -63,9 +62,9 @@ class SelectWidget extends MouseActionHandler {
 		if (layer) {
 			const ctrl = mdEvt.ctrlKey,
 				  shift = mdEvt.shiftKey;
-			if (ctrl && layer["data-selected"]) {
+			if (ctrl && layer.selected) {
 				this._lm.deselect(layer);
-			} else if (shift && !layer["data-selected"]) {
+			} else if (shift && !layer.selected) {
 				this._lm.select(layer);
 			} else if (!ctrl && !shift) {
 				this._lm.deselectAll();
@@ -76,7 +75,7 @@ class SelectWidget extends MouseActionHandler {
 
 	_onStart(evt, layer)
 	{
-		if (layer && !layer["data-selected"]) {
+		if (layer && !layer.selected) {
 			if (evt.shiftKey) {
 				this._lm.select(layer);
 			} else {

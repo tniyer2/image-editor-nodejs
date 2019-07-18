@@ -2,6 +2,7 @@
 import Editor from "./editor";
 import { Layer } from "./layer";
 import { $, clamp, setDisabled, make, createSVG } from "./utility";
+import { AutoComplete } from "./input";
 
 const elm_root = $("#root"),
 	  elm_fileInput = $("#file-upload"),
@@ -11,7 +12,11 @@ const elm_root = $("#root"),
 	  elm_toolsParent = $("#tools"),
 	  elm_toolbarOptions = $("#toolbar-options"),
 	  elm_viewportWrapper = $("#viewport-wrapper"),
-	  elm_viewport = $("#viewport");
+	  elm_viewport = $("#viewport"),
+	  elm_nodeSearch = $("#node-search"),
+	  elm_nodeSearchBar = $("#node-search-bar"),
+	  elm_nodeSpaceWrapper = $("#node-space-wrapper"),
+	  elm_nodeSpace = $("#node-space");
 
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
@@ -20,6 +25,7 @@ const cl_canvas = "viewport__canvas",
 	  cl_toolOptionsParent2 = "menubar__tool-options2",
 	  cl_toolBtn = "toolbar__tool",
 	  cl_toolName = "text",
+	  cl_autoComplete = "auto-complete",
 	  svg_remove = "#icon-trash";
 
 const SCALE_FACTOR = -0.0005,
@@ -27,11 +33,19 @@ const SCALE_FACTOR = -0.0005,
 	  MIN_SCALE = 0.25, 
 	  UNDO_DELAY = 100;
 
-let g_editor;
+let g_editor, nodeSearchAC;
 
 function main() {
+	nodeSearchAC = new AutoComplete(elm_nodeSearch, { values: ["apple", "orange", "pear"] });
+	const list = nodeSearchAC.list;
+	list.classList.add(cl_autoComplete);
+	elm_nodeSearchBar.appendChild(list);
+
 	g_editor = new Editor({ viewport: elm_viewportWrapper, 
-							innerViewport: elm_viewport });
+							innerViewport: elm_viewport,
+							nodeSpace: elm_nodeSpaceWrapper,
+							innerNodeSpace: elm_nodeSpace,
+							nodeSearchAC: nodeSearchAC });
 
 	appendDOM();
 	listenUndoRedoCommands();

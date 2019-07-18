@@ -8,6 +8,7 @@ import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
 import { PaintTool } from "./paint";
 import { MoveTool, MoveToolUI } from "./moveTool";
 import { LayerManager } from "./layer";
+import { NodeManager } from "./node";
 
 const DEFAULTS = { viewport: null,
 				   primaryColor: [0, 0, 0, 255],
@@ -32,6 +33,7 @@ export default class {
 			this._globals.put("primaryColor", color);
 		});
 
+		this._initNodeManager();
 		this._initTools();
 	}
 
@@ -45,6 +47,14 @@ export default class {
 		addGetter(this, "globals", g);
 
 		g.put("primaryColor", this._options.get("primaryColor"));
+	}
+
+	_initNodeManager() {
+		const ns  = this._options.get("nodeSpace"),
+			  ins = this._options.get("innerNodeSpace"),
+			  ac = this._options.get("nodeSearchAC");
+		const nm = new NodeManager(ns, ins, ac);
+		addGetter(this, "nodeManager", nm);
 	}
 
 	_initTools() {

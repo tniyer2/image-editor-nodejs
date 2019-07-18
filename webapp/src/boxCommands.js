@@ -137,7 +137,7 @@ const ResizeCommand = (function(){
 			this._boxes.forEach((box, i) => {
 				const pos = this._initialLocalPositions[i],
 					  dim = this._initialLocalDimensions[i];
-				const worldDiff = box.toLocal(new Vector2(diffX, diffY));
+				const worldDiff = box.toLocalDir(new Vector2(diffX, diffY));
 				diffX = worldDiff.x;
 				diffY = worldDiff.y;
 				if (setAspectRatio) {

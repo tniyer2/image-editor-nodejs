@@ -12,7 +12,7 @@ body {
 	@extend %max-size;
 	border-radius: 5px; }
 
-
+$std-border: 3px solid #444;
 .editor {
 	@extend %max-size;
 	display: flex;
@@ -20,7 +20,7 @@ body {
 	user-select: none; }
 %editor-box {
 	background-color: #888;
-	border: 3px solid #444; }
+	border: $std-border; }
 
 
 .menubar {
@@ -100,16 +100,31 @@ body {
 	display: flex; }
 
 
-.viewport-wrapper {
+%area {
 	position: relative;
-	flex: 1;
 	height: 100%;
 	overflow: hidden;
-	background: #555;
 	outline: none; }
+
+
+.viewport-wrapper {
+	@extend %area;
+	flex: 1;
+	background: #555;
+	border: $std-border;
+	border-color: #393939;
+	border-top-width: 0;
+	border-left-width: 0;
+	border-bottom-width: 0; }
 .viewport {
 	@extend %default-absolute;
-	@extend %max-size;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	margin: auto;
+	width: 0;
+	height: 0;
 	z-index: 0; }
 .viewport__background {
 	@extend %default-absolute;
@@ -129,3 +144,52 @@ body {
 .viewport__canvas {
 	@extend %default-absolute;
 	transform-origin: top left; }
+
+.node-editor {
+	@extend %area;
+	flex: 0.5;
+	background: #555; }
+.node-space-wrapper {
+	position: relative;
+	outline: none;
+	height: 100%; }
+.node-space {
+	@extend %default-absolute;
+	@extend %max-size; }
+.node-editor__search {
+	display: block;
+	box-sizing: border-box;
+	height: 50px;
+	padding: 10px 10px;
+	background: #333; }
+.node-editor__search-bar-wrapper {
+	@extend %max-size;
+	box-sizing: border-box;
+	padding: 2px 5px;
+	background: #fff;
+	border-radius: 10px; }
+.node-editor__search-bar {
+	@extend %max-size;
+	position: relative;
+	display: flex;
+	justify-content: space-between;
+	align-items: center; }
+.node-editor__search-bar input {
+	@extend %remove-input-defaults;
+	box-sizing: border-box;
+	width: 100px;
+	height: 100%;
+	flex: 1;
+	@extend %regular-font;
+	font-size: 18px; }
+.node-editor__search-btn {
+	@extend %remove-button-defaults;
+	position: relative;
+	width: 30px;
+	height: 90%; }
+.node-editor__search-btn svg {
+	@extend %default-absolute;
+	@extend %max-size;
+	fill: #333; }
+.node-editor__search-btn svg:hover {
+	fill: $blue; }

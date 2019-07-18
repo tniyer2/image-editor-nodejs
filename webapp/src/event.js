@@ -25,9 +25,9 @@ const MyEvent = (function(){
 			addGetter(this, "interface", int);
 		}
 
-		trigger() {
+		trigger(...args) {
 			this._queue.forEach((f) => {
-				f.apply(null, arguments);
+				f(...args);
 			});
 		}
 
@@ -37,7 +37,7 @@ const MyEvent = (function(){
 				if (typeof p !== "object" || p.constructor !== Array) {
 					throw new Error("Callback return value must be an array:", p);
 				}
-				f.apply(null, p);
+				f(...p);
 			});
 		}
 
@@ -65,20 +65,18 @@ const MyEvent = (function(){
 				this.trigger(...args);
 			};
 			n.addListener(l);
-			return () => {
+			return (function(){
 				n.removeListener(l);
-			};
+			}).bind(this);
 		}
 	};
 })();
 
-function addEvent(obj, publicName, privateName) {
-	if (isUdf(privateName)) {
-		privateName = "_" + publicName;
+function addEvent(obj, pub, priv) {
+	if (isUdf(priv)) {
+		priv = "_" + pub;
 	}
 
-	obj[privateName] = new MyEvent();
-	Object.defineProperty(obj, publicName, {
-		get: () => obj[privateName].interface
-	});
+	obj[priv] = new MyEvent();
+	obj[pub] = obj[priv].interface;
 }
