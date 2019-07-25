@@ -1,35 +1,55 @@
 
-import { isFunction, removeItem } from "./utility";
+import { isFunction, removeItem, addGetterRaw } from "./utility";
 import { addEvent } from "./event";
+import { addOptions } from "./options";
 
 export { Collection, BASE, SELECT };
 
-class Collection {
-	constructor(...info) {
-		const addAndListen = (n, l) => {
-			if (n) {
-				addEvent(this, n);
-				if (isFunction(this[l])) {
-					this[n].addListener(this[l]);
-				}
+const Collection = (function(){
+	const SINGLE = 0, MULTIPLE = 1;
+
+	function addEventAndListen(obj, n, l) {
+		if (n) {
+			addEvent(obj, n);
+			const f = obj.options.get(l, false);
+			if (isFunction(f)) {
+				obj[n].addListener(f);
 			}
-		};
+		}
+	}
 
-		info.forEach((p, i) => {
-			const pub = p.varName,
+	const Inner2 = function (info) {
+		class Inner {
+			constructor(options) {
+				addOptions(this, options);
+
+				info.forEach((p) => {
+					if (p.type === Collection.MULTIPLE) {
+						this["_" + p.var] = [];
+						addEventAndListen(this, p.onAdd, p.onAdd);
+						addEventAndListen(this, p.onRemove, p.onRemove);
+						addEventAndListen(this, p.onChange, p.onChange);
+					} else if (p.type === Collection.SINGLE) {
+						this["_" + p.var] = p.defaultVar;
+						addEventAndListen(this, p.onSet, p.onSet);
+					} else {
+						throw new Error("Invalid type: " + p.type);
+					}
+				});
+			}
+		}
+
+		info.forEach((p) => {
+			const pub = p.var,
 				  priv = "_" + pub;
-
 			if (p.type === Collection.MULTIPLE) {
-				this[priv] = [];
-				Object.defineProperty(this, pub, {
-					get: () => this[priv].slice()
+				Object.defineProperty(Inner.prototype, pub, {
+					get: function() {
+						return this[priv].slice();
+					}
 				});
 
-				addAndListen(p.onAdd, p.defaultOnAdd);
-				addAndListen(p.onRemove, p.defaultOnRemove);
-				addAndListen(p.onChange, p.defaultOnChange);
-
-				this[p.add] = (item) => {
+				Inner.prototype[p.add] = function(item) {
 					this[priv].push(item);
 					if (p.onAdd) {
 						this["_" + p.onAdd].trigger(item);
@@ -39,7 +59,7 @@ class Collection {
 					}
 				};
 
-				this[p.remove] = (item) => {
+				Inner.prototype[p.remove] = function(item) {
 					const removed = removeItem(this[priv], item);
 					if (removed) {
 						if (p.onRemove) {
@@ -54,7 +74,7 @@ class Collection {
 				};
 
 				if (p.clear) {
-					this[p.clear] = () => {
+					Inner.prototype[p.clear] = function() {
 						const old = this[priv];
 						this[priv] = [];
 
@@ -68,45 +88,74 @@ class Collection {
 						}
 					};
 				}
-			} else if (p.type === Collection.SINGLE) {
-				addAndListen(p.onChange, p.defaultOnChange);
 
-				this[priv] = p.defaultVar;
-				Object.defineProperty(this, pub, {
-					get: () => this[priv],
-					set: (val) => {
-						this[priv] = val;
+				if (p.addOnly) {
+					Inner.prototype[p.addOnly] = function(newItem) {
+						let n = this[priv].filter(o => o === newItem);
+						if (n.length > 1) {
+							console.warn("item is referenced multiple times in array:", newItem);
+							n = n.slice(0, 1);
+						}
+						const old = this[priv].filter(o => o !== newItem);
+
+						if (n.length) {
+							this[priv] = n;
+						}
+
+						old.forEach((item) => {
+							if (p.onRemove) {
+								this["_" + p.onRemove].trigger(item);
+							}
+						});
+
+						if (!n.length) {
+							this[priv] = [newItem];
+							if (p.onAdd) {
+								this["_" + p.onAdd].trigger(newItem);
+							}
+						}
+
 						if (p.onChange) {
 							this["_" + p.onChange].trigger();
+						}
+					};
+				}
+			} else if (p.type === Collection.SINGLE) {
+				Object.defineProperty(Inner.prototype, pub, {
+					get: function() {
+						return this[priv];
+					},
+					set: function(val) {
+						const old = this[priv];
+						this[priv] = val;
+						if (p.onSet) {
+							this["_" + p.onSet].trigger(old, val);
 						}
 					}
 				});
 			} else {
-				throw new Error("Invalid type:", p.type);
+				throw new Error("Invalid type: " + p.type);
 			}
 		});
-	}
 
-	static get MULTIPLE() {
-		return 0;
-	}
+		return Inner;
+	};
 
-	static get SINGLE() {
-		return 1;
-	}
-}
+	addGetterRaw(Inner2, "SINGLE", SINGLE);
+	addGetterRaw(Inner2, "MULTIPLE", MULTIPLE);
+
+	return Inner2;
+})();
 
 const BASE = Object.freeze(
-{ type: Collection.MULTIPLE, varName: "items",
+{ type: Collection.MULTIPLE, var: "items",
   add: "add", remove: "remove",
   onAdd: "onAdd", onRemove: "onRemove",
-  defaultOnAdd: "_defaultOnAdd",
-  defaultOnRemove: "_defaultOnRemove" });
+  onChange: "onChange" });
 
 const SELECT = Object.freeze(
-{ type: Collection.MULTIPLE, varName: "selected",
+{ type: Collection.MULTIPLE, var: "selected",
   add: "select", remove: "deselect",
-  clear: "deselectAll",
+  clear: "deselectAll", addOnly: "selectOnly",
   onAdd: "onSelect", onRemove: "onDeselect",
-  defaultOnAdd: "_defaultOnSelect",
-  defaultOnRemove: "_defaultOnDeselect" });
+  onChange: "onSelectedChange" });

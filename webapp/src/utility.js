@@ -1,7 +1,7 @@
 
-export { noop, isUdf, isNumber, isFunction, isType, init, myeval, snap,
+export { noop, isUdf, isNumber, isFunction, init, myeval, snap,
          toPrecision, clamp, average, bindFunctions, wrap, bindWrap,
-         warnIfError, extend, removeItem, forEach, addGetter, addGetterRaw,
+         extend, removeItem, flatten, forEach, addGetter, addGetterRaw,
          AddToEventLoop, getRandomString, preventBubble, $, make, show, hide,
          isDescendant, removeChildren, createSVG, setDisabled, setChecked,
          clampAlpha };
@@ -13,10 +13,6 @@ function isUdf(a) { return typeof a === "undefined"; }
 function isNumber(n) { return typeof n === "number" && !isNaN(n); }
 
 function isFunction(f) { return typeof f === "function"; }
-
-function isType(obj, t) {
-    return obj !== null && typeof obj === "object" && obj.constructor === t;
-}
 
 function init(a, def) { return isUdf(a) ? def : a; }
 
@@ -54,12 +50,6 @@ function bindWrap(f, context, ...args) {
 	return wrap(f.bind(context), ...args);
 }
 
-function warnIfError(e) {
-    if (!isUdf(e)) {
-        console.warn(e);
-    }
-}
-
 function extend() {
     const master = {};
     let object;
@@ -72,6 +62,10 @@ function extend() {
         }
     }
     return master;
+}
+
+function flatten(arr) {
+    return [].concat(...arr);
 }
 
 function removeItem(arr, item) {
@@ -101,10 +95,7 @@ function addGetter(obj, publicName, value, privateName) {
         obj[privateName] = value;
     }
     Object.defineProperty(obj, publicName, {
-        get: () => {
-            return obj[privateName];
-        }
-    });
+        get: () => obj[privateName] });
 }
 
 function addGetterRaw(obj, publicName, value) {
@@ -142,9 +133,11 @@ const getRandomString = (function(){
     };
 })();
 
-function preventBubble(elm, eventName) {
-    elm.addEventListener(eventName, (evt) => {
-        evt.stopPropagation();
+function preventBubble(elm, ...eventNames) {
+    eventNames.forEach((name) => {
+        elm.addEventListener(name, (evt) => {
+            evt.stopPropagation();
+        });
     });
 }
 
@@ -199,14 +192,23 @@ const createSVG = (function(){
     const SVGNS   = "http://www.w3.org/2000/svg";
     const XLINKNS = "http://www.w3.org/1999/xlink";
 
-    return function (href) {
+    function Inner (href) {
         const svg = document.createElementNS(SVGNS, "svg");
-        const use = document.createElementNS(SVGNS, "use");
-        use.setAttributeNS(XLINKNS,"href", href);
-        svg.appendChild(use);
+        if (href) {
+            const use = document.createElementNS(SVGNS, "use");
+            use.setAttributeNS(XLINKNS,"href", href);
+            svg.appendChild(use);
+        } else {
+            console.warn("Invalid argument href:", href);
+        }
 
         return svg;
-    };
+    }
+
+    addGetterRaw(Inner, "SVGNS", SVGNS);
+    addGetterRaw(Inner, "XLINKNS", XLINKNS);
+
+    return Inner;
 })();
 
 function _setAttribute(elm, attribute, b) {

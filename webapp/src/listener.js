@@ -1,8 +1,11 @@
 
 import { addGetter } from "./utility";
+import { addOptions } from "./options";
+
 export { Listener, PromiseListener };
 
 const Listener = (function(){
+	const DEFAULTS = { minEvents: 0 };
 	const invalidAttachMessage = "Cannot attach eventListener again until Promise is resolved or eventListener is removed.";
 
 	return class {
@@ -10,13 +13,14 @@ const Listener = (function(){
 			addGetter(this, "target", target);
 			addGetter(this, "type", type);
 			this._listener = listener;
-			this._options = options;
+			addOptions(this, DEFAULTS, options);
+
 			addGetter(this, "attached", false);
 		}
 
 		attach() {
 			if (this._attached) {
-				throw new Error(invalidAttachMessage);
+				console.warn(invalidAttachMessage);
 			} else {
 				const r = this._attach.apply(this, arguments);
 				this._attached = true;
@@ -25,10 +29,15 @@ const Listener = (function(){
 		}
 
 		_attach() {
+			this._count = 0;
+
 			this._wrapper = (evt) => {
-				this._listener(evt, this);
+				if (this._checkConditions()) {
+					this._listener(evt, this);
+				}
 			};
-			this._target.addEventListener(this._type, this._wrapper, this._options);
+			this._target.addEventListener(this._type, this._wrapper, 
+										  this._options.get("eventOptions"));
 		}
 
 		remove() {
@@ -39,13 +48,26 @@ const Listener = (function(){
 		}
 
 		_remove() {
-			this._target.removeEventListener(this._type, this._wrapper, this._options);
+			this._target.removeEventListener(this._type, this._wrapper, this._eventOptions);
+		}
+
+		_checkConditions() {
+			if (this._count < this._options.get("minEvents")) {
+				this._count += 1;
+				return false;
+			} else {
+				this._count = 0;
+			}
+
+			return true;
 		}
 	};
 })();
 
 class PromiseListener extends Listener {
 	_attach() {
+		this._count = 0;
+
 		return new Promise((resolve, reject) => {
 			const resolveWrapper = (value) => {
 				this._reject = null;
@@ -59,7 +81,9 @@ class PromiseListener extends Listener {
 			};
 			this._reject = reject;
 			this._wrapper = (evt) => {
-				this._listener(evt, this, resolveWrapper, rejectWrapper);
+				if (this._checkConditions()) {
+					this._listener(evt, this, resolveWrapper, rejectWrapper);
+				}
 			};
 			this._target.addEventListener(this._type, this._wrapper, this._options);
 		});

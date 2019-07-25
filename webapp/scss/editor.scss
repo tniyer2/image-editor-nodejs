@@ -149,13 +149,6 @@ $std-border: 3px solid #444;
 	@extend %area;
 	flex: 0.5;
 	background: #555; }
-.node-space-wrapper {
-	position: relative;
-	outline: none;
-	height: 100%; }
-.node-space {
-	@extend %default-absolute;
-	@extend %max-size; }
 .node-editor__search {
 	display: block;
 	box-sizing: border-box;
@@ -193,3 +186,13 @@ $std-border: 3px solid #444;
 	fill: #333; }
 .node-editor__search-btn svg:hover {
 	fill: $blue; }
+.node-space-wrapper {
+	position: relative;
+	outline: none;
+	height: 100%; }
+.node-space {
+	@extend %default-absolute;
+	@extend %max-size; }
+.links-container {
+	@extend %default-absolute;
+	@extend %max-size; }

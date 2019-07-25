@@ -2,7 +2,7 @@
 import { isNumber, addGetter } from "./utility";
 import { addEvent } from "./event";
 
-export { Command, MultiCommand, ToggleLayerCommand, CommandStack };
+export { Command, MultiCommand, CommandStack };
 
 const Command = (function(){
 	const invalidStateMessage = "Cannot invoke this operation when another operation is executing.",
@@ -143,36 +143,6 @@ class MultiCommand extends Command {
 		this._commands.forEach((c) => {
 			c.redo();
 		});
-	}
-}
-
-class ToggleLayerCommand extends Command {
-	constructor(layerManager, layer, add) {
-		super(Command.IMMEDIATE);
-
-		this._layerManager = layerManager;
-		this._layer = layer;
-		this._add = add;
-	}
-
-	_doAction(b) {
-		if (this._add === b) {
-			this._layerManager.add(this._layer);
-		} else {
-			this._layerManager.remove(this._layer);
-		}
-	}
-
-	_execute() {
-		this._doAction(true);
-	}
-
-	_undo() {
-		this._doAction(false);
-	}
-
-	_redo() {
-		this._doAction(true);
 	}
 }
 

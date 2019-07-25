@@ -7,10 +7,6 @@ import { BoxWidget } from "./widget";
 export { DragWidget, ResizeWidget, RotateWidget };
 
 class DragWidget extends BoxWidget {
-	constructor(groups) {
-		super(groups);
-	}
-
 	_getCommand(boxes, evt) {
 		const mp = this._getMousePosition(evt);
 		return new DragCommand(boxes, mp);

@@ -1,5 +1,5 @@
 
-import { extend, addGetter, make, show, hide, setChecked } from "./utility";
+import { addGetter, make, show, hide, setChecked } from "./utility";
 import { addEvent } from "./event";
 import { addOptions } from "./options";
 
@@ -159,6 +159,38 @@ const AutoComplete = function(){
 			this._list = document.createElement("ul");
 		}
 
+		_attachEvents() {
+			this._input.addEventListener("input", (evt) => {
+				this._update(this._input.value);
+			});
+			this._input.addEventListener("blur", (evt) => {
+				this._close();
+			});
+
+			onKeyDown(this._input, "ArrowUp", (evt) => {
+				evt.preventDefault();
+				this._scroll(false);
+			});
+			onKeyDown(this._input, "ArrowDown", (evt) => {
+				evt.preventDefault();
+				this._scroll(true);
+			});
+
+			const form = this._options.get("form");
+			const val = () => this.visible && this.selected ?
+							  this.selected.innerText : null;
+			if (form) {
+				form.addEventListener("submit", (evt) => {
+					evt.preventDefault();
+					this._confirm(val());
+				});
+			} else {
+				onKeyDown(this._input, "Enter", (evt) => {
+					this._confirm(val());
+				});
+			}
+		}
+
 		get list() {
 			return this._list;
 		}
@@ -184,6 +216,10 @@ const AutoComplete = function(){
 				elm.scrollIntoView({block: "nearest"});
 			}
 			this._selected = elm;
+		}
+
+		get visible() {
+			return !this._list.classList.contains(cl_hide);
 		}
 
 		_update(text) {
@@ -217,33 +253,12 @@ const AutoComplete = function(){
 		_confirm(val) {
 			if (val) {
 				this._input.value = val;
+			} else {
+				val = this._input.value;
 			}
 
-			this._onConfirm.trigger(this._input);
+			this._onConfirm.trigger(val, this._input);
 			this._close();
-		}
-
-		_attachEvents() {
-			this._input.addEventListener("input", (evt) => {
-				this._update(this._input.value);
-			});
-			this._input.addEventListener("blur", (evt) => {
-				this._close();
-			});
-
-			onKeyDown(this._input, "ArrowUp", (evt) => {
-				evt.preventDefault();
-				this._scroll(false);
-			});
-			onKeyDown(this._input, "ArrowDown", (evt) => {
-				evt.preventDefault();
-				this._scroll(true);
-			});
-			onKeyDown(this._input, "Enter", (evt) => {
-				const val = this._isOpen() && this.selected ? 
-					  this.selected.innerText : null;
-				this._confirm(val);
-			});
 		}
 
 		_formatInput(text) {
@@ -318,16 +333,13 @@ const AutoComplete = function(){
 			}
 		}
 
-		_isOpen() {
-			return !this._list.classList.contains(cl_hide);
-		}
-
 		_close() {
 			hide(this._list);
 			this._clearList();
 		}
 	};
 
+	// eslint-disable-next-line no-unused-vars
 	function timesFound(bigString, smallString) {
 		let count = 0,
 			found = 0;
@@ -346,6 +358,7 @@ const AutoComplete = function(){
 		else return count;
 	}
 
+	// eslint-disable-next-line no-unused-vars
 	function shortestMatch(bigString, smallString, includeSameString) {
 		let found = bigString.indexOf(smallString);
 

@@ -1,7 +1,5 @@
 
-import { isUdf, bindFunctions, removeItem, 
-		 addGetter, AddToEventLoop, make } from "./utility";
-import { addEvent } from "./event";
+import { isUdf, addGetter, AddToEventLoop, make } from "./utility";
 import { MouseAction, MouseActionPiper } from "./action";
 import { Anchor, Box } from "./geometry";
 import { Collection, BASE, SELECT } from "./collection";
@@ -134,66 +132,77 @@ const Layer = (function(){
 	};
 })();
 
-class LayerManager extends Collection {
-	constructor(viewport, innerViewport) {
-		const base = Object.assign({}, BASE);
-		base.varName = "layers";
-		const select = Object.assign({}, SELECT);
-		select.onChange = "onSelectedChange";
-		super(base, select);
+const LayerManager = (function(){
+	const FNAMES =
+	["_onAdd", "_onRemove", 
+	 "_onSelect", "_onDeselect"];
+	const CALLBACK_PROPS =
+	["onAdd", "onRemove", 
+	 "onSelect", "onDeselect"];
 
-		const d = make("div");
-		addGetter(this, "parent", d);
+	return class {
+		constructor(viewport, innerViewport) {
+			const opt = {};
+			CALLBACK_PROPS.forEach((b, i) => {
+			 	opt[b] = this[FNAMES[i]].bind(this);
+			 });
+			const c = new (Collection([BASE, SELECT]))(opt);
+			addGetter(this, "layers", c);
 
-		const vp = new Anchor(viewport);
-		addGetter(this, "viewport", vp);
+			const d = make("div");
+			addGetter(this, "parent", d);
 
-		const ivp = new Box(innerViewport, this._viewport);
-		addGetter(this, "innerViewport", ivp);
+			const vp = new Anchor(viewport);
+			addGetter(this, "viewport", vp);
 
-		const mp = new MouseActionPiper();
-		addGetter(this, "layerMouseAction", mp);
-	}
+			const ivp = new Box(innerViewport, this._viewport);
+			addGetter(this, "innerViewport", ivp);
 
-	_initLayer(layer) {
-		layer.parent = this._innerViewport;
-		if (this._layers.length === 1) {
-			this._innerViewport.localDimensions = layer.localDimensions;
+			const mp = new MouseActionPiper();
+			addGetter(this, "layerMouseAction", mp);
 		}
-		const m = new MouseAction(layer.element, this._viewport.element, 
-					{ data: layer, 
-					  loop: true, 
-					  exitOnMouseLeave: false });
-		this._layerMouseAction.pipe(m);
-	}
 
-	_defaultOnAdd(layer) {
-		this._parent.appendChild(layer.element);
-		if (isUdf(layer.element.dataset.initialized)) {
-			this._initLayer(layer);
-			layer.element.dataset.initialized = true;
+		_initLayer(layer) {
+			layer.parent = this._innerViewport;
+			if (this._layers.items.length === 1) {
+				this._innerViewport.localDimensions = layer.localDimensions;
+			}
+			const m = new MouseAction(layer.element, this._viewport.element, 
+						{ data: layer, 
+						  loop: true, 
+						  exitOnMouseLeave: false });
+			this._layerMouseAction.pipe(m);
 		}
-	}
 
-	_defaultOnRemove(layer) {
-		layer.element.remove();
-		if (layer.selected) {
-			this.deselect(layer);
-		} 
-	}
-
-	_defaultOnSelect(layer) {
-		layer.selected = true;
-
-		const len = this._selected.length;
-		if (len > 1) {
-			this._parent.insertBefore(layer.element, this._selected[len-2].element);
-		} else {
+		_onAdd(layer) {
 			this._parent.appendChild(layer.element);
+			if (!layer.p_initialized) {
+				this._initLayer(layer);
+				layer.p_initialized = true;
+			}
 		}
-	}
 
-	_defaultOnDeselect(layer) {
-		layer.selected = false;
-	}
-}
+		_onRemove(layer) {
+			this._parent.removeChild(layer.element);
+			if (layer.selected) {
+				this._layers.deselect(layer);
+			} 
+		}
+
+		_onSelect(layer) {
+			layer.selected = true;
+
+			const len = this._layers.selected.length;
+			if (len > 1) {
+				const b = this._layers.selected[len-2].element;
+				this._parent.insertBefore(layer.element, b);
+			} else {
+				this._parent.appendChild(layer.element);
+			}
+		}
+
+		_onDeselect(layer) {
+			layer.selected = false;
+		}
+	};
+})();

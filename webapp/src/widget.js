@@ -36,6 +36,7 @@ class BoxWidget extends MouseActionHandler {
 		this._commands.forEach((c) => {
 			c.close();
 		});
+		this._commands = null;
 	}
 }
 
@@ -53,34 +54,31 @@ class CanvasWidget extends MouseActionHandler {
 }
 
 class SelectWidget extends MouseActionHandler {
-	constructor(lm) {
+	constructor(collection) {
 		super();
-		this._lm = lm;
+		this._collection = collection;
 	}
 
-	_onClick(mdEvt, muEvt, layer) {
-		if (layer) {
+	_onClick(mdEvt, muEvt, item) {
+		if (item) {
 			const ctrl = mdEvt.ctrlKey,
 				  shift = mdEvt.shiftKey;
-			if (ctrl && layer.selected) {
-				this._lm.deselect(layer);
-			} else if (shift && !layer.selected) {
-				this._lm.select(layer);
+			if (ctrl && item.selected) {
+				this._collection.deselect(item);
+			} else if (shift && !item.selected) {
+				this._collection.select(item);
 			} else if (!ctrl && !shift) {
-				this._lm.deselectAll();
-				this._lm.select(layer);
+				this._collection.selectOnly(item);
 			}
 		}
 	}
 
-	_onStart(evt, layer)
-	{
-		if (layer && !layer.selected) {
+	_onStart(evt, item) {
+		if (item && !item.selected) {
 			if (evt.shiftKey) {
-				this._lm.select(layer);
+				this._collection.select(item);
 			} else {
-				this._lm.deselectAll();
-				this._lm.select(layer);
+				this._collection.selectOnly(item);
 			}
 		}
 	}

@@ -1,14 +1,45 @@
 
-import { isUdf, addGetter, make } from "./utility";
+import { isUdf, isFunction, addGetter, make } from "./utility";
 import { addOptions } from "./options";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
 import { ColorPicker, ColorBox } from "./colorInput";
-import { MultiCommand, ToggleLayerCommand, CommandStack } from "./command";
+import { Command, MultiCommand, CommandStack } from "./command";
 import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
 import { PaintTool } from "./paint";
 import { MoveTool, MoveToolUI } from "./moveTool";
 import { LayerManager } from "./layer";
-import { NodeManager } from "./node";
+import { NodeManager, TestNode } from "./node";
+
+class ToggleItemCommand extends Command {
+	constructor(collection, item, add, addName="add", removeName="remove") {
+		super(Command.IMMEDIATE);
+		this._collection = collection;
+		this._item = item;
+		this._add = add;
+		this._addName = addName;
+		this._removeName = removeName;
+	}
+
+	_doAction(b) {
+		if (this._add === b) {
+			this._collection[this._addName](this._item);
+		} else {
+			this._collection[this._removeName](this._item);
+		}
+	}
+
+	_execute() {
+		this._doAction(true);
+	}
+
+	_undo() {
+		this._doAction(false);
+	}
+
+	_redo() {
+		this._doAction(true);
+	}
+}
 
 const DEFAULTS = { viewport: null,
 				   primaryColor: [0, 0, 0, 255],
@@ -18,10 +49,7 @@ export default class {
 	constructor(options) {
 		addOptions(this, DEFAULTS, options);
 
-		const lm = new LayerManager(this._options.get("viewport"),
-									this._options.get("innerViewport"));
-		addGetter(this, "layerManager", lm);
-
+		this._initLayerManager();
 		this._initStack();
 		this._initGlobals();
 
@@ -33,8 +61,17 @@ export default class {
 			this._globals.put("primaryColor", color);
 		});
 
-		this._initNodeManager();
 		this._initTools();
+		this._initNodes();
+		this._initNodeAutoComplete();
+		this._initNodeManager();
+	}
+
+	_initLayerManager() {
+		const v  = this._options.get("viewport"),
+			  iv = this._options.get("innerViewport");
+		const lm = new LayerManager(v, iv);
+		addGetter(this, "layerManager", lm);
 	}
 
 	_initStack() {
@@ -49,12 +86,8 @@ export default class {
 		g.put("primaryColor", this._options.get("primaryColor"));
 	}
 
-	_initNodeManager() {
-		const ns  = this._options.get("nodeSpace"),
-			  ins = this._options.get("innerNodeSpace"),
-			  ac = this._options.get("nodeSearchAC");
-		const nm = new NodeManager(ns, ins, ac);
-		addGetter(this, "nodeManager", nm);
+	get tools() {
+		return this._tools.keys;
 	}
 
 	_initTools() {
@@ -77,8 +110,34 @@ export default class {
 		this._tools.put("Paint", t2);
 	}
 
-	get tools() {
-		return this._tools.keys;
+	_initNodes() {
+		this._nodes = new ConstantDictionary();
+		this._nodes.put("test_node", TestNode);
+	}
+
+	_initNodeAutoComplete() {
+		const ac = this._options.get("nodeAutoComplete");
+		ac.options.put("values", this._nodes.keys);
+		ac.onConfirm.addListener((value, input) => {
+			if (this._nodes.has(value)) {
+				const createNode = this._nodes.get(value);
+				if (isFunction(createNode)) {
+					const node = new createNode();
+					this._addNode(node);
+				} else {
+					console.warn("createNode is not of type Node:", createNode);
+				}
+			}
+		});
+		addGetter(this, "nodeAutoComplete", ac);
+	}
+
+	_initNodeManager() {
+		const ns = this._options.get("nodeSpace"),
+			  ins = this._options.get("innerNodeSpace"),
+			  links = this._options.get("linksContainer");
+		const nm = new NodeManager(this, ns, ins, links);
+		addGetter(this, "nodeManager", nm);
 	}
 
 	selectTool(toolName) {
@@ -98,20 +157,41 @@ export default class {
 	}
 
 	addLayer(layer) {
-		const c = new ToggleLayerCommand(this._layerManager, layer, true);
+		const c = new ToggleItemCommand(this._layerManager.layers, layer, true);
 		this._stack.add(c);
 		c.execute();
 	}
 
 	removeLayer(layer) {
-		const c = new ToggleLayerCommand(this._layerManager, layer, false);
+		const c = new ToggleItemCommand(this._layerManager.layers, layer, false);
 		this._stack.add(c);
 		c.execute();
 	}
 
 	removeLayers(layers) {
 		const commands = layers.map((l) => {
-			return new ToggleLayerCommand(this._layerManager, l, false);
+			return new ToggleItemCommand(this._layerManager.layers, l, false);
+		});
+		const c = new MultiCommand(commands);
+		this._stack.add(c);
+		c.execute();
+	}
+
+	_addNode(node) {
+		const c = new ToggleItemCommand(this._nodeManager.nodes, node, true);
+		this._stack.add(c);
+		c.execute();
+	}
+
+	removeNode(node) {
+		const c = new ToggleItemCommand(this._nodeManager.nodes, node, false);
+		this._stack.add(c);
+		c.execute();
+	}
+
+	removeNodes(nodes) {
+		const commands = nodes.map((n) => {
+			return new ToggleItemCommand(this._nodeManager.nodes, n, false);
 		});
 		const c = new MultiCommand(commands);
 		this._stack.add(c);

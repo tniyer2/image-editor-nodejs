@@ -1,8 +1,8 @@
 
+import { AutoComplete } from "./input";
 import Editor from "./editor";
 import { Layer } from "./layer";
-import { $, clamp, setDisabled, make, createSVG } from "./utility";
-import { AutoComplete } from "./input";
+import { $, clamp, setDisabled, make } from "./utility";
 
 const elm_root = $("#root"),
 	  elm_fileInput = $("#file-upload"),
@@ -15,8 +15,10 @@ const elm_root = $("#root"),
 	  elm_viewport = $("#viewport"),
 	  elm_nodeSearch = $("#node-search"),
 	  elm_nodeSearchBar = $("#node-search-bar"),
+	  elm_nodeSearchForm = $("#node-search-form"),
 	  elm_nodeSpaceWrapper = $("#node-space-wrapper"),
-	  elm_nodeSpace = $("#node-space");
+	  elm_nodeSpace = $("#node-space"),
+	  elm_linksContainer = $("#links-container");
 
 const cl_canvas = "viewport__canvas",
 	  cl_canvasParent = "viewport__canvas-wrapper",
@@ -25,27 +27,25 @@ const cl_canvas = "viewport__canvas",
 	  cl_toolOptionsParent2 = "menubar__tool-options2",
 	  cl_toolBtn = "toolbar__tool",
 	  cl_toolName = "text",
-	  cl_autoComplete = "auto-complete",
-	  svg_remove = "#icon-trash";
+	  cl_autoComplete = "auto-complete";
 
 const SCALE_FACTOR = -0.0005,
 	  MAX_SCALE = 4, 
 	  MIN_SCALE = 0.25, 
 	  UNDO_DELAY = 100;
 
-let g_editor, nodeSearchAC;
+let g_editor;
 
 function main() {
-	nodeSearchAC = new AutoComplete(elm_nodeSearch, { values: ["apple", "orange", "pear"] });
-	const list = nodeSearchAC.list;
-	list.classList.add(cl_autoComplete);
-	elm_nodeSearchBar.appendChild(list);
+	const ac = createNodeAutoComplete();
 
-	g_editor = new Editor({ viewport: elm_viewportWrapper, 
-							innerViewport: elm_viewport,
-							nodeSpace: elm_nodeSpaceWrapper,
-							innerNodeSpace: elm_nodeSpace,
-							nodeSearchAC: nodeSearchAC });
+	g_editor = new Editor(
+	{ viewport: 	   elm_viewportWrapper,
+	  innerViewport:   elm_viewport,
+	  nodeSpace: 	   elm_nodeSpaceWrapper,
+	  innerNodeSpace:  elm_nodeSpace,
+	  linksContainer:  elm_linksContainer,
+	  nodeAutoComplete: ac });
 
 	appendDOM();
 	listenUndoRedoCommands();
@@ -57,6 +57,14 @@ function main() {
 	listenLayerEvents();
 
 	window.onbeforeunload = () => true;
+}
+
+function createNodeAutoComplete() {
+	const ac = new AutoComplete(elm_nodeSearch, 
+	{ form: elm_nodeSearchForm });
+	ac.list.classList.add(cl_autoComplete);
+	elm_nodeSearchBar.appendChild(ac.list);
+	return ac;
 }
 
 function appendDOM() {
@@ -75,18 +83,20 @@ function appendDOM() {
 function listenUndoRedoCommands() {
 	const listener = (evt) => {
 		if (evt.ctrlKey) {
-			const key = evt.key.toLowerCase(),
-				  z = key === "z";
+			const z = evt.key === "z" || evt.key === "Z",
+				  y = evt.key === "y" || evt.key === "Y";
 
-			if ((z && evt.shiftKey) || key === "y") {
+			if ((z && evt.shiftKey) || y) {
+				evt.preventDefault();
 				if (g_editor.stack.canRedo) {
-					reset();
 					g_editor.stack.redo();
+					reset();
 				}
 			} else if (z) {
+				evt.preventDefault();
 				if (g_editor.stack.canUndo) {
-					reset();
 					g_editor.stack.undo();
+					reset();
 				}
 			}
 		}
@@ -103,7 +113,7 @@ function listenUndoRedoCommands() {
 
 function deleteLayerListener(evt) {
 	if (evt.key === "Delete") {	
-		const selected = g_editor.layerManager.selected;
+		const selected = g_editor.layerManager.layers.selected;
 		if (selected.length) {
 			g_editor.removeLayers(selected);
 		}
@@ -123,7 +133,7 @@ function listenViewportScroll() {
 
 			vp.scaleX = vp.scaleY = scale;
 		}
-	});
+	}, { passive: true });
 }
 
 function listenFileUpload() {
@@ -178,15 +188,17 @@ function selectToolOnClick(button, toolName) {
 }
 
 function listenLayerEvents() {
-	g_editor.layerManager.onAdd.addListener((layer) => {
-		layer.canvas.classList.add(cl_canvas);
-		layer.element.classList.add(cl_canvasParent);
+	const layers = g_editor.layerManager.layers;
+
+	layers.onAdd.addListener((l) => {
+		l.canvas.classList.add(cl_canvas);
+		l.element.classList.add(cl_canvasParent);
 	});
-	g_editor.layerManager.onSelect.addListener((layer) => {
-		layer.element.classList.add(cl_layerSelected);
+	layers.onSelect.addListener((l) => {
+		l.element.classList.add(cl_layerSelected);
 	});
-	g_editor.layerManager.onDeselect.addListener((layer) => {
-		layer.element.classList.remove(cl_layerSelected);
+	layers.onDeselect.addListener((l) => {
+		l.element.classList.remove(cl_layerSelected);
 	});
 }
 

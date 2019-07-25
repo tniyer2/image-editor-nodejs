@@ -8,6 +8,7 @@ $medium-blue: #166af4;
 $dark-blue: #1c59bc;
 
 $red: #cc0606;
+$yellow: #edd51f;
 
 $regular-font-weight: 300;
 $regular-font-size: 16px;
@@ -17,8 +18,7 @@ $regular-font-color: black;
 
 %regular-font {
 	font: $regular-font-weight $regular-font-size $regular-font-family;
-	color: $regular-font-color;
-}
+	color: $regular-font-color; }
 
 %max-size {
 	width: 100%;

@@ -11,7 +11,7 @@ const OptionsDictionary = (function(){
 		}
 
 		set(...options) {
-			for (let i = 0, l = options.length; i < l; i++) {
+			for (let i = 0, l = options.length; i < l; i+=1) {
 				const opt = options[i];
 				if (opt instanceof Dictionary) {
 					options[i] = opt.items;

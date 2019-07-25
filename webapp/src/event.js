@@ -78,5 +78,7 @@ function addEvent(obj, pub, priv) {
 	}
 
 	obj[priv] = new MyEvent();
-	obj[pub] = obj[priv].interface;
+	Object.defineProperty(obj, pub, {
+		get: () => obj[priv].interface
+	});
 }

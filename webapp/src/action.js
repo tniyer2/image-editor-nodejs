@@ -1,5 +1,5 @@
 
-import { bindFunctions, warnIfError, forEach } from "./utility";
+import { bindFunctions, forEach } from "./utility";
 import { Vector2 } from "./geometry";
 import { addOptions } from "./options";
 import { addEvent } from "./event";
@@ -72,7 +72,9 @@ class ActionPiper extends Action {
 }
 
 const MouseAction = (function(){
-	const DEFAULTS = { loop: true, exitOnMouseLeave: false };
+	const DEFAULTS =
+	{ loop: true, exitOnMouseLeave: true, 
+	  mouseMoveAlways: false, mouseLeaveAlways: false };
 
 	return class extends Action {
 		constructor(target, bounds, options) {
@@ -81,6 +83,7 @@ const MouseAction = (function(){
 			this._target = target;
 			this._bounds = bounds;
 			addOptions(this, DEFAULTS, options);
+			this._mouseMoveAlways = this._options.get("mouseMoveAlways");
 
 			MouseAction.eventNames.forEach((n) => {
 				addEvent(this, n);
@@ -114,6 +117,13 @@ const MouseAction = (function(){
 					resolve(evt);
 				});
 				this._listeners.push(this._mouseLeavePromise);
+				if (this._options.get("mouseLeaveAlways")) {				
+					this._mouseLeaveListener = new Listener(this._bounds, "mouseleave", (evt, l) => {
+						this._onEnd.trigger(evt, this._options.get("data"));
+					});
+					this._mouseLeaveListener.attach();
+					this._listeners.push(this._mouseLeaveListener);
+				}
 
 				upTarget = moveTarget = this._target;
 			}
@@ -126,7 +136,8 @@ const MouseAction = (function(){
 				if (this._isMouseOver(l.target, evt)) resolve(evt);
 			};
 			this._mouseDownPromise = new PromiseListener(this._target, "mousedown", triggerOnMouseOver);
-			this._mouseMovePromise = new PromiseListener(moveTarget, "mousemove", triggerOnMouseOver);
+			this._mouseMovePromise = new PromiseListener(moveTarget, "mousemove", triggerOnMouseOver, 
+			{ minEvents: 3 });
 			this._mouseUpPromise   = new PromiseListener(upTarget, "mouseup", triggerOnMouseOver);
 			this._listeners.push(this._mouseDownPromise);
 			this._listeners.push(this._mouseMovePromise);
@@ -141,9 +152,13 @@ const MouseAction = (function(){
 		}
 
 		_start() {
+			if (this._mouseMoveAlways && !this._mouseMoveListener.attached) {
+				this._mouseMoveListener.attach();
+			}
+
 			this._mouseDownPromise.attach().then((evt) => {
 				this._chooseClickOrStart(evt);
-			}).catch(warnIfError);
+			}).catch(console.warn);
 		}
 
 		_chooseClickOrStart(mouseDownEvent) {
@@ -155,7 +170,9 @@ const MouseAction = (function(){
 				if (evt.type === this._mouseMovePromise.type) {
 					this._onStart.trigger(mouseDownEvent, this._options.get("data"));
 					this._onMove.trigger(evt, this._options.get("data"));
-					this._mouseMoveListener.attach();
+					if (!this._mouseMoveAlways) {
+						this._mouseMoveListener.attach();
+					}
 					this._attachEndListeners();
 				} else {
 					this._onClick.trigger(mouseDownEvent, evt, this._options.get("data"));
@@ -163,7 +180,7 @@ const MouseAction = (function(){
 						this._start();
 					}
 				}
-			}).catch(warnIfError);
+			}).catch(console.warn);
 		}
 
 		_attachEndListeners() {
@@ -180,13 +197,15 @@ const MouseAction = (function(){
 			}
 
 			p.finally(() => {
-				this._mouseMoveListener.remove();
+				if (!this._mouseMoveAlways) {
+					this._mouseMoveListener.remove();
+				}
 			}).then((evt) => {
 				this._onEnd.trigger(evt, this._options.get("data"));
 				if (this._options.get("loop") === true) {
 					this._start();
 				}
-			}).catch(warnIfError);
+			}).catch(console.warn);
 		}
 	};
 })();

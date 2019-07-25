@@ -65,11 +65,11 @@ const MoveTool = (function(){
 			const bounds = this._editor.layerManager.viewport.element;
 			this._moveBoxAction = new MouseAction(this._moveBox.element, bounds);
 
-			this._selectWidget = new SelectWidget(this._editor.layerManager);
+			this._selectWidget = new SelectWidget(this._editor.layerManager.layers);
 			this._selectWidget.handle(this._moveBoxAction);
 
 			const boxGroups = [{ stack: this._editor.stack,
-								 boxes: () => this._editor.layerManager.selected }, {
+								 boxes: () => this._editor.layerManager.layers.selected }, {
 								 boxes: [this._moveBox] }];
 
 			this._dragWidget = new DragWidget(boxGroups);
@@ -95,7 +95,7 @@ const MoveTool = (function(){
 		}
 
 		_updateMoveBox() {
-			const selected = this._editor.layerManager.selected;
+			const selected = this._editor.layerManager.layers.selected;
 			if (selected.length) {
 				let fitRect;
 				if (selected.length > 1) {
@@ -114,7 +114,7 @@ const MoveTool = (function(){
 
 		_updateDOM() {
 			const d = this._moveBox.element,
-				  selected = this._editor.layerManager.selected;
+				  selected = this._editor.layerManager.layers.selected;
 			if (selected.length) {
 				show(d);
 			} else {
@@ -132,7 +132,7 @@ const MoveTool = (function(){
 			this._selectWidget.handle(layers);
 			this._dragWidget.handle(layers);
 
-			this._editor.layerManager.onSelectedChange.addListener(this._update);
+			this._editor.layerManager.layers.onSelectedChange.addListener(this._update);
 			this._editor.stack.onChange.addListener(this._updateMoveBox);
 
 			this._editor.layerManager.viewport.element.firstElementChild.appendChild(this._moveBox.element);
@@ -145,7 +145,7 @@ const MoveTool = (function(){
 			this._selectWidget.stopHandling(layers);
 			this._dragWidget.stopHandling(layers);
 
-			this._editor.layerManager.onSelectedChange.removeListener(this._update);
+			this._editor.layerManager.layers.onSelectedChange.removeListener(this._update);
 			this._editor.stack.onChange.removeListener(this._updateMoveBox);
 
 			this._moveBox.element.remove();

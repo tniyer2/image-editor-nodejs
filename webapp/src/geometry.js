@@ -1,6 +1,6 @@
 
-import { isUdf, isType, addGetterRaw, 
-		 addGetter, toPrecision, AddToEventLoop } from "./utility";
+import { isUdf, addGetterRaw, addGetter,
+		 toPrecision, AddToEventLoop } from "./utility";
 
 export { Vector2, Anchor, Box };
 
@@ -38,16 +38,18 @@ class Vector2 {
     	return new Vector2(0, -1);
     }
 
-    add(v) {
-        return new Vector2(this._x + v.x, this._y + v.y);
-    }
-
-    subtract(v) {
-        return new Vector2(this._x - v.x, this._y - v.y);
-    }
-
     _parseFactor(a) {
     	return a instanceof Vector2 ? [a.x, a.y] : [a, a];
+    }
+
+    add(a) {
+    	const [x, y] = this._parseFactor(a);
+        return new Vector2(this._x + x, this._y + y);
+    }
+
+    subtract(a) {
+    	const [x, y] = this._parseFactor(a);
+        return new Vector2(this._x - x, this._y - y);
     }
 
     multiply(a) {
@@ -106,6 +108,10 @@ class Vector2 {
 
     map(f) {
     	return new Vector2(f(this._x), f(this._y));
+    }
+
+    toString() {
+    	return "( " + this._x + ", " + this._y + ")";
     }
 }
 
@@ -206,7 +212,7 @@ class Box {
 	set parent(val) {
 		if (!isUdf(this._parent)) {
 			throw new Error("parent has already been set");
-		} else if (!isType(val, Anchor) && !isType(val, Box)) {
+		} else if (!(val instanceof Anchor) && !(val instanceof Box)) {
 			throw new Error("invalid value for parent: " + val);
 		}
 		this._parent = val;
@@ -253,7 +259,7 @@ class Box {
 		return v.divide(this._parent.scale);
 	}
 
-	toWorldDir(b) {
+	toWorldDir(v) {
 		return v.multiply(this._parent.scale);
 	}
 
