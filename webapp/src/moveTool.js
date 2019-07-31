@@ -4,7 +4,7 @@ import { addOptions } from "./options";
 import { Box } from "./geometry";
 import { MouseAction } from "./action";
 import { Toggle } from "./input";
-import { SelectWidget } from "./widget";
+import { SelectWidget } from "./collectionWidgets";
 import { DragWidget, ResizeWidget, RotateWidget } from "./boxWidgets";
 import ToolUI from "./toolUI";
 
@@ -128,7 +128,7 @@ const MoveTool = (function(){
 		}
 
 		enable() {
-			const layers = this._editor.layerManager.layerMouseAction;
+			const layers = this._editor.layerManager.layerUserAction;
 			this._selectWidget.handle(layers);
 			this._dragWidget.handle(layers);
 
@@ -141,7 +141,7 @@ const MoveTool = (function(){
 		}
 
 		disable() {
-			const layers = this._editor.layerManager.layerMouseAction;
+			const layers = this._editor.layerManager.layerUserAction;
 			this._selectWidget.stopHandling(layers);
 			this._dragWidget.stopHandling(layers);
 

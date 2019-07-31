@@ -15,6 +15,8 @@ const Listener = (function(){
 			this._listener = listener;
 			addOptions(this, DEFAULTS, options);
 
+			this._eventOptions = this._options.get("eventOptions");
+
 			addGetter(this, "attached", false);
 		}
 
@@ -36,8 +38,8 @@ const Listener = (function(){
 					this._listener(evt, this);
 				}
 			};
-			this._target.addEventListener(this._type, this._wrapper, 
-										  this._options.get("eventOptions"));
+			this._target.addEventListener(
+				this._type, this._wrapper, this._eventOptions);
 		}
 
 		remove() {
@@ -48,7 +50,8 @@ const Listener = (function(){
 		}
 
 		_remove() {
-			this._target.removeEventListener(this._type, this._wrapper, this._eventOptions);
+			this._target.removeEventListener(
+				this._type, this._wrapper, this._eventOptions);
 		}
 
 		_checkConditions() {
@@ -85,12 +88,14 @@ class PromiseListener extends Listener {
 					this._listener(evt, this, resolveWrapper, rejectWrapper);
 				}
 			};
-			this._target.addEventListener(this._type, this._wrapper, this._options);
+			this._target.addEventListener(
+				this._type, this._wrapper, this._eventOptions);
 		});
 	}
 
 	_remove() {
-		this._target.removeEventListener(this._type, this._wrapper, this._options);
+		this._target.removeEventListener(
+			this._type, this._wrapper, this._eventOptions);
 		if (this._reject) {
 			this._reject();
 		}

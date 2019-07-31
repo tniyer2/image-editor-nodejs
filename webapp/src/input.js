@@ -65,11 +65,11 @@ const Toggle = (function(){
 const Slider = (function(){
 	const cl_slider = { root: "slider",
 						text: "slider__text" };
-	const DEFAULTS = { text: "", reverse: false };
+	const DEFAULTS = { text: "", reverse: false, step: null };
 
 	return class {
-		constructor(iv, min, max, options) {
-			this._initialValue = iv;
+		constructor(val, min, max, options) {
+			this._initialValue = val;
 			this._min = min;
 			this._max = max;
 			addOptions(this, DEFAULTS, options);
@@ -94,6 +94,10 @@ const Slider = (function(){
 			input.type = "range";
 			input.min = this._min;
 			input.max = this._max;
+			const step = this._options.get("step");
+			if (step) {
+				input.step = step;
+			}
 			input.value = this._initialValue;
 			d.appendChild(input);
 			this._input = input;

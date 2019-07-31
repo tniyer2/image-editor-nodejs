@@ -1,10 +1,12 @@
 
-import { myeval } from "./utility";
-import { MouseActionHandler } from "./action";
+import { myeval, clamp } from "./utility";
+import { addOptions } from "./options";
+import { MultiCommand } from "./command";
+import { UserActionHandler, ZoomActionHandler } from "./action";
 
-export { BoxWidget, CanvasWidget, SelectWidget };
+export { BoxWidget, CanvasWidget, ZoomWidget };
 
-class BoxWidget extends MouseActionHandler {
+class BoxWidget extends UserActionHandler {
 	constructor(groups) {
 		super();
 
@@ -16,16 +18,22 @@ class BoxWidget extends MouseActionHandler {
 
 	_onStart(evt) {
 		this._commands = this._boxGroups.map((g) => {
-			const c = this._getCommand(myeval(g.boxes), evt);
-			const s = myeval(g.stack);
-			if (s) {
-				s.add(c);
+			let c = this._getCommand(myeval(g.boxes), evt);
+			if (c.constructor === Array) {
+				c = new MultiCommand(c);
+			}
+
+			const stack = myeval(g.stack);
+			if (stack) {
+				stack.add(c);
 			}
 			return c;
 		});
 	}
 
 	_onMove(evt) {
+		if (!this._commands) return;
+
 		const args = this._getArguments(evt);
 		this._commands.forEach((c) => {
 			c.execute(...args);
@@ -33,6 +41,8 @@ class BoxWidget extends MouseActionHandler {
 	}
 
 	_onEnd(evt) {
+		if (!this._commands) return;
+
 		this._commands.forEach((c) => {
 			c.close();
 		});
@@ -40,7 +50,7 @@ class BoxWidget extends MouseActionHandler {
 	}
 }
 
-class CanvasWidget extends MouseActionHandler {
+class CanvasWidget extends UserActionHandler {
 	_getMousePosition(evt, layer) {
 		const l = layer;
 		const rotPosition = l.localPosition
@@ -53,33 +63,32 @@ class CanvasWidget extends MouseActionHandler {
 	}
 }
 
-class SelectWidget extends MouseActionHandler {
-	constructor(collection) {
-		super();
-		this._collection = collection;
-	}
+const ZoomWidget = (function(){
+	const DEFAULTS =
+	{ condition: () => true, factor: 1,
+	  min: 0, max: Infinity };
+	const BASE_FACTOR = -0.001;
 
-	_onClick(mdEvt, muEvt, item) {
-		if (item) {
-			const ctrl = mdEvt.ctrlKey,
-				  shift = mdEvt.shiftKey;
-			if (ctrl && item.selected) {
-				this._collection.deselect(item);
-			} else if (shift && !item.selected) {
-				this._collection.select(item);
-			} else if (!ctrl && !shift) {
-				this._collection.selectOnly(item);
+	return class extends ZoomActionHandler {
+		constructor(box, options) {
+			super();
+			this._box = box;
+			addOptions(this, DEFAULTS, options);
+		}
+
+		_onZoom(evt) {
+			if (this._options.get("condition", false)(evt)) {
+				let scale = this._box.localScaleX;
+				const factor = this._options.get("factor"),
+					  min = this._options.get("min"),
+					  max = this._options.get("max");
+
+				scale += evt.deltaY * BASE_FACTOR * factor;
+				scale = clamp(scale, min, max);
+
+				this._box.localScaleX = scale;
+				this._box.localScaleY = scale;
 			}
 		}
-	}
-
-	_onStart(evt, item) {
-		if (item && !item.selected) {
-			if (evt.shiftKey) {
-				this._collection.select(item);
-			} else {
-				this._collection.selectOnly(item);
-			}
-		}
-	}
-}
+	};
+})();

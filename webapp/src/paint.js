@@ -215,10 +215,10 @@ class PaintTool {
 	}
 
 	enable() {
-		this._widget.handle(this._editor.layerManager.layerMouseAction);
+		this._widget.handle(this._editor.layerManager.layerUserAction);
 	}
 
 	disable() {
-		this._widget.stopHandling(this._editor.layerManager.layerMouseAction);
+		this._widget.stopHandling(this._editor.layerManager.layerUserAction);
 	}
 }

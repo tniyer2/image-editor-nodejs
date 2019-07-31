@@ -78,7 +78,7 @@ class EventDictionary extends Dictionary {
         }
     }
 
-    mutate(name, cb) {
+    edit(name, cb) {
         const value = super.get(name);
         cb(value);
         this._updateEvent(name, value);

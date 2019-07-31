@@ -55,7 +55,7 @@ const Collection = (function(){
 						this["_" + p.onAdd].trigger(item);
 					}
 					if (p.onChange) {
-						this["_" + p.onChange].trigger();
+						this["_" + p.onChange].trigger(p.add);
 					}
 				};
 
@@ -66,11 +66,10 @@ const Collection = (function(){
 							this["_" + p.onRemove].trigger(item);
 						}
 						if (p.onChange) {
-							this["_" + p.onChange].trigger();
+							this["_" + p.onChange].trigger(p.remove);
 						}
-					} else {
-						console.warn("Could not remove item from this." + priv + ":", item);
 					}
+					return removed;
 				};
 
 				if (p.clear) {
@@ -84,7 +83,7 @@ const Collection = (function(){
 							}
 						});
 						if (p.onChange) {
-							this["_" + p.onChange].trigger();
+							this["_" + p.onChange].trigger(p.clear);
 						}
 					};
 				}
@@ -116,7 +115,7 @@ const Collection = (function(){
 						}
 
 						if (p.onChange) {
-							this["_" + p.onChange].trigger();
+							this["_" + p.onChange].trigger(p.addOnly);
 						}
 					};
 				}

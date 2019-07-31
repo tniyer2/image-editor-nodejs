@@ -1,7 +1,7 @@
 
-const cl_element = "tool-options";
+const cl_element = "options-ui";
 
-export default class ToolUI {
+export default class {
 	_initialize() {
 		const d = this._createUI();
 		if (d instanceof HTMLElement) {

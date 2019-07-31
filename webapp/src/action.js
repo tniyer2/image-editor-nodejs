@@ -5,18 +5,29 @@ import { addOptions } from "./options";
 import { addEvent } from "./event";
 import { Listener, PromiseListener } from "./listener";
 
-export { Action, ActionHandler, ActionPiper, 
-		 MouseAction, MouseActionHandler, MouseActionPiper };
+export { MouseAction, KeyAction, 
+		 UserActionHandler, UserActionPiper,
+		 ZoomAction, ZoomActionHandler };
 
 class Action {
-	constructor() {}
-	dispose() {}
+	constructor() {
+		this._listeners = [];
+	}
+
+	dispose() {
+		this._listeners.forEach((l) => {
+			l.remove();
+		});
+	}
 }
 
 class ActionHandler {
 	constructor(en, ln) {
 		this._eventNames = en;
 
+		if (!ln) {
+			ln = en.map(n => "_" + n);
+		}
 		bindFunctions(this, ln, true);
 		this._listenerNames = ln;
 	}
@@ -25,7 +36,10 @@ class ActionHandler {
 		forEach(this._eventNames, this._listenerNames, (e, l) => {
 			const f = this[l];
 			if (f) {
-				action[e].addListener(f);
+				const a = action[e];
+				if (a) {
+					a.addListener(f);
+				}
 			}
 		});
 	}
@@ -41,15 +55,13 @@ class ActionHandler {
 }
 
 class ActionPiper extends Action {
-	constructor(ien, oen) {
+	constructor(en) {
 		super();
 
-		this._inputEventNames = ien;
-		this._outputEventNames = oen || ien;
-
-		this._outputEventNames.forEach((n) => {
-			addEvent(this, n);
+		en.forEach((e) => {
+			addEvent(this, e);
 		});
+		this._eventNames = en;
 
 		this._cleanUpFunctions = [];
 	}
@@ -62,19 +74,21 @@ class ActionPiper extends Action {
 	}
 
 	pipe(action) {
-		forEach(this._inputEventNames, 
-				this._outputEventNames, 
-				(i, o) => {
-					const rl = this["_" + o].linkTo(action[i]);
-					this._cleanUpFunctions.push(rl);
-				});
+		this._eventNames.forEach((n) => {
+			const event = action[n];
+			if (event) {
+				const dispose = this["_" + n].linkTo(event);
+				this._cleanUpFunctions.push(dispose);
+			}
+		});
 	}
 }
 
 const MouseAction = (function(){
 	const DEFAULTS =
 	{ loop: true, exitOnMouseLeave: true, 
-	  mouseMoveAlways: false, mouseLeaveAlways: false };
+	  mouseMoveAlways: false, mouseLeaveAlways: false,
+	  condition: (evt) => evt.button === 0 };
 
 	return class extends Action {
 		constructor(target, bounds, options) {
@@ -97,27 +111,21 @@ const MouseAction = (function(){
 			return ["onClick", "onStart", "onMove", "onEnd"];	
 		}
 
-		dispose() {
-			this._listeners.forEach((l) => {
-				l.remove();
-			});
-		}
-
 		_isMouseOver(elm, evt) {
 			let topMostElm = document.elementFromPoint(evt.clientX, evt.clientY);
 			return elm === topMostElm || elm.contains(topMostElm);
 		}
 
 		_initListeners() {
-			this._listeners = [];
-
-			let upTarget, moveTarget;
+			let upTarget;
+			let upCapture;
 			if (this._options.get("exitOnMouseLeave")) {
 				this._mouseLeavePromise = new PromiseListener(this._bounds, "mouseleave", (evt, l, resolve) => {
 					resolve(evt);
 				});
 				this._listeners.push(this._mouseLeavePromise);
-				if (this._options.get("mouseLeaveAlways")) {				
+
+				if (this._options.get("mouseLeaveAlways")) {
 					this._mouseLeaveListener = new Listener(this._bounds, "mouseleave", (evt, l) => {
 						this._onEnd.trigger(evt, this._options.get("data"));
 					});
@@ -125,25 +133,29 @@ const MouseAction = (function(){
 					this._listeners.push(this._mouseLeaveListener);
 				}
 
-				upTarget = moveTarget = this._target;
-			}
-			else {
+				upTarget = this._bounds;
+				upCapture = false;
+			} else {
 				upTarget = document;
-				moveTarget = this._bounds;
+				upCapture = true;
 			}
 
 			const triggerOnMouseOver = (evt, l, resolve) => {
 				if (this._isMouseOver(l.target, evt)) resolve(evt);
 			};
-			this._mouseDownPromise = new PromiseListener(this._target, "mousedown", triggerOnMouseOver);
-			this._mouseMovePromise = new PromiseListener(moveTarget, "mousemove", triggerOnMouseOver, 
-			{ minEvents: 3 });
-			this._mouseUpPromise   = new PromiseListener(upTarget, "mouseup", triggerOnMouseOver);
+			this._mouseDownPromise = new PromiseListener(
+				this._target, "mousedown", triggerOnMouseOver);
+			this._mouseMovePromise = new PromiseListener(
+				this._bounds, "mousemove", triggerOnMouseOver, 
+				{ minEvents: 3 });
+			this._mouseUpPromise   = new PromiseListener(
+				upTarget, "mouseup", triggerOnMouseOver,
+				{ eventOptions: upCapture });
 			this._listeners.push(this._mouseDownPromise);
 			this._listeners.push(this._mouseMovePromise);
 			this._listeners.push(this._mouseUpPromise);
 
-			this._mouseMoveListener = new Listener(moveTarget, "mousemove", (evt, l) => {
+			this._mouseMoveListener = new Listener(this._bounds, "mousemove", (evt, l) => {
 				if (this._isMouseOver(l.target, evt)) {
 					this._onMove.trigger(evt, this._options.get("data"));
 				}
@@ -157,7 +169,12 @@ const MouseAction = (function(){
 			}
 
 			this._mouseDownPromise.attach().then((evt) => {
-				this._chooseClickOrStart(evt);
+				const f = this._options.get("condition", false);
+				if (!f || f(evt)) {
+					this._chooseClickOrStart(evt);
+				} else {
+					this._start();
+				}
 			}).catch(console.warn);
 		}
 
@@ -210,10 +227,48 @@ const MouseAction = (function(){
 	};
 })();
 
-class MouseActionHandler extends ActionHandler {
+class KeyAction extends Action {
+	constructor(target, options) {
+		super();
+
+		this._target = target;
+		addOptions(this, options);
+
+		KeyAction.eventNames.forEach((e) => {
+			addEvent(this, e);
+		});
+
+		this._initListeners();
+		this._start();
+	}
+
+	static get eventNames() {
+		return ["onKeyDown", "onKeyUp"];
+	}
+
+	_initListeners() {
+		this._keyDownListener = new Listener(this._target, "keydown", (e) => {
+			this._onKeyDown.trigger(e, this._options.get("data"));
+		});
+		this._keyUpListener = new Listener(this._target, "keyup", (e) => {
+			this._onKeyUp.trigger(e, this._options.get("data"));
+		});
+
+		this._listeners.push(this._keyDownListener, this._keyUpListener);
+	}
+
+	_start() {
+		this._listeners.forEach((l) => {
+			l.attach();
+		});
+	}
+}
+
+const UserEventNames = MouseAction.eventNames.concat(KeyAction.eventNames);
+
+class UserActionHandler extends ActionHandler {
 	constructor() {
-		const names = MouseAction.eventNames;
-		super(names, names.map(n => "_" + n));
+		super(UserEventNames);
 	}
 
 	_getMousePosition(evt) {
@@ -221,8 +276,43 @@ class MouseActionHandler extends ActionHandler {
 	}
 }
 
-class MouseActionPiper extends ActionPiper {
+class UserActionPiper extends ActionPiper {
 	constructor() {
-		super(MouseAction.eventNames);
-	} 
+		super(UserEventNames);
+	}
+}
+
+class ZoomAction extends Action {
+	constructor(target) {
+		super();
+
+		this._target = target;
+
+		addEvent(this, "onZoom");
+
+		this._initListeners();
+		this._start();
+	}
+
+	static get eventNames() {
+		return ["onZoom"];
+	}
+
+	_initListeners() {
+		this._wheelListener = new Listener(this._target, "wheel",
+		(evt) => {
+			this._onZoom.trigger(evt);
+		}, { eventOptions: { passive: true }});
+		this._listeners.push(this._wheelListener);
+	}
+
+	_start() {
+		this._wheelListener.attach();
+	}
+}
+
+class ZoomActionHandler extends ActionHandler {
+	constructor() {
+		super(ZoomAction.eventNames);
+	}
 }

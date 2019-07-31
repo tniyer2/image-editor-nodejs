@@ -1,14 +1,13 @@
 
-import { addGetter, removeItem, show, hide, 
-		 createSVG, preventBubble, myeval, flatten } from "./utility";
+import { addGetter, removeItem,
+		 createSVG, preventBubble } from "./utility";
+import { addOptions } from "./options";
+import { Dictionary } from "./dictionary";
+import ToolUI from "./toolUI";
 import { addEvent } from "./event";
-import { Anchor, Box, Vector2 } from "./geometry";
-import { MouseAction, MouseActionPiper, MouseActionHandler } from "./action";
-import { DragWidget } from "./boxWidgets";
-import { SelectWidget } from "./widget";
-import { Collection, BASE, SELECT } from "./collection";
+import { Box, Vector2 } from "./geometry";
 
-export { NodeManager, Node, TestNode };
+export { Node, NodeInput, NodeOutput, Link, NodeUI, EmptyNodeUI };
 
 const Link = (function(){
 	const CLASSES =
@@ -17,13 +16,14 @@ const Link = (function(){
 	  completed: "completed",
 	  path1: "line",
 	  path2: "click-box" };
-	const PADDING = 5;
+	const PADDING = 50,
+		  CP_OFFSET = 0.35;
 
 	return class extends Box {
 		constructor() {
 			const d = document.createElement("div");
 			d.classList.add(CLASSES.root);
-			preventBubble(d, "mousedown", "mouseup");
+			preventBubble(d, "mousedown");
 			super(d);
 
 			this._createDOM();
@@ -117,12 +117,12 @@ const Link = (function(){
 			}
 			let [tl, br] = tlbr;
 
-			const p = new Vector2(PADDING, PADDING);
-			const negp = p.negate();
-			const tl2 = tl.subtract(p);
-			const br2 = br.add(p);
+			const pd = new Vector2(PADDING, PADDING);
+			const pd2 = pd.negate();
+			const tl2 = tl.subtract(pd);
+			const br2 = br.add(pd);
 			const diff = br2.subtract(tl2);
-			const rect = [negp.x, negp.y, diff.x, diff.y];
+			const rect = [pd2.x, pd2.y, diff.x, diff.y];
 
 			this._svg.setAttributeNS(null, "viewBox", rect.join(" "));
 			this._svg.setAttributeNS(null, "width", diff.x);
@@ -130,9 +130,27 @@ const Link = (function(){
 			this.position = tl2;
 			this.dimensions = diff;
 
-			const i2 = i.subtract(tl);
 			const o2 = o.subtract(tl);
-			const d = "M " + i2.x + " " + i2.y + " L " + o2.x + " " + o2.y;
+			const i2 = i.subtract(tl);
+
+			const dir = i2.subtract(o2);
+			const mid = dir.divide(2).add(o2);
+
+			const offset = CP_OFFSET * dir.magnitude;
+			const offv = new Vector2(0, offset);
+
+			const ocp = o2.add(offv);
+			const icp = i2.subtract(offv);
+
+			const d = ["M", o2, "C", ocp, mid, mid, "S", icp, i2]
+			.reduce((acc, cur) => {
+				if (typeof cur === "string") {
+					acc.push(cur);
+				} else {
+					acc.push(cur.x, cur.y);
+				}
+				return acc;
+			}, []).join(" ");
 
 			this._paths.forEach((p) => {
 				p.setAttributeNS(null, "d", d);
@@ -141,123 +159,6 @@ const Link = (function(){
 	};
 })();
 
-class NodeLinkWidget extends MouseActionHandler {
-	constructor(cln, parent) {
-		super();
-		this._collection = cln;
-		this._parent = parent;
-
-		this._link = null;
-		this._prevLink = null;
-		this._setting = false;
-	}
-
-	_onInput(point) {
-		if (this._setting) {
-			if (!this._inputStart && point.node !== this._link.output.node) {
-				this._setLink(point, true);
-			} else {
-				this._clear();
-			}
-		} else {
-			this._createLink(point, true);
-		}
-	}
-
-	_onOutput(point) {
-		if (this._setting) {
-			if (this._inputStart && point.node !== this._link.input.node) {
-				this._setLink(point, false);
-			} else {
-				this._clear();
-			}
-		} else {
-			this._createLink(point, false);
-		}
-	}
-
-	_createLink(point, isInput) {
-		this._setting = true;
-		this._inputStart = isInput;
-
-		this._link = new Link();
-		this._parent.element.appendChild(this._link.element);
-		this._link.parent = this._parent;
-
-		if (isInput) {
-			const prev = point.link;
-			if (prev) {
-				hide(prev.element);
-				this._prevLink = prev;
-			}
-			this._link.input = point;
-		} else {
-			this._link.output = point;
-		}
-	}
-
-	_setLink(point, isInput) {
-		if (isInput) {
-			this._link.input = point;
-			this._prevLink = point.link;
-		} else {
-			this._link.output = point;
-		}
-
-		if (this._prevLink) {
-			this._collection.remove(this._prevLink);
-			this._prevLink = null;
-		}
-
-		this._link.updatePath();
-		this._collection.add(this._link);
-		this._link = null;
-
-		this._setting = false;
-	}
-
-	_clear(removePrev=true) {
-		this._link.element.remove();
-		this._link = null;
-		if (this._prevLink) {
-			if (removePrev) {
-				this._collection.remove(this._prevLink);
-			}
-			show(this._prevLink.element);
-			this._prevLink = null;
-		}
-
-		this._setting = false;
-	}
-
-	_onClick(mdEvt, muEvt, point) {
-		if (point instanceof NodeInput) {
-			this._onInput(point);
-		} else if (point instanceof NodeOutput) {
-			this._onOutput(point);
-		} else if (this._setting) {
-			this._clear();
-		}
-	}
-
-	_onMove(evt, point) {
-		if (this._setting) {
-			let p = this._getMousePosition(evt);
-			if (this._inputStart) {
-				this._link.updatePath(null, p);
-			} else {
-				this._link.updatePath(p, null);
-			}
-		}
-	}
-
-	_onEnd(evt, point) {
-		if (this._setting) {
-			this._clear();
-		}
-	}
-}
-
 const NodePoint = (function(){
 	const cl_point = "point";
 
@@ -265,7 +166,7 @@ const NodePoint = (function(){
 		constructor() {
 			const d = document.createElement("div");
 			d.classList.add(cl_point);
-			preventBubble(d, "mousedown", "mouseup");
+			preventBubble(d, "mousedown");
 			super(d);
 
 			this.node = null;
@@ -334,52 +235,39 @@ class NodeInput extends NodePoint {
 	}
 }
 
-class NodeDragWidget extends DragWidget {
-	_onMove(evt) {
-		if (!this._commands) return;
-		super._onMove(evt);
-
-		let boxes = this._boxGroups.map(g => myeval(g.boxes));
-		boxes = flatten(boxes);
-
-		let inputs = boxes.map(b => b.inputs);
-		inputs = flatten(flatten(inputs));
-		let outputs = boxes.map(b => b.outputs);
-		outputs = flatten(flatten(outputs));
-
-		let iLinks = inputs.map(p => p.link); 
-		let oLinks = flatten(outputs.map(o => o.links));
-		let links = iLinks.concat(oLinks).filter(Boolean);
-		links = Array.from(new Set(links));
-
-		links.forEach((l) => {
-			l.updatePath();
-		});
-	}
-}
-
 const Node = (function(){
-	const CLASSES = { root: "node-wrapper",
-					  node: "node",
-					  view: "toggle-view",
-					  lock: "toggle-lock",
-					  inputs: "inputs",
-					  outputs: "outputs",
-					  points: "points",
-					  selected: "selected",
-					  locked: "on",
-					  visible: "on" };
+	const CLASSES =
+	{ root: "node-wrapper",
+	  node: "node",
+	  view: "toggle-view",
+	  lock: "toggle-lock",
+	  inputs: "inputs",
+	  outputs: "outputs",
+	  points: "points",
+	  selected: "selected",
+	  locked: "on",
+	  visible: "on",
+	  icon: "icon" };
 	const svg_view = "#icon-view",
 		  svg_lock = "#icon-lock";
+	const DEFAULTS = { icon: null };
 
 	return class extends Box {
-		constructor(inputs, outputs) {
+		constructor(inputs, outputs, ui, options) {
 			const d = document.createElement("div");
-			preventBubble(d, "mousedown", "mouseup");
+			preventBubble(d, "mousedown");
 			super(d);
 
 			addGetter(this, "inputs", inputs);
 			addGetter(this, "outputs", outputs);
+			ui.dictionary.onChange.addListener(() => {
+				this._dirty = true;
+				if (this.manager) {
+					this.manager.updateNetwork();
+				}
+			});
+			addGetter(this, "ui", ui);
+			addOptions(this, DEFAULTS, options);
 
 			addGetter(this, "dirty", true);
 			this._inputs.forEach((input) => {
@@ -439,20 +327,32 @@ const Node = (function(){
 			lockBtn.appendChild(svg2);
 			this._lockBtn = lockBtn;
 
+			const iconHref = this._options.get("icon");
+			let icon;
+			if (iconHref) {
+				icon = createSVG(iconHref);
+				icon.classList.add(CLASSES.icon);
+			}
+
 			node.appendChild(lockBtn);
+			if (icon) {
+				node.appendChild(icon);
+			}
 			node.appendChild(viewBtn);
 		}
 
 		_attachEvents() {
+			const isLocked = () => this.manager.lock.locked;
+
 			preventBubble(this._viewBtn, "mouseup", "mousedown");
 			this._viewBtn.addEventListener("click", (evt) => {
-				const val = !this._visible;
-				this.manager.nodes.visible = val ? this : null;
-				this.visible = val;
+				if (isLocked()) return;
+				this.manager.nodes.visible = this._visible ? null : this;
 			});
 
 			preventBubble(this._lockBtn, "mouseup", "mousedown");
 			this._lockBtn.addEventListener("click", (evt) => {
+				if (isLocked()) return;
 				this.locked = !this._locked;
 			});
 		}
@@ -471,8 +371,12 @@ const Node = (function(){
 		}
 
 		set locked(val) {
+			const unlocking = this._locked && !val;
 			this._locked = val;
 			this._lockBtn.classList.toggle(CLASSES.locked, val);
+			if (unlocking) {
+				this.manager.updateNetwork();
+			}
 		}
 
 		get visible() {
@@ -489,274 +393,74 @@ const Node = (function(){
 				   .map(i => i.link.output.node);
 		}
 
-		// returns a promise that resolves true if cooked
+		get links() {
+			const ilinks = this._inputs.map(p => p.link),
+				  olinks = this._outputs.map(p => p.links);
+			return ilinks.concat(...olinks).filter(Boolean);
+		}
+
 		cook() {
-			if (this._locked || !this._dirty) {
-				return Promise.resolve(false);
-			} else {
-				return new Promise((resolve) => {
-					const inputs = this._inputs.map(i => i.value);
-					const p = this._cook(...inputs);
-					if (p instanceof Promise) {
-						p.then(resolve);
-					} else {
-						resolve(p);
-					}
-				}).then((results) => {
-					this._outputs.forEach((o, i) => {
-						o.value = results[i];
-					});
-					this._dirty = false;
-					return true;
+			console.log("cooking:", this._element);
+			return new Promise((resolve) => {
+				const inputs = this._inputs.map(i => i.value);
+				const p = this._cook(...inputs);
+				if (p instanceof Promise) {
+					p.then(resolve);
+				} else {
+					resolve(p);
+				}
+			}).then((results) => {
+				this._outputs.forEach((o, i) => {
+					o.value = results[i];
 				});
-			}
+				this._dirty = false;
+			});
 		}
 	};
 })();
 
-class TestNode extends Node {
-	constructor() {
-		const input = new NodeInput(),
-			  output = new NodeOutput();
-		super([input], [output]);
-	}
-
-	_cook(a) {
-		return [a];
+class NodeUI extends ToolUI {
+	constructor(options) {
+		super();
+		const dict = new NodeDictionary(options);
+		addGetter(this, "dictionary", dict);
 	}
 }
 
-const NodeManager = (function(){
-	const CALLBACK_PROPS =
-	["onAdd", "onRemove", 
-	 "onSelect", "onDeselect"];
-	const COLLECTION_INFO = [
-	{ name: "nodes",
-	  collection: Collection([BASE, SELECT,
-		  { type: Collection.SINGLE,
-		  	var: "visible",
-		  	onSet: "onVisibleChange" }]),
-	  callbackProps: (()=>{
-	  	const c = CALLBACK_PROPS.slice();
-	  	c.push("onSet");
-	  	return c;
-	  })(),
-	  functions:
-	  ["_onNodeAdd", "_onNodeRemove",
-	   "_onNodeSelect", "_onNodeDeselect", 
-	   "_onVisibleNodeChange"]},
-	{ name: "links",
-	  collection: Collection([BASE, SELECT]),
-	  callbackProps: CALLBACK_PROPS,
-	  functions:
-	  ["_onLinkAdd", "_onLinkRemove",
-	   "_onLinkSelect", "_onLinkDeselect"]}];
+class NodeDictionary extends Dictionary {
+    constructor(proto) {
+        super(proto);
+        addEvent(this, "onChange");
+    }
 
-	return class {
-		constructor (editor, ns, ins, lc) {
-			this._editor = editor;
+    edit(name, cb) {
+    	if (!this.has(name)) {
+    		console.warn("NodeDictionary does not contain key:", name);
+    	}
+        const value = super.get(name);
+        cb(value);
+        this._onChange.trigger(name);
+    }
 
-			const anchor = new Anchor(ns);
-			addGetter(this, "nodeSpace", anchor);
-			const box = new Box(ins, anchor);
-			addGetter(this, "innerNodeSpace", box);
-			const box2 = new Box(lc, box);
-			addGetter(this, "linksContainer", box2);
+    put(name, value) {
+    	if (!this.has(name)) {
+    		console.warn("NodeDictionary does not support appending new values.");
+    	}
+        super.put(name, value);
+        this._onChange.trigger(name);
+    }
 
-			this._initCollections();
+    remove() {
+    	console.warn("NodeDictionary does not support the remove function.");
+    }
+}
 
-			this._initNodeWidgets();
-			this._initPointWidgets();
-			this._initLinkWidgets();
-		}
+class EmptyNodeUI extends NodeUI {
+	constructor() {
+		super({});
+	}
 
-		_initCollections() {
-			COLLECTION_INFO.forEach((d) => {
-				const opt = {},
-					  f = d.functions;
-				d.callbackProps.forEach((b, i) => {
-					opt[b] = this[f[i]].bind(this);
-				});
-				const c = new d.collection(opt);
-				addGetter(this, d.name, c);
-			});
-		}
-
-		_initNodeWidgets() {
-			const piper = new MouseActionPiper();
-
-			const action = new MouseAction(
-				this._innerNodeSpace.element,
-				this._nodeSpace.element,
-				{ mouseMoveAlways: true });
-			piper.pipe(action);
-
-			const select = new SelectWidget(this._nodes);
-			const drag = new NodeDragWidget(
-				{ boxes: () => this._nodes.selected, 
-				  stack: this._editor.stack });
-			select.handle(piper);
-			drag.handle(piper);
-
-			this._nodeMouseAction = piper;
-		}
-
-		_initPointWidgets() {
-			const piper = new MouseActionPiper();
-
-			const action = new MouseAction(
-				this._innerNodeSpace.element,
-				this._nodeSpace.element, 
-				{ mouseMoveAlways: true,
-				  mouseLeaveAlways: true });
-			piper.pipe(action);
-
-			const connect = new NodeLinkWidget(
-				this._links, this._linksContainer);
-			connect.handle(piper);
-
-			this._pointMouseAction = piper;
-		}
-
-		_initLinkWidgets() {
-			const piper = new MouseActionPiper();
-
-			const select = new SelectWidget(this._links);
-			select.handle(piper);
-
-			this._linkMouseAction = piper;
-		}
-
-		_initNode(node) {
-			node.manager = this;
-			node.parent = this._innerNodeSpace;
-
-			const bounds = this._nodeSpace.element;
-
-			const m1 = new MouseAction(
-				node.element, bounds, { data: node });
-			this._nodeMouseAction.pipe(m1);
-
-			node.inputs.concat(node.outputs).forEach((p) => {
-				const m2 = new MouseAction(
-					p.element, bounds, { data: p });
-				this._pointMouseAction.pipe(m2);
-			});
-		}
-
-		_onNodeAdd(node) {
-			if (!node.p_initialized) {
-				this._initNode(node);
-				node.p_initialized = true;
-			}
-			this._innerNodeSpace.element.appendChild(node.element);
-		}
-
-		_onNodeRemove(node) {
-			node.element.remove();
-			if (node.selected) {
-				this._nodes.deselect(node);
-			}
-		}
-
-		_onNodeSelect(node) {
-			node.selected = true;
-			this._innerNodeSpace.element.appendChild(node.element);
-		}
-
-		_onNodeDeselect(node) {
-			node.selected = false;
-		}
-
-		_onVisibleNodeChange(oldNode, node) {
-			if (oldNode) {
-				oldNode.visible = false;
-			}
-		}
-
-		_initLink(link) {
-			const bounds = this._nodeSpace.element;
-			const m = new MouseAction(link.element, bounds, 
-				{ data: link });
-			this._linkMouseAction.pipe(m);
-		}
-
-		_onLinkAdd(link) {
-			link.input.link = link;
-			link.output.addLink(link);
-			this._linksContainer.element.appendChild(link.element);
-			if (!link.p_initialized) {
-				this._initLink(link);
-				link.p_initialized = true;
-			}
-		}
-
-		_onLinkRemove(link) {
-			link.input.link = null;
-			link.output.removeLink(link);
-			link.element.remove();
-			if (link.selected) {
-				this._links.deselect(link);
-			}
-		}
-
-		_onLinkSelect(link) {
-			this._linksContainer.element.appendChild(link.element);
-			link.selected = true;
-		}
-
-		_onLinkDeselect(link) {
-			link.selected = false;
-		}
-
-		_cook(graph) {
-			return graph.reduce((chain, node) => chain.then((arr) => {
-				const d = Date.now();
-				return node.cook().then((cooked) => {
-					const time = cooked ? Date.now() - d : 0;
-					arr.push(time);
-					return arr;
-				});
-			}), Promise.resolve([]));
-		}
-
-		_getSubGraph(start) {
-			let graph = [];
-
-			function unmark(node) {
-				node.p_perm = node.p_temp = false;
-			}
-
-			function visit(node, first=false) {
-				if (node.p_perm) {
-					return true;
-				}
-				if (node.p_temp) {
-					graph.forEach(unmark);
-					graph = [];
-					return false;
-				}
-				node.p_temp = true;
-				for (const ref of node.references) {
-					const cyclic = visit(ref);
-					if (!cyclic) {
-						unmark(ref);
-						graph.push(ref);
-						return false;
-					}
-				}
-				graph.push(node);
-				if (first) {
-					graph.forEach(unmark);
-				} else {
-					node.p_temp = false;
-					node.p_perm = true;
-				}
-				return true;
-			}
-
-			const cyclic = visit(start, true);
-			return { graph: graph, cyclic: cyclic };
-		}
-	};
-})();
+	_createUI() {
+		return document.createElement("div");
+	}
+}

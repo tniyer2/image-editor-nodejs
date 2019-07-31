@@ -185,10 +185,11 @@ class Box {
 		}
 
 		this._angle = 0;
-		this._scaleX = 1;
-		this._scaleY = 1;
+		this._localScaleX = 1;
+		this._localScaleY = 1;
 
 		createVectorProperty(this, "scale", "scaleX", "scaleY");
+		createVectorProperty(this, "localScale", "localScaleX", "localScaleY");
 		createVectorProperty(this, "localPosition", "localLeft", "localTop");
 		createVectorProperty(this, "position", "left", "top");
 		createVectorProperty(this, "localDimensions", "localWidth", "localHeight");
@@ -196,7 +197,7 @@ class Box {
 
 		this._updateCssTransform = new AddToEventLoop(() => {
 			const cssRot = "rotate(" + this.degrees + "deg)";
-			const cssScale = "scale(" + this._scaleX + ", " + this._scaleY + ")";
+			const cssScale = "scale(" + this._localScaleX + ", " + this._localScaleY + ")";
 			this._element.style.transform = cssRot + " " + cssScale;
 		});
 	}
@@ -271,32 +272,48 @@ class Box {
 		return v.multiply(this._parent.scale).add(this._parent.position);
 	}
 
+	get localScaleX() {
+		return this._localScaleX;
+	}
+
+	set localScaleX(val) {
+		this._localScaleX = val;
+		this._updateCssTransform.invoke();
+	}
+
+	get localScaleY() {
+		return this._localScaleY;
+	}
+
+	set localScaleY(val) {
+		this._localScaleY = val;
+		this._updateCssTransform.invoke();
+	}
+
 	get scaleX() {
-		return this._scaleX;
+		return this._localScaleX * this._parent.scaleX;
 	}
 
 	set scaleX(val) {
-		this._scaleX = val;
-		this._updateCssTransform.invoke();
+		this._localScaleX = val / this._parent.scaleX;
 	}
 
 	get scaleY() {
-		return this._scaleY;
+		return this._localScaleY * this._parent.scaleY;
 	}
 
 	set scaleY(val) {
-		this._scaleY = val;
-		this._updateCssTransform.invoke();
+		this._localScaleY = val / this._parent.scaleY;
 	}
 
 	get _topDiff() {
 		const h = this._element.offsetHeight;
-		return (h * (1 - this._scaleY) * 0.5);
+		return (h * (1 - this._localScaleY) * 0.5);
 	}
 
 	get _leftDiff() {
 		const w = this._element.offsetWidth;
-		return (w * (1 - this._scaleX) * 0.5);
+		return (w * (1 - this._localScaleX) * 0.5);
 	}
 
 	get localTop() {
@@ -335,20 +352,20 @@ class Box {
 	}
 
 	get localWidth() {
-		return this._element.offsetWidth * this._scaleX;
+		return this._element.offsetWidth * this._localScaleX;
 	}
 
 	set localWidth(val) {
-		val /= this._scaleX;
+		val /= this._localScaleX;
 		this._element.style.width = val + "px";
 	}
 
 	get localHeight() {
-		return this._element.offsetHeight * this._scaleY;
+		return this._element.offsetHeight * this._localScaleY;
 	}
 
 	set localHeight(val) {
-		val /= this._scaleY;
+		val /= this._localScaleY;
 		this._element.style.height = val + "px";
 	}
 

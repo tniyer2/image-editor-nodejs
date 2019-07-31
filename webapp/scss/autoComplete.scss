@@ -2,25 +2,29 @@
 @import "master";
 
 .auto-complete {
-  position: absolute;
-  top: 100%;
-  left: 0;
   width: 100%;
   max-height: 100px;
-  margin: 0;
-  padding: 0;
   overflow-y: auto;
+  box-sizing: border-box;
+  margin: 0;
+  margin-top: 5px;
+  padding: 0;
   list-style-type: none;
-  background: white;
-  border: 1px solid #b2b2b2; }
+  background: white; }
 .auto-complete li {
   height: 20px;
+  padding: 0;
+  padding-top: 1px;
+  padding-bottom: 1px;
   padding-left: 2px;
   overflow: hidden;
   font-size: 14px;
-  background: inherit;
-  color: #9b9b9b;
-  font-weight: 400; }
+  color: #888;
+  font-weight: 400;
+  border-style: solid;
+  border-color: #aaa;
+  border-width: 1px 0; }
 .auto-complete li.active {
-  background: #b2b2b2; 
-  color: #595959; }
+  border-color: #888;
+  color: #444;
+  background: #bbb; }

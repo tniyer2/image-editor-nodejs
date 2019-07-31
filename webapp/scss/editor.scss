@@ -67,6 +67,10 @@ $std-border: 3px solid #444;
 	@extend %menubar__div; }
 .menubar__tool-options2 {
 	@extend %max-size; }
+.menubar__node-options {
+	@extend %menubar__div; }
+.menubar__node-options2 {
+	@extend %max-size; }
 
 
 .editor-content {
@@ -100,16 +104,12 @@ $std-border: 3px solid #444;
 	display: flex; }
 
 
-%area {
+.viewport-wrapper {
+	flex: 1;
 	position: relative;
 	height: 100%;
 	overflow: hidden;
-	outline: none; }
-
-
-.viewport-wrapper {
-	@extend %area;
-	flex: 1;
+	outline: none;
 	background: #555;
 	border: $std-border;
 	border-color: #393939;
@@ -135,64 +135,79 @@ $std-border: 3px solid #444;
 	position: absolute;
 	overflow: hidden;
 	@extend %max-size; }
-.viewport__canvas-wrapper {
+.layer {
 	@extend %default-absolute;
 	overflow: hidden;
 	z-index: 0; }
-.viewport__canvas-wrapper.selected {
+.layer.selected {
 	z-index: 2; }
-.viewport__canvas {
+.layer canvas {
 	@extend %default-absolute;
 	transform-origin: top left; }
 
+
 .node-editor {
-	@extend %area;
-	flex: 0.5;
-	background: #555; }
-.node-editor__search {
-	display: block;
+	flex: 0.75;
+	position: relative;
+	z-index: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	background: #555;
+	outline: none; }
+
+
+.node-search {
+	z-index: 1;
 	box-sizing: border-box;
 	height: 50px;
 	padding: 10px 10px;
 	background: #333; }
-.node-editor__search-bar-wrapper {
-	@extend %max-size;
+.node-search__wrapper {
+	position: relative;
+	@extend %max-size; }
+.node-search__wrapper2 {
+	@extend %default-absolute;
+	min-width: 100%;
+	min-height: 100%;
 	box-sizing: border-box;
-	padding: 2px 5px;
+	padding: 5px;
+	overflow: hidden;
 	background: #fff;
 	border-radius: 10px; }
-.node-editor__search-bar {
-	@extend %max-size;
-	position: relative;
+.node-search__wrapper3 {
 	display: flex;
-	justify-content: space-between;
-	align-items: center; }
-.node-editor__search-bar input {
-	@extend %remove-input-defaults;
-	box-sizing: border-box;
-	width: 100px;
-	height: 100%;
-	flex: 1;
-	@extend %regular-font;
-	font-size: 18px; }
-.node-editor__search-btn {
-	@extend %remove-button-defaults;
-	position: relative;
-	width: 30px;
-	height: 90%; }
-.node-editor__search-btn svg {
-	@extend %default-absolute;
-	@extend %max-size;
-	fill: #333; }
-.node-editor__search-btn svg:hover {
-	fill: $blue; }
+	height: 20px;
+	input {
+		@extend %remove-input-defaults;
+		flex: 1;
+		width: 100px;
+		height: 100%;
+		@extend %regular-font;
+		font-size: 18px; }
+	button {
+		@extend %remove-button-defaults;
+		position: relative;
+		width: 30px;
+		height: 100%;
+		svg {
+			@extend %default-absolute;
+			@extend %max-size;
+			fill: #333; }
+		svg:hover {
+			fill: $blue; } }
+}
+
+
 .node-space-wrapper {
+	flex: 1;
 	position: relative;
-	outline: none;
-	height: 100%; }
+	outline: none; }
 .node-space {
 	@extend %default-absolute;
-	@extend %max-size; }
-.links-container {
-	@extend %default-absolute;
-	@extend %max-size; }
+	@extend %max-size;
+
+	.links-parent {
+		@extend %default-absolute;
+		@extend %max-size; }
+}

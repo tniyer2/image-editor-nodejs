@@ -33,6 +33,14 @@
             <title>View</title>
             <path d="M16 6c-6.979 0-13.028 4.064-16 10 2.972 5.936 9.021 10 16 10s13.027-4.064 16-10c-2.972-5.936-9.021-10-16-10zM23.889 11.303c1.88 1.199 3.473 2.805 4.67 4.697-1.197 1.891-2.79 3.498-4.67 4.697-2.362 1.507-5.090 2.303-7.889 2.303s-5.527-0.796-7.889-2.303c-1.88-1.199-3.473-2.805-4.67-4.697 1.197-1.891 2.79-3.498 4.67-4.697 0.122-0.078 0.246-0.154 0.371-0.228-0.311 0.854-0.482 1.776-0.482 2.737 0 4.418 3.582 8 8 8s8-3.582 8-8c0-0.962-0.17-1.883-0.482-2.737 0.124 0.074 0.248 0.15 0.371 0.228v0zM16 13c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"></path>
           </symbol>
+          <symbol id="icon-test-node" viewBox="0 0 32 32">
+            <title>Test-Node</title>
+     		<text text-anchor="middle" font-family="serif" font-size="24" y="24" x="16">Test</text>
+          </symbol>
+          <symbol id="icon-async-test-node" viewBox="-10 -10 47 47">
+            <title>Async-Test-Node</title>
+            <path d="M22.781 16c4.305-2.729 7.219-7.975 7.219-14 0-0.677-0.037-1.345-0.109-2h-27.783c-0.072 0.655-0.109 1.323-0.109 2 0 6.025 2.914 11.271 7.219 14-4.305 2.729-7.219 7.975-7.219 14 0 0.677 0.037 1.345 0.109 2h27.783c0.072-0.655 0.109-1.323 0.109-2 0-6.025-2.914-11.271-7.219-14zM5 30c0-5.841 2.505-10.794 7-12.428v-3.143c-4.495-1.634-7-6.587-7-12.428v0h22c0 5.841-2.505 10.794-7 12.428v3.143c4.495 1.634 7 6.587 7 12.428h-22zM19.363 20.925c-2.239-1.27-2.363-2.918-2.363-3.918v-2.007c0-1 0.119-2.654 2.367-3.927 1.203-0.699 2.244-1.761 3.033-3.073h-12.799c0.79 1.313 1.832 2.376 3.036 3.075 2.239 1.27 2.363 2.918 2.363 3.918v2.007c0 1-0.119 2.654-2.367 3.927-2.269 1.318-3.961 3.928-4.472 7.073h15.677c-0.511-3.147-2.204-5.758-4.475-7.075z"></path>
+          </symbol>
         </defs>
      </svg>
 	<div id="root" class="root">
@@ -55,6 +63,7 @@
 	        		</button>
 				</div>
 				<div id="tool-options" class="menubar__tool-options"></div>
+				<div id="node-options" class="menubar__node-options"></div>
 			</div>
 			<div class="editor-content">
 				<div id="toolbar" class="toolbar">
@@ -67,21 +76,22 @@
 					</div>
 				</div>
 				<div class="node-editor">
-					<form id="node-search-form" class="node-editor__search">
-						<div class="node-editor__search-bar-wrapper">
-							<div id="node-search-bar" class="node-editor__search-bar">
-							<input id="node-search" type="text"></input>
-							<button type="submit" class="node-editor__search-btn">
-								<svg>
-									<use href="#icon-search"/>
-								</svg>
-							</button>
+					<form id="node-search" class="node-search">
+						<div class="node-search__wrapper">
+							<div id="node-search-w2" class="node-search__wrapper2">
+								<div class="node-search__wrapper3">
+									<input id="node-search-input" type="text"></input>
+									<button type="submit">
+										<svg>
+											<use href="#icon-search"/>
+										</svg>
+									</button>
+								</div>
 							</div>
 						</div>
 					</form>
 					<div id="node-space-wrapper" class="node-space-wrapper" tabindex="0">
 						<div id="node-space" class="node-space">
-							<div id="links-container" class="links-container"></div>
 						</div>
 					</div>
 				</div>

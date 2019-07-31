@@ -1,6 +1,8 @@
 
 import { isUdf, addGetter, AddToEventLoop, make } from "./utility";
-import { MouseAction, MouseActionPiper } from "./action";
+import { MouseAction, UserActionPiper, ZoomAction } from "./action";
+import { ToggleItemCommand } from "./collectionWidgets";
+import { ZoomWidget } from "./widget";
 import { Anchor, Box } from "./geometry";
 import { Collection, BASE, SELECT } from "./collection";
 
@@ -139,9 +141,20 @@ const LayerManager = (function(){
 	const CALLBACK_PROPS =
 	["onAdd", "onRemove", 
 	 "onSelect", "onDeselect"];
+	const CLASSES =
+	{ layers: "layers",
+	  layer: "layer", 
+	  selected: "selected" };
 
 	return class {
-		constructor(viewport, innerViewport) {
+		constructor(editor, vp, ivp) {
+			this._editor = editor;
+
+			const anchor = new Anchor(vp);
+			addGetter(this, "viewport", anchor);
+			const box = new Box(ivp, anchor);
+			addGetter(this, "innerViewport", box);
+
 			const opt = {};
 			CALLBACK_PROPS.forEach((b, i) => {
 			 	opt[b] = this[FNAMES[i]].bind(this);
@@ -150,19 +163,34 @@ const LayerManager = (function(){
 			addGetter(this, "layers", c);
 
 			const d = make("div");
+			d.classList.add(CLASSES.layers);
+			ivp.appendChild(d);
 			addGetter(this, "parent", d);
 
-			const vp = new Anchor(viewport);
-			addGetter(this, "viewport", vp);
+			const mp = new UserActionPiper();
+			addGetter(this, "layerUserAction", mp);
 
-			const ivp = new Box(innerViewport, this._viewport);
-			addGetter(this, "innerViewport", ivp);
+			this._initZoomWidget();
+		}
 
-			const mp = new MouseActionPiper();
-			addGetter(this, "layerMouseAction", mp);
+		_initZoomWidget() {
+			this._zoomWidget = new ZoomWidget(this._innerViewport, 
+			{ factor: 0.2, condition: () => {
+				const c = this._editor.stack.current;
+				return !c || !c.open;
+			} });
+			const action = new ZoomAction(this._viewport.element);
+			this._zoomWidget.handle(action);
+		}
+
+		addLayer(layer) {
+			const c = new ToggleItemCommand(this._layers, layer, true);
+			this._editor.stack.add(c);
+			c.execute();
 		}
 
 		_initLayer(layer) {
+			layer.element.classList.add(CLASSES.layer);
 			layer.parent = this._innerViewport;
 			if (this._layers.items.length === 1) {
 				this._innerViewport.localDimensions = layer.localDimensions;
@@ -171,7 +199,7 @@ const LayerManager = (function(){
 						{ data: layer, 
 						  loop: true, 
 						  exitOnMouseLeave: false });
-			this._layerMouseAction.pipe(m);
+			this._layerUserAction.pipe(m);
 		}
 
 		_onAdd(layer) {
@@ -191,6 +219,7 @@ const LayerManager = (function(){
 
 		_onSelect(layer) {
 			layer.selected = true;
+			layer.element.classList.add(CLASSES.selected);
 
 			const len = this._layers.selected.length;
 			if (len > 1) {
@@ -203,6 +232,7 @@ const LayerManager = (function(){
 
 		_onDeselect(layer) {
 			layer.selected = false;
+			layer.element.classList.remove(CLASSES.selected);
 		}
 	};
 })();
