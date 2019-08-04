@@ -1,5 +1,5 @@
 
-import { bindFunctions, make, show, hide, preventBubble } from "./utility";
+import { show, hide, stopBubbling } from "./utility";
 import { addOptions } from "./options";
 import { Box } from "./geometry";
 import { MouseAction } from "./action";
@@ -18,13 +18,16 @@ const MoveTool = (function(){
 		  cl_rotateHandle = "move-box__rotate-handle",
 		  cl_rotateConnector = "move-box__rotate-connector";
 	const DEFAULTS = { "fixAspectRatio": true };
+	const TO_BE_BOUND = ["_updateMoveBox", "_updateDOM", "_update"];
 
 	return class {
 		constructor(editor) {
 			this._editor = editor;
 			addOptions(this, DEFAULTS);
 
-			bindFunctions(this, ["_updateMoveBox", "_updateDOM", "_update"]);
+			TO_BE_BOUND.forEach((n) => {
+				this[n] = this[n].bind(this);
+			});
 
 			this._createBoxes();
 			this._createWidgets();
@@ -33,27 +36,27 @@ const MoveTool = (function(){
 		_createBoxes() {
 			const parent = this._editor.layerManager.innerViewport;
 
-			const d = make("div");
+			const d = document.createElement("div");
 			d.classList.add(cl_moveBox);
 			this._moveBox = new Box(d, parent);
 
-			const background = make("div");
+			const background = document.createElement("div");
 			background.classList.add(cl_background);
 			d.appendChild(background);
 
-			const connector = make("div");
+			const connector = document.createElement("div");
 			connector.classList.add(cl_rotateConnector);
 			d.appendChild(connector);
 
-			const rot = make("div");
-			preventBubble(rot, "mousedown");
+			const rot = document.createElement("div");
+			stopBubbling(rot, "mousedown");
 			rot.classList.add(cl_rotateHandle);
 			d.appendChild(rot);
 			this._rotateBox = new Box(rot, parent);
 
 			this._resizeBoxes = RESIZE_DIRECTIONS.map((dir) => {
-				const handle = make("div");
-				preventBubble(handle, "mousedown");
+				const handle = document.createElement("div");
+				stopBubbling(handle, "mousedown");
 				handle.classList.add(cl_resizeHandle, dir);
 				d.appendChild(handle);
 
@@ -83,9 +86,9 @@ const MoveTool = (function(){
 			this._resizeWidgets = this._resizeBoxes.map((box, i) => {
 				const options  = { angle: () => this._moveBox.angle };
 				const options2 = { direction: i * 2,
-								   fixAspectRatio: this._options.get("fixAspectRatio") };
+								   fixAspectRatio: this.options.get("fixAspectRatio") };
 				const widget = new ResizeWidget(boxGroups, options, options2);
-				this._options.addListener("fixAspectRatio", (v) => {
+				this.options.addListener("fixAspectRatio", (v) => {
 					widget.resizeOptions.put("fixAspectRatio", v);
 				});
 				const action = new MouseAction(box.element, bounds); 
@@ -165,7 +168,7 @@ const MoveToolUI = (function(){
 		}
 
 		_createUI() {
-			const d = make("div");
+			const d = document.createElement("div");
 
 			const initValue = this._settings.get("fixAspectRatio");
 			const toggle = new Toggle(initValue, { text: txt_fixAspectRatio });

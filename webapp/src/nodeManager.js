@@ -1,5 +1,5 @@
 
-import { addGetter, AddToEventLoop } from "./utility";
+import { AddToEventLoop } from "./utility";
 import Lock from "./lock";
 import { MouseAction, KeyAction,
 		 ZoomAction, UserActionPiper } from "./action";
@@ -9,6 +9,7 @@ import { DragWidget } from "./boxWidgets";
 import { NodeLinkWidget, DragNodeWidget } from "./nodeWidgets";
 import { SelectWidget, DeleteWidget,
 		 ToggleItemCommand } from "./collectionWidgets";
+import { MultiNodeInput } from "./node";
 import { Collection, BASE, SELECT } from "./collection";
 
 const CALLBACK_PROPS =
@@ -136,15 +137,12 @@ export default class {
 	constructor (editor, ns, ins) {
 		this._editor = editor;
 
-		const anchor = new Anchor(ns);
-		addGetter(this, "nodeSpace", anchor);
-		const box = new Box(ins, anchor);
-		addGetter(this, "innerNodeSpace", box);
+		this.nodeSpace = new Anchor(ns);
+		this.innerNodeSpace = new Box(ins, this.nodeSpace);
 
-		const lock = new Lock();
-		lock.pipe(this._editor.stack.lock);
-		addGetter(this, "lock", lock);
-		this._cooker = new NodeCooker(lock);
+		this.lock = new Lock();
+		this.lock.pipe(this._editor.stack.lock);
+		this._cooker = new NodeCooker(this.lock);
 
 		this._initDOM();
 
@@ -153,7 +151,7 @@ export default class {
 		this._initNetworkUpdater();
 		this._initUIUpdater();
 
-		this._keyAction = new KeyAction(this._nodeSpace.element);
+		this._keyAction = new KeyAction(this.nodeSpace.element);
 		this._initZoomWidget();
 		this._initDeleteWidgets();
 		this._initNodeSpaceWidget();
@@ -165,13 +163,11 @@ export default class {
 	_initDOM() {
 		const links = document.createElement("div");
 		links.classList.add(CLASSES.links);
-		const ins = this._innerNodeSpace;
+		const ins = this.innerNodeSpace;
 		ins.element.appendChild(links);
-		const box = new Box(links, ins);
-		addGetter(this, "linksParent", box);
+		this.linksParent = new Box(links, ins);
 
-		const nop = document.createElement("div");
-		addGetter(this, "nodeOptionsParent", nop);
+		this.nodeOptionsParent = document.createElement("div");
 	}
 
 	_initCollections() {
@@ -181,14 +177,13 @@ export default class {
 			d.callbackProps.forEach((b, i) => {
 				opt[b] = this[f[i]].bind(this);
 			});
-			const c = new d.collection(opt);
-			addGetter(this, d.name, c);
+			this[d.name] = new d.collection(opt);
 		});
 	}
 
 	_initNetworkUpdater() {
 		this._networkUpdater = new AddToEventLoop(() => {
-			const n = this._nodes.visible;
+			const n = this.nodes.visible;
 			if (n) {
 				this._cooker.cook(n);
 			}
@@ -197,34 +192,34 @@ export default class {
 
 	_initUIUpdater() {
 		this._uiUpdater = new AddToEventLoop(() => {
-			const s = this._nodes.selected,
+			const s = this.nodes.selected,
 				  l = s.length;
-			this._nodes.active = l ? s[l-1] : null;
+			this.nodes.active = l ? s[l-1] : null;
 		});
 	}
 
 	_initZoomWidget() {
-		this._zoomWidget = new ZoomWidget(this._innerNodeSpace, 
+		this._zoomWidget = new ZoomWidget(this.innerNodeSpace, 
 		{ factor: 0.2,
 		  condition: () => {
 			const c = this._editor.stack.current;
 			return !c || !c.open;
 		} });
-		const action = new ZoomAction(this._nodeSpace.element);
+		const action = new ZoomAction(this.nodeSpace.element);
 		this._zoomWidget.handle(action);
 	}
 
 	_initDeleteWidgets() {
 		const dw = new DeleteWidget(
-			[this._nodes, this._links], this._editor.stack);
+			[this.nodes, this.links], this._editor.stack);
 		dw.handle(this._keyAction);
 	}
 
 	_initNodeSpaceWidget() {
-		const w = new DragWidget({ boxes: [this._innerNodeSpace] });
-		const elm = this._nodeSpace.element;
+		const w = new DragWidget({ boxes: [this.innerNodeSpace] });
+		const elm = this.nodeSpace.element;
 		const action = new MouseAction(elm, elm, {
-			condition: (evt) => evt.button === 1
+			condition: (evt) => evt.button === 0 || evt.button === 1
 		});
 		w.handle(action);
 	}
@@ -232,9 +227,9 @@ export default class {
 	_initNodeWidgets() {
 		const piper = new UserActionPiper();
 
-		const select = new SelectWidget(this._nodes);
+		const select = new SelectWidget(this.nodes);
 		const drag = new DragNodeWidget(
-			{ boxes: () => this._nodes.selected, 
+			{ boxes: () => this.nodes.selected, 
 			  stack: this._editor.stack });
 		select.handle(piper);
 		drag.handle(piper);
@@ -246,14 +241,14 @@ export default class {
 		const piper = new UserActionPiper();
 
 		const action = new MouseAction(
-			this._innerNodeSpace.element,
-			this._nodeSpace.element, 
+			this.innerNodeSpace.element,
+			this.nodeSpace.element, 
 			{ mouseMoveAlways: true,
 			  mouseLeaveAlways: true });
 		piper.pipe(action);
 
 		const connect = new NodeLinkWidget(
-			this._links, this._linksParent, this._editor.stack, this._lock);
+			this.links, this.linksParent, this._editor.stack, this.lock);
 		connect.handle(piper);
 		connect.handle(this._keyAction);
 
@@ -263,23 +258,27 @@ export default class {
 	_initLinkWidgets() {
 		const piper = new UserActionPiper();
 
-		const select = new SelectWidget(this._links);
+		const select = new SelectWidget(this.links);
 		select.handle(piper);
 
 		this._linkMouseAction = piper;
 	}
 
+	get stack() {
+		return this._editor.stack;
+	}
+
 	addNode(node) {
-		const c = new ToggleItemCommand(this._nodes, node, true);
+		const c = new ToggleItemCommand(this.nodes, node, true);
 		this._editor.stack.add(c);
 		c.execute();
 	}
 
 	_initNode(node) {
 		node.manager = this;
-		node.parent = this._innerNodeSpace;
+		node.parent = this.innerNodeSpace;
 
-		const bounds = this._nodeSpace.element;
+		const bounds = this.nodeSpace.element;
 
 		const m1 = new MouseAction(
 			node.element, bounds, { data: node });
@@ -291,14 +290,14 @@ export default class {
 			this._pointMouseAction.pipe(m2);
 		});
 
-		node.position = this._nodeSpace.position.add(NODE_SPAWN);
+		node.position = this.nodeSpace.position.add(NODE_SPAWN);
 	}
 
 	_onNodeAdd(node) {
-		this._innerNodeSpace.element.appendChild(node.element);
+		this.innerNodeSpace.element.appendChild(node.element);
 		if (node.p_links) {
 			node.p_links.forEach((l) => {
-				this._links.add(l);
+				this.links.add(l);
 			});
 			node.p_links = null;
 		}
@@ -310,24 +309,24 @@ export default class {
 	}
 
 	_onNodeRemove(node) {
-		if (this._nodes.visible === node) {
-			this._nodes.visible = null;
+		if (this.nodes.visible === node) {
+			this.nodes.visible = null;
 		}
 		if (node.selected) {
-			this._nodes.deselect(node);
+			this.nodes.deselect(node);
 		}
 
 		node.element.remove();
 
 		node.p_links = node.links;
 		node.p_links.forEach((l) => {
-			this._links.remove(l);
+			this.links.remove(l);
 		});
 	}
 
 	_onNodeSelect(node) {
 		node.selected = true;
-		this._innerNodeSpace.element.appendChild(node.element);
+		this.innerNodeSpace.element.appendChild(node.element);
 	}
 
 	_onNodeDeselect(node) {
@@ -336,7 +335,7 @@ export default class {
 
 	_onSelectedNodeChange(fname) {
 		if (fname === "selectOnly") {
-			this._links.deselectAll();
+			this.links.deselectAll();
 		}
 		this._uiUpdater.invoke();
 	}
@@ -356,21 +355,28 @@ export default class {
 			oldNode.ui.disable();
 		}
 		if (node) {
-			node.ui.enable(this._nodeOptionsParent);
+			node.ui.enable(this.nodeOptionsParent);
 		}
 	}
 
 	_initLink(link) {
-		const bounds = this._nodeSpace.element;
+		const bounds = this.nodeSpace.element;
 		const m = new MouseAction(link.element, bounds, 
 			{ data: link });
 		this._linkMouseAction.pipe(m);
 	}
 
 	_onLinkAdd(link) {
-		link.input.link = link;
+		if (link.input instanceof MultiNodeInput) {
+			link.input.addLink(link);
+			link.input.links.forEach((l) => {
+				l.updatePath();
+			});
+		} else {
+			link.input.link = link;
+		}
 		link.output.addLink(link);
-		this._linksParent.element.appendChild(link.element);
+		this.linksParent.element.appendChild(link.element);
 
 		if (!link.p_initialized) {
 			this._initLink(link);
@@ -382,10 +388,17 @@ export default class {
 
 	_onLinkRemove(link) {
 		if (link.selected) {
-			this._links.deselect(link);
+			this.links.deselect(link);
 		}
 
-		link.input.link = null;
+		if (link.input instanceof MultiNodeInput) {
+			link.input.removeLink(link);
+			link.input.links.forEach((l) => {
+				l.updatePath();
+			});
+		} else {
+			link.input.link = null;
+		}
 		link.output.removeLink(link);
 		link.element.remove();
 
@@ -393,7 +406,7 @@ export default class {
 	}
 
 	_onLinkSelect(link) {
-		this._linksParent.element.appendChild(link.element);
+		this.linksParent.element.appendChild(link.element);
 		link.selected = true;
 	}
 
@@ -403,7 +416,7 @@ export default class {
 
 	_onSelectedLinkChange(fname) {
 		if (fname === "selectOnly") {
-			this._nodes.deselectAll();
+			this.nodes.deselectAll();
 		}
 	}
 

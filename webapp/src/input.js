@@ -1,14 +1,15 @@
 
-import { addGetter, make, show, hide, setChecked } from "./utility";
+import { show, hide, setBooleanAttribute } from "./utility";
 import { addEvent } from "./event";
 import { addOptions } from "./options";
 
-export { Toggle, Slider, AutoComplete };
+export { Toggle, Slider, FileInput, AutoComplete };
 
 const Toggle = (function(){
-	const cl_toggle = { root: "toggle", 
-						text: "toggle__text", 
-						slider: "toggle__slider" };
+	const CLASSES =
+	{ root: "toggle", 
+	  text: "toggle__text", 
+	  slider: "toggle__slider" };
 	const DEFAULTS = { text: "" };
 
 	return class {
@@ -17,37 +18,33 @@ const Toggle = (function(){
 			addOptions(this, DEFAULTS, options);
 
 			this._createDOM();
-			this._initEvents();
+			addEvent(this, "onToggle");
 			this._attachListeners();
 		}
 
 		_createDOM() {
-			const d = make("div");
-			d.classList.add(cl_toggle.root);
-			addGetter(this, "root", d);
+			const d = document.createElement("div");
+			d.classList.add(CLASSES.root);
+			this.root = d;
 
-			const text = make("span");
-			text.classList.add(cl_toggle.text);
-			text.innerText = this._options.get("text");
+			const text = document.createElement("span");
+			text.classList.add(CLASSES.text);
+			text.innerText = this.options.get("text");
 			d.appendChild(text);
 
-			const label = make("label");
+			const label = document.createElement("label");
 
-			const input = make("input");
+			const input = document.createElement("input");
 			input.type = "checkbox";
-			setChecked(input, this._initialValue);
+			setBooleanAttribute(input, "checked", this._initialValue);
 			label.appendChild(input);
 			this._input = input;
 
-			const slider = make("span");
-			slider.classList.add(cl_toggle.slider);
+			const slider = document.createElement("span");
+			slider.classList.add(CLASSES.slider);
 			label.appendChild(slider);
 
 			d.appendChild(label);
-		}
-
-		_initEvents() {
-			addEvent(this, "onToggle");
 		}
 
 		_attachListeners() {
@@ -59,12 +56,17 @@ const Toggle = (function(){
 		get toggled() {
 			return this._input.checked;
 		}
+
+		set toggled(b) {
+			setBooleanAttribute(this._input, "checked", b);
+		}
 	};
 })();
 
 const Slider = (function(){
-	const cl_slider = { root: "slider",
-						text: "slider__text" };
+	const CLASSES =
+	{ root: "slider",
+	  text: "slider__text" };
 	const DEFAULTS = { text: "", reverse: false, step: null };
 
 	return class {
@@ -75,36 +77,32 @@ const Slider = (function(){
 			addOptions(this, DEFAULTS, options);
 
 			this._createDOM();
-			this._initEvents();
+			addEvent(this, "onChange");
 			this._attachListeners();
 		}
 
 		_createDOM() {
-			const d = make("div");
-			d.classList.add(cl_slider.root);
-			addGetter(this, "root", d);
+			const d = document.createElement("div");
+			d.classList.add(CLASSES.root);
+			this.root = d;
 
-			const span = make("span");
-			span.innerText = this._options.get("text");
-			span.classList.add(cl_slider.text);
+			const span = document.createElement("span");
+			span.innerText = this.options.get("text");
+			span.classList.add(CLASSES.text);
 			d.appendChild(span);
 
-			const input = make("input");
-			input.style.direction = this._options.get("reverse") ? "rtl" : "ltr";
+			const input = document.createElement("input");
+			input.style.direction = this.options.get("reverse") ? "rtl" : "ltr";
 			input.type = "range";
 			input.min = this._min;
 			input.max = this._max;
-			const step = this._options.get("step");
+			const step = this.options.get("step");
 			if (step) {
 				input.step = step;
 			}
 			input.value = this._initialValue;
 			d.appendChild(input);
 			this._input = input;
-		}
-
-		_initEvents() {
-			addEvent(this, "onChange");
 		}
 
 		_attachListeners() {
@@ -120,6 +118,64 @@ const Slider = (function(){
 
 		set value(v) {
 			this._input.value = v;
+		}
+	};
+})();
+
+const FileInput = (function(){
+	const CLASSES =
+	{ root: "file-input",
+	  text: "text" };
+	const DEFAULTS =
+	{ text: "",
+	  accept: "",
+	  multiple: false,
+	  clear: true };
+
+	return class {
+		constructor(options) {
+			addOptions(this, DEFAULTS, options);
+
+			this.value  = null;
+
+			this._createDOM();
+			addEvent(this, "onChange");
+			this._attachListeners();
+		}
+
+		_createDOM() {
+			const d = document.createElement("label");
+			d.classList.add(CLASSES.root);
+			this.root = d;
+
+			const input = document.createElement("input");
+			input.type = "file";
+			input.accept = this.options.get("accept");
+			if (this.options.get("multiple")) {
+				input.setAttribute("multiple", "multiple");
+			}
+			d.appendChild(input);
+			this._input = input;
+
+			const span = document.createElement("span");
+			span.innerText = this.options.get("text");
+			span.classList.add(CLASSES.text);
+			d.appendChild(span);
+		}
+
+		_attachListeners() {
+			this._input.addEventListener("change", (evt) => {
+				if (this.options.get("multiple")) {
+					this.value = evt.target.files;
+				} else {
+					this.value = evt.target.files[0];
+				}
+				this._onChange.trigger(this.value);
+
+				if (this.options.get("clear")) {
+					evt.target.value = null;
+				}
+			});
 		}
 	};
 })();
@@ -147,7 +203,7 @@ const AutoComplete = function(){
 			this._input = input;
 			addOptions(this, DEFAULTS, options);
 
-			const values = this._options.get("values");
+			const values = this.options.get("values");
 			if (values.constructor !== Array) {
 				throw new Error("option 'values' is not valid: " + values);
 			}
@@ -180,7 +236,7 @@ const AutoComplete = function(){
 				this._scroll(true);
 			});
 
-			const form = this._options.get("form");
+			const form = this.options.get("form");
 			const val = () => this.visible && this.selected ?
 							  this.selected.innerText : null;
 			if (form) {
@@ -270,7 +326,7 @@ const AutoComplete = function(){
 				return text;
 			}
 
-			if (!this._options.get("caseSensitive")) {
+			if (!this.options.get("caseSensitive")) {
 				text = text.toLowerCase();
 			}
 
@@ -279,7 +335,7 @@ const AutoComplete = function(){
 
 		_getSimilarValues(text, comp) {
 			const cache = {};
-			const values = this._options.get("values");
+			const values = this.options.get("values");
 			values.forEach((val) => {
 				cache[val] = comp(val, text);
 			});

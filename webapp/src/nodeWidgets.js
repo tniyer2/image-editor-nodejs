@@ -1,10 +1,10 @@
 
-import { show, hide, flatten } from "./utility";
+import { show, hide } from "./utility";
 import { Command, MultiCommand } from "./command";
 import { UserActionHandler } from "./action";
 import { DragWidget } from "./boxWidgets";
 import { ToggleItemCommand } from "./collectionWidgets";
-import { NodeInput, NodeOutput, Link } from "./node";
+import { NodeInput, MultiNodeInput, NodeOutput, Link } from "./node";
 
 export { NodeLinkWidget, DragNodeWidget };
 
@@ -21,31 +21,31 @@ class NodeLinkWidget extends UserActionHandler {
 		this._setting = false;
 	}
 
-	_onInput(point) {
+	_onInput(point, isMulti) {
 		if (this._setting) {
 			if (!this._inputStart && point.node !== this._link.output.node) {
-				this._setLink(point, true);
+				this._setLink(point, true, isMulti);
 			} else {
 				this._clear();
 			}
 		} else {
-			this._createLink(point, true);
+			this._createLink(point, true, isMulti);
 		}
 	}
 
 	_onOutput(point) {
 		if (this._setting) {
 			if (this._inputStart && point.node !== this._link.input.node) {
-				this._setLink(point, false);
+				this._setLink(point, false, false);
 			} else {
 				this._clear();
 			}
 		} else {
-			this._createLink(point, false);
+			this._createLink(point, false, false);
 		}
 	}
 
-	_createLink(point, isInput) {
+	_createLink(point, isInput, isMulti) {
 		if (this._lock && this._lock.locked) return;
 
 		this._setting = true;
@@ -60,10 +60,12 @@ class NodeLinkWidget extends UserActionHandler {
 		this._link.parent = this._parent;
 
 		if (isInput) {
-			const prev = point.link;
-			if (prev) {
-				hide(prev.element);
-				this._prevLink = prev;
+			if (!isMulti) {
+				const prev = point.link;
+				if (prev) {
+					hide(prev.element);
+					this._prevLink = prev;
+				}
 			}
 			this._link.input = point;
 		} else {
@@ -71,11 +73,15 @@ class NodeLinkWidget extends UserActionHandler {
 		}
 	}
 
-	_setLink(point, isInput) {
+	_setLink(point, isInput, isMulti) {
 		if (isInput) {
+			if (this._link.output.type !== point.type) return;
+			if (!isMulti) {
+				this._prevLink = point.link;
+			}
 			this._link.input = point;
-			this._prevLink = point.link;
 		} else {
+			if (this._link.input.type !== point.type) return;
 			this._link.output = point;
 		}
 
@@ -85,8 +91,6 @@ class NodeLinkWidget extends UserActionHandler {
 				this._collection, this._prevLink, false);
 			this._prevLink = null;
 		}
-
-		this._link.updatePath();
 
 		let c = new ToggleItemCommand(
 			this._collection, this._link, true);
@@ -101,7 +105,14 @@ class NodeLinkWidget extends UserActionHandler {
 		}
 		c.execute();
 
+		this._link.updatePath();
+		if (this._link.input instanceof MultiNodeInput) {
+			this._link.input.links.forEach((l) => {
+				l.updatePath();
+			});
+		}
 		this._link = null;
+
 		this._setting = false;
 	}
 
@@ -133,7 +144,9 @@ class NodeLinkWidget extends UserActionHandler {
 		if (mdEvt.button !== 0 && muEvt.button !== 0) return;
 
 		if (point instanceof NodeInput) {
-			this._onInput(point);
+			this._onInput(point, false);
+		} else if (point instanceof MultiNodeInput) {
+			this._onInput(point, true);
 		} else if (point instanceof NodeOutput) {
 			this._onOutput(point);
 		} else if (this._setting) {
@@ -176,7 +189,7 @@ class UpdateLinkCommand extends Command {
 
 	_getLinks() {
 		let links = this._nodes.map(n => n.links);
-		links = flatten(links);
+		links = [].concat(...links);
 		links = Array.from(new Set(links));
 		return links;
 	}

@@ -12,10 +12,10 @@ const Pattern = (function(){
 	return class {
 		constructor(options) {
 			addOptions(this);
-			this._options.addListener("color", (c) => {
+			this.options.addListener("color", (c) => {
 				this._color = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]})`;
 			});
-			this._options.set(DEFAULTS, options);
+			this.options.set(DEFAULTS, options);
 		}
 	};
 })();
@@ -38,7 +38,7 @@ const SmoothPattern = (function(){
 			let dir = pos.subtract(prevPos);
 			const mag = dir.magnitude;
 
-			let distance = this._options.get("width") * this._options.get("distance") / 100;
+			let distance = this.options.get("width") * this.options.get("distance") / 100;
 			distance = Math.max(distance, 1);
 
 			const t = Math.floor(mag / distance),
@@ -57,7 +57,7 @@ const SmoothPattern = (function(){
 class SmoothCirclePattern extends SmoothPattern {
 	_draw(context, pos) {
 		context.beginPath();
-		context.arc(pos.x, pos.y, this._options.get("width") / 2, 0, this._MAX_ANGLE);
+		context.arc(pos.x, pos.y, this.options.get("width") / 2, 0, this._MAX_ANGLE);
 		context.fillStyle = this._color;
 		context.fill();
 		context.closePath();

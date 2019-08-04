@@ -1,38 +1,45 @@
 
-import { isUdf, removeItem, addGetter } from "./utility";
+import { isUdf } from "./type";
 
 export { MyEvent, addEvent };
 
 const MyEvent = (function(){
 	class MyEventInterface {
-		constructor(queue) {
-			this._queue = queue;
+		constructor(c) {
+			this._common = c;
 		}
 
 		addListener(l) {
-			this._queue.push(l);
+			this._common.queue.push(l);
 		}
 
 		removeListener(l) {
-			removeItem(this._queue, l);
+			const queue = this._common.queue;
+			const i = queue.findIndex(o => o === l);
+			const found = i !== -1;
+			if (found) {
+				queue.splice(i, 1);	
+			} else {
+				console.warn("Could not find listener:", l);
+			}
 		}
 	}
 	
 	return class {
 		constructor() {
-			this._queue = [];
-			let int = new MyEventInterface(this._queue);
-			addGetter(this, "interface", int);
+			this._common = Object.create(null);
+			this._common.queue = [];
+			this.interface = new MyEventInterface(this._common);
 		}
 
 		trigger(...args) {
-			this._queue.forEach((f) => {
+			this._common.queue.forEach((f) => {
 				f(...args);
 			});
 		}
 
 		triggerWithParams(getParams) {
-			this._queue.forEach((f) => {
+			this._common.queue.forEach((f) => {
 				const p = getParams();
 				if (typeof p !== "object" || p.constructor !== Array) {
 					throw new Error("Callback return value must be an array:", p);
@@ -42,7 +49,7 @@ const MyEvent = (function(){
 		}
 
 		clear() {
-			this._queue.splice(0, this._queue.length);
+			this._common.queue = [];
 		}
 
 		linkTo(a) {
@@ -77,8 +84,7 @@ function addEvent(obj, pub, priv) {
 		priv = "_" + pub;
 	}
 
-	obj[priv] = new MyEvent();
-	Object.defineProperty(obj, pub, {
-		get: () => obj[priv].interface
-	});
+	const e = new MyEvent();
+	obj[priv] = e;
+	obj[pub] = e.interface;
 }

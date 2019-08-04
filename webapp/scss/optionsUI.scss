@@ -82,6 +82,31 @@ $slider-height: $regular-font-size;
 	@extend %option-text;
 	user-select: none; }
 
+.file-input {
+	position: relative;
+	display: inline-block;
+	box-sizing: border-box;
+	padding: 0 10px;
+	height: 25px;
+	text-align: center;
+	cursor: pointer;
+	border-radius: 5px;
+	background-color: #444;
+
+	input {
+		@extend %default-absolute;
+		width: 0;
+		height: 0; }
+	.text {
+		@extend %regular-font;
+		vertical-align: middle;
+		margin: 0; }
+}
+.file-input:hover {
+	.text {
+		color: $blue; }
+}
+
 .color-picker {
 	position: fixed;
 	top: 0;

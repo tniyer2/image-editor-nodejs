@@ -1,5 +1,4 @@
 
-import { addGetter } from "./utility";
 import { addOptions } from "./options";
 
 export { Listener, PromiseListener };
@@ -10,22 +9,22 @@ const Listener = (function(){
 
 	return class {
 		constructor(target, type, listener, options) {
-			addGetter(this, "target", target);
-			addGetter(this, "type", type);
+			this.target = target;
+			this.type = type;
 			this._listener = listener;
 			addOptions(this, DEFAULTS, options);
 
-			this._eventOptions = this._options.get("eventOptions");
+			this._eventOptions = this.options.get("eventOptions");
 
-			addGetter(this, "attached", false);
+			this.attached = false;
 		}
 
 		attach() {
-			if (this._attached) {
+			if (this.attached) {
 				console.warn(invalidAttachMessage);
 			} else {
 				const r = this._attach.apply(this, arguments);
-				this._attached = true;
+				this.attached = true;
 				return r;
 			}
 		}
@@ -38,24 +37,24 @@ const Listener = (function(){
 					this._listener(evt, this);
 				}
 			};
-			this._target.addEventListener(
-				this._type, this._wrapper, this._eventOptions);
+			this.target.addEventListener(
+				this.type, this._wrapper, this._eventOptions);
 		}
 
 		remove() {
-			if (this._attached) {
+			if (this.attached) {
 				this._remove();
-				this._attached = false;
+				this.attached = false;
 			}
 		}
 
 		_remove() {
-			this._target.removeEventListener(
-				this._type, this._wrapper, this._eventOptions);
+			this.target.removeEventListener(
+				this.type, this._wrapper, this._eventOptions);
 		}
 
 		_checkConditions() {
-			if (this._count < this._options.get("minEvents")) {
+			if (this._count < this.options.get("minEvents")) {
 				this._count += 1;
 				return false;
 			} else {
@@ -88,14 +87,14 @@ class PromiseListener extends Listener {
 					this._listener(evt, this, resolveWrapper, rejectWrapper);
 				}
 			};
-			this._target.addEventListener(
-				this._type, this._wrapper, this._eventOptions);
+			this.target.addEventListener(
+				this.type, this._wrapper, this._eventOptions);
 		});
 	}
 
 	_remove() {
-		this._target.removeEventListener(
-			this._type, this._wrapper, this._eventOptions);
+		this.target.removeEventListener(
+			this.type, this._wrapper, this._eventOptions);
 		if (this._reject) {
 			this._reject();
 		}

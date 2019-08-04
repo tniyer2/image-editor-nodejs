@@ -1,5 +1,6 @@
 
-import { isFunction, extend, addGetter } from "./utility";
+import { isFunction } from "./type";
+import { extend } from "./utility";
 import { Dictionary, EventDictionary } from "./dictionary";
 
 export { OptionsDictionary, addOptions, addNamedOptions };
@@ -55,7 +56,7 @@ const OptionsDictionary = (function(){
 function addNamedOptions(obj, name, ...options) {
 	const dict = new OptionsDictionary();
 	dict.set(...options);
-	addGetter(obj, name, dict);	
+	obj[name] = dict;
 }
 
 function addOptions(obj, ...options) {

@@ -1,5 +1,4 @@
 
-import { snap, forEach } from "./utility";
 import { Vector2 } from "./geometry";
 import { Command } from "./command";
 import { addOptions } from "./options";
@@ -11,28 +10,25 @@ class BoxCommand extends Command {
 		super(Command.CONTINUOUS);
 
 		this._boxes = boxes;
-		this._initialPositions = this._boxes.map(b => b.position);
-		this._initialLocalPositions = this._getBoxPositions();
 		this._referencePosition = pos;
-	}
 
-	_getBoxPositions() {
-		return this._boxes.map(b => b.localPosition);
+		this._initialPositions = this._boxes.map(b => b.position);
+		this._initialLocalPositions = this._boxes.map(b => b.localPosition);
 	}
 
 	_close() {
-		this._finalLocalPositions = this._getBoxPositions();
+		this._finalLocalPositions = this._boxes.map(b => b.localPosition);
 	}
 
 	_undo() {
-		forEach(this._boxes, this._initialLocalPositions, (b, initial) => {
-			b.localPosition = initial;
+		this._boxes.forEach((b, i) => {
+			b.localPosition = this._initialLocalPositions[i];
 		});
 	}
 
 	_redo() {
-		forEach(this._boxes, this._finalLocalPositions, (b, final) => {
-			b.localPosition = final;
+		this._boxes.forEach((b, i) => {
+			b.localPosition = this._finalLocalPositions[i];
 		});
 	}
 }
@@ -50,7 +46,8 @@ const DragCommand = (function(){
 			let diff = mousePosition.subtract(this._referencePosition);
 
 			if (snapMovement) {
-				diff = diff.map(a => snap(a, this._options.get("snapOffset")));
+				const offset = this.options.get("snapOffset");
+				diff = diff.map(a => a - (a % offset));
 			}
 
 			if (lock && !this._ignore) {
@@ -67,8 +64,10 @@ const DragCommand = (function(){
 				}
 			}
 
-			forEach(this._boxes, this._initialPositions, (b, initial) => {
-				b.position = initial.add(diff);
+			this._boxes.forEach((b, i) => {
+				let p = this._initialPositions[i];
+				p = p.add(diff);
+				b.position = p;
 			});
 		}
 	};
@@ -93,30 +92,28 @@ const ResizeCommand = (function(){
 
 			this._right = Vector2.right.rotate(angle);
 			this._down = Vector2.down.rotate(angle);
-			this._initialLocalDimensions = this._getBoxDimensions();
+			this._initialLocalDimensions = this._boxes.map(b => b.localDimensions);
 
-			const d = this._options.get("direction");
+			const d = this.options.get("direction");
 			this._moveTop = MOVE_TOP[d]; 
 			this._moveLeft = MOVE_LEFT[d]; 
 			this._freezeX = FREEZE_X[d];
 			this._freezeY = FREEZE_Y[d];
 		}
 
-		_getBoxDimensions() {
-			return this._boxes.map(b => b.localDimensions);
-		}
-
 		_execute(mousePosition, snapMovement, lock) {
-			const fixAspectRatio = this._options.get("fixAspectRatio"),
+			const fixAspectRatio = this.options.get("fixAspectRatio"),
 				  setX = !(this._freezeX || (this._freezeY && fixAspectRatio)),
 				  setY = !(this._freezeY || (this._freezeX && fixAspectRatio)),
 				  setAspectRatio = fixAspectRatio && (setX || setY),
-				  snapOffset = snapMovement ? this._options.get("snapOffset") : 
-				  							  this._options.get("defaultSnapOffset");
+				  snapOffset = snapMovement ? this.options.get("snapOffset") : 
+				  							  this.options.get("defaultSnapOffset");
 
 			const diff = mousePosition.subtract(this._referencePosition);
-			let diffX = snap(diff.dot(this._right), snapOffset),
-				diffY = snap(diff.dot(this._down), snapOffset);
+			let diffX = diff.dot(this._right),
+				diffY = diff.dot(this._down);
+			diffX = diffX - (diffX % snapOffset);
+			diffY = diffY - (diffY % snapOffset);
 
 			if (!fixAspectRatio) {
 				if (lock && !this._ignore) {
@@ -145,7 +142,7 @@ const ResizeCommand = (function(){
 				}
 
 				if (setX) {
-					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this._options.get("minWidth"));
+					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this.options.get("minWidth"));
 					box.localLeft = x[0];
 					box.localWidth = x[1];
 				} else {
@@ -153,7 +150,7 @@ const ResizeCommand = (function(){
 					box.localWidth = dim.x;
 				}
 				if (setY) {
-					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this._options.get("minHeight"));
+					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this.options.get("minHeight"));
 					box.localTop = y[0];
 					box.localHeight = y[1];
 				} else {
@@ -178,20 +175,20 @@ const ResizeCommand = (function(){
 
 		_close() {
 			super._close();
-			this._finalLocalDimensions = this._getBoxDimensions();
+			this._finalLocalDimensions = this._boxes.map(b => b.localDimensions);
 		}
 
 		_undo() {
 			super._undo();
-			forEach(this._boxes, this._initialLocalDimensions, (b, d) => {
-				b.localDimensions = d;
+			this._boxes.forEach((b, i) => {
+				b.localDimensions = this._initialLocalDimensions[i];
 			});
 		}
 
 		_redo() {
 			super._redo();
-			forEach(this._boxes, this._finalLocalDimensions, (b, d) => {
-				b.localDimensions = d;
+			this._boxes.forEach((b, i) => {
+				b.localDimensions = this._finalLocalDimensions[i];
 			});
 		}
 	};
@@ -206,12 +203,8 @@ const RotateCommand = (function(){
 			
 			addOptions(this, DEFAULTS, options);
 
-			this._snapOffset = this._options.get("snapOffset") * Vector2.degToRad;
-			this._initialAngles = this._getBoxAngles();
-		}
-
-		_getBoxAngles() {
-			return this._boxes.map(b => b.angle);
+			this._snapOffset = this.options.get("snapOffset") * Vector2.degToRad;
+			this._initialAngles = this._boxes.map(b => b.angle);
 		}
 
 		_execute(mousePosition, snapMovement) {
@@ -227,20 +220,20 @@ const RotateCommand = (function(){
 
 		_close() {
 			super._close();
-			this._finalAngles = this._getBoxAngles();
+			this._finalAngles = this._boxes.map(b => b.angle);
 		}
 
 		_undo() {
 			super._undo();
-			forEach(this._boxes, this._initialAngles, (b, a) => {
-				b.angle = a;
+			this._boxes.forEach((b, i) => {
+				b.angle = this._initialAngles[i];
 			});
 		}
 
 		_redo() {
 			super._redo();
-			forEach(this._boxes, this._finalAngles, (b, a) => {
-				b.angle = a;
+			this._boxes.forEach((b, i) => {
+				b.angle = this._finalAngles[i];
 			});
 		}
 	};

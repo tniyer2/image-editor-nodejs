@@ -78,12 +78,6 @@ class EventDictionary extends Dictionary {
         }
     }
 
-    edit(name, cb) {
-        const value = super.get(name);
-        cb(value);
-        this._updateEvent(name, value);
-    }
-
     put(name, value) {
         super.put(name, value);
         this._updateEvent(name, value);

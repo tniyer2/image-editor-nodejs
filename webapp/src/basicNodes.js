@@ -1,45 +1,35 @@
 
-import { isUdf } from "./utility";
-import { Slider } from "./input";
-import { Node, NodeInput, NodeOutput, NodeUI, EmptyNodeUI } from "./node";
+import { FileInput } from "./input";
+import { LayerGroup, ImageLayer } from "./basicTypes";
+import { Node, NodeInput, MultiNodeInput, 
+		 NodeOutput, NodeUI, EmptyNodeUI } from "./node";
 
-export { TestNode, AsyncTestNode };
+export { ImageNode, MergeNode };
 
-class TestNode extends Node {
+class ImageNode extends Node {
 	constructor() {
-		const input = new NodeInput(),
-			  output = new NodeOutput(),
-			  ui = new EmptyNodeUI();
-		super([input], [output], ui, { icon: "#icon-test-node" });
+		const output = new NodeOutput(LayerGroup),
+			  ui = new ImageNodeUI();
+		super([], [output], ui, { icon: "#icon-image-node" });
 	}
 
-	_cook(a) {
-		return isUdf(a) || a === null ? [1] : [a+1];
+	_cook() {
+		let output;
+		const image = this.ui.dictionary.get("image");
+		if (image) {
+			const layer = new ImageLayer(image);
+			const group = new LayerGroup([layer]);
+			output = group;
+		} else {
+			output = null;
+		}
+
+		return [output];
 	}
 }
 
-class AsyncTestNode extends Node {
-	constructor() {
-		const input = new NodeInput(),
-			  output = new NodeOutput(),
-			  ui = new AsyncTestUI();
-		super([input], [output], ui, { icon: "#icon-async-test-node" });
-	}
-
-	_cook(a) {
-		const delay = this._ui.dictionary.get("delay");
-		return new Promise((resolve) => {
-			const o = isUdf(a) || a === null ? [1] : [a+1];
-
-			setTimeout(() => {
-				resolve(o);
-			}, 1000 * delay);
-		});
-	}
-}
-
-const AsyncTestUI = (function(){
-	const OPTIONS = { delay: 1 };
+const ImageNodeUI = (function(){
+	const OPTIONS = { image: null };
 
 	return class extends NodeUI {
 		constructor() {
@@ -49,14 +39,37 @@ const AsyncTestUI = (function(){
 		_createUI() {
 			const d = document.createElement("div");
 
-			const delay = this._dictionary.get("delay");
-			const ds = new Slider(delay, 0, 5, { text: "delay", step: "0.5" });
-			ds.onChange.addListener((val) => {
-				this._dictionary.put("delay", val);
+			const fi = new FileInput(
+				{ text: "upload", accept: "image/png, image/jpeg" });
+			fi.onChange.addListener((file) => {
+				const url = URL.createObjectURL(file);
+				const image = new Image();
+
+				image.addEventListener("load", () => {
+					this.dictionary.put("image", image);
+				});
+				image.addEventListener("error", () => {
+					console.warn("Failed to load image from url:", url);
+				});
+
+				image.src = url;
 			});
-			d.appendChild(ds.root);
+			d.appendChild(fi.root);
 
 			return d;
 		}
 	};
 })();
+
+class MergeNode extends Node {
+	constructor() {
+		const input = new MultiNodeInput(LayerGroup),
+			  output = new NodeOutput(LayerGroup),
+			  ui = new EmptyNodeUI();
+		super([input], [output], ui, { icon: "#icon-merge-node" });
+	}
+
+	_cook(groups) {
+		return [groups ? groups[0] : null];
+	}
+}

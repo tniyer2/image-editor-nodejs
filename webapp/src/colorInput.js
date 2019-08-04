@@ -1,6 +1,6 @@
 
-import { isUdf, isNumber, addGetter, make, show, hide, 
-		 isDescendant, preventBubble, clampAlpha } from "./utility";
+import { isUdf, isNumber, isType } from "./type";
+import { show, hide, isDescendant, stopBubbling } from "./utility";
 import { addEvent, MyEvent } from "./event";
 import { Listener } from "./listener";
 import { MouseAction } from "./action";
@@ -11,16 +11,13 @@ import { addOptions } from "./options";
 
 export { ColorPicker, ColorBox };
 
-function validArray(arr, len) {
-	return arr.constructor === Array && arr.length === len;
-}
-
 function validColorNumber(a) {
 	return isNumber(a) && a >= 0 && a <= 255;
 }
 
 function validColor(arr, noAlpha=false) {
-	return validArray(arr, noAlpha ? 3 : 4) && arr.every(validColorNumber);
+	return isType(arr, Array) && arr.length === (noAlpha ? 3 : 4) &&
+		   arr.every(validColorNumber);
 }
 
 const ColorPicker = (function(){
@@ -54,33 +51,33 @@ const ColorPicker = (function(){
 		}
 
 		_createDOM() {
-			const d = make("div");
+			const d = document.createElement("div");
 			d.classList.add(cl_root);
 			hide(d);
-			addGetter(this, "root", d);
+			this.root = d;
 
-			const hexInput = make("input");
+			const hexInput = document.createElement("input");
 			hexInput.type = "text";
 			hexInput.classList.add(cl_hexInput);
-			preventBubble(hexInput, "mousedown");
+			stopBubbling(hexInput, "mousedown");
 			d.appendChild(hexInput);
 			this._hexInput = hexInput;
 
-			const closeBtn = make("button");
+			const closeBtn = document.createElement("button");
 			closeBtn.type = "button";
 			closeBtn.innerHTML = "&times;";
 			closeBtn.classList.add(cl_closeBtn);
-			preventBubble(closeBtn, "mousedown");
+			stopBubbling(closeBtn, "mousedown");
 			d.appendChild(closeBtn);
 			this._closeBtn = closeBtn;
 
-			const br = make("br");
+			const br = document.createElement("br");
 			d.appendChild(br);
 
 			const alphaSlider = new Slider(0, 0, 255, { text: "alpha" });
 			const asr = alphaSlider.root;
 			asr.classList.add(cl_alphaSlider); 
-			preventBubble(asr, "mousedown");
+			stopBubbling(asr, "mousedown");
 			d.appendChild(asr);
 			this._alphaSlider = alphaSlider;
 		}
@@ -100,7 +97,7 @@ const ColorPicker = (function(){
 			});
 			this._onClickOutListener = new Listener(document, "click", (evt) => {
 				const t = evt.target;
-				if (t !== this._root && !isDescendant(this._root, t)) {
+				if (t !== this.root && !isDescendant(this.root, t)) {
 					this.hide();
 				}
 			});
@@ -110,8 +107,8 @@ const ColorPicker = (function(){
 		}
 
 		_createDragWidget() {
-			this._box = new Box(this._root);
-			this._action = new MouseAction(this._root, document);
+			this._box = new Box(this.root);
+			this._action = new MouseAction(this.root, document);
 			this._dragWidget = new DragWidget({ offStackBoxes: [this._box] });
 			this._dragWidget.handle(this._action);
 		}
@@ -148,7 +145,7 @@ const ColorPicker = (function(){
 		}
 
 		_resetColor() {
-			this.color = this._options.get("defaultColor");
+			this.color = this.options.get("defaultColor");
 		}
 
 		_triggerOnChangeMain() {
@@ -167,15 +164,15 @@ const ColorPicker = (function(){
 			if (!isUdf(elm)) {
 				if (elm instanceof HTMLElement) {
 					const b = elm.getBoundingClientRect();
-					this._root.style.top  = b.top + (b.height / 2) + "px";
-					this._root.style.left = b.left + (b.width / 2) + "px";
+					this.root.style.top  = b.top + (b.height / 2) + "px";
+					this.root.style.left = b.left + (b.width / 2) + "px";
 				} else {
 					throw new Error("elm is not an HTMLElement:", elm);
 				}
 			}
 
 			this._resetColor();
-			show(this._root);
+			show(this.root);
 			setTimeout(() => {
 				this._onClickOutListener.attach();
 			});
@@ -183,7 +180,7 @@ const ColorPicker = (function(){
 
 		hide() {
 			this._onClickOutListener.remove();
-			hide(this._root);
+			hide(this.root);
 
 			this._onChange.clear();
 		}
@@ -200,7 +197,7 @@ const ColorBox = (function(){
 			this._colorPicker = cp;
 			addOptions(this, DEFAULTS, options);
 
-			this._color = this._options.get("color");
+			this._color = this.options.get("color");
 
 			this._updateColor = this._updateColor.bind(this);
 
@@ -215,11 +212,11 @@ const ColorBox = (function(){
 		}
 
 		_createDOM() {
-			const d = make("div");
+			const d = document.createElement("div");
 			d.classList.add(cl_root);
-			addGetter(this, "root", d);
+			this.root = d;
 
-			const hex = make("span");
+			const hex = document.createElement("span");
 			hex.classList.add(cl_hex);
 			d.appendChild(hex);
 			this._hex = hex;
@@ -228,7 +225,7 @@ const ColorBox = (function(){
 		_updateDOM() {
 			const cma = this.chroma;
 			const hexCode = cma.hex("rgb");
-			this._root.style.backgroundColor = hexCode;
+			this.root.style.backgroundColor = hexCode;
 
 			let name = cma.name();
 			/*name.charAt(0) === "#" ? "lowercase" : "capitalize"*/
@@ -238,8 +235,8 @@ const ColorBox = (function(){
 		}
 
 		_attachEventListeners() {
-			this._root.addEventListener("click", () => {
-				this._colorPicker.show(this._root);
+			this.root.addEventListener("click", () => {
+				this._colorPicker.show(this.root);
 				this._colorPicker.color = this.color;
 				this._colorPicker.onChange.addListener(this._updateColor);
 			});
@@ -263,7 +260,9 @@ const ColorBox = (function(){
 		}
 
 		get chroma() {
-			return chroma(clampAlpha(this.color));
+			const color = this._color.slice();
+			color[3] /= 255;
+			return chroma(color);
 		}
 	};
 })();

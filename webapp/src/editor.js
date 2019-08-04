@@ -1,5 +1,5 @@
 
-import { isUdf, isFunction, addGetter, make } from "./utility";
+import { isUdf, isFunction } from "./type";
 import { addOptions } from "./options";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
 import { ColorPicker, ColorBox } from "./colorInput";
@@ -7,8 +7,9 @@ import { CommandStack } from "./command";
 import { SmoothCirclePattern, SmoothCirclePatternToolUI } from "./pattern";
 import { PaintTool } from "./paint";
 import { MoveTool, MoveToolUI } from "./moveTool";
-import { LayerManager } from "./layer";
-import { TestNode, AsyncTestNode } from "./basicNodes";
+import LayerManager from "./layerManager";
+import { TestNode, AsyncTestNode } from "./testNodes";
+import { ImageNode, MergeNode } from "./basicNodes";
 import NodeManager from "./nodeManager";
 
 const DEFAULTS = { viewport: null,
@@ -23,12 +24,10 @@ export default class {
 		this._initStack();
 		this._initGlobals();
 
-		const cp = new ColorPicker();
-		addGetter(this, "colorPicker", cp);
-		const cb = new ColorBox(cp);
-		addGetter(this, "primaryColorBox", cb);
-		cb.onChange.addListener((color) => {
-			this._globals.put("primaryColor", color);
+		this.colorPicker = new ColorPicker();
+		this.primaryColorBox = new ColorBox(this.colorPicker);
+		this.primaryColorBox.onChange.addListener((color) => {
+			this.globals.put("primaryColor", color);
 		});
 
 		this._initTools();
@@ -38,22 +37,20 @@ export default class {
 	}
 
 	_initLayerManager() {
-		const v  = this._options.get("viewport"),
-			  iv = this._options.get("innerViewport");
-		const lm = new LayerManager(this, v, iv);
-		addGetter(this, "layerManager", lm);
+		const v  = this.options.get("viewport"),
+			  iv = this.options.get("innerViewport");
+		this.layerManager = new LayerManager(this, v, iv);
 	}
 
 	_initStack() {
-		const s = new CommandStack(this._options.get("stackLimit"));
-		addGetter(this, "stack", s);
+		this.stack = new CommandStack(this.options.get("stackLimit"));
 	}
 
 	_initGlobals() {
 		const g = new EventDictionary();
-		addGetter(this, "globals", g);
+		this.globals = g;
 
-		g.put("primaryColor", this._options.get("primaryColor"));
+		g.put("primaryColor", this.options.get("primaryColor"));
 	}
 
 	get tools() {
@@ -61,14 +58,14 @@ export default class {
 	}
 
 	_initTools() {
-		const d = make("div");
-		addGetter(this, "toolOptionsParent", d);
+		const d = document.createElement("div");
+		this.toolOptionsParent = d;
 
 		this._tools = new ConstantDictionary();
 
 		const t1 = {};
 		t1.tool = new MoveTool(this);
-		t1.ui 	= new MoveToolUI(t1.tool.options, this._globals);
+		t1.ui 	= new MoveToolUI(t1.tool.options, this.globals);
 		this._tools.put("Move", t1);
 
 		const t2 = {};
@@ -76,7 +73,7 @@ export default class {
 		t2.tool = new PaintTool(this, pattern1);
 		t2.ui 	= new SmoothCirclePatternToolUI(t2.tool.options, 
 												pattern1.options, 
-												this._globals);
+												this.globals);
 		this._tools.put("Paint", t2);
 
 		this.selectTool("Move");
@@ -86,30 +83,32 @@ export default class {
 		this._nodes = new ConstantDictionary();
 		this._nodes.put("test_node", TestNode);
 		this._nodes.put("async_test_node", AsyncTestNode);
+		this._nodes.put("image", ImageNode);
+		this._nodes.put("merge", MergeNode);
 	}
 
 	_initNodeAutoComplete() {
-		const ac = this._options.get("nodeAutoComplete");
+		const ac = this.options.get("nodeAutoComplete");
+		this.nodeAutoComplete = ac;
+
 		ac.options.put("values", this._nodes.keys);
 		ac.onConfirm.addListener((value, input) => {
 			if (this._nodes.has(value)) {
 				const createNode = this._nodes.get(value);
 				if (isFunction(createNode)) {
 					const node = new createNode();
-					this._nodeManager.addNode(node);
+					this.nodeManager.addNode(node);
 				} else {
 					console.warn("createNode is not of type Node:", createNode);
 				}
 			}
 		});
-		addGetter(this, "nodeAutoComplete", ac);
 	}
 
 	_initNodeManager() {
-		const ns = this._options.get("nodeSpace"),
-			  ins = this._options.get("innerNodeSpace");
-		const nm = new NodeManager(this, ns, ins);
-		addGetter(this, "nodeManager", nm);
+		const ns = this.options.get("nodeSpace"),
+			  ins = this.options.get("innerNodeSpace");
+		this.nodeManager = new NodeManager(this, ns, ins);
 	}
 
 	selectTool(toolName) {
@@ -124,7 +123,7 @@ export default class {
 		}
 
 		toolInfo.tool.enable();
-		toolInfo.ui.enable(this._toolOptionsParent);
+		toolInfo.ui.enable(this.toolOptionsParent);
 		this._selectedTool = toolInfo;
 	}
 }

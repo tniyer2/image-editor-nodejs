@@ -1,5 +1,5 @@
 
-import { isFunction, removeItem, addGetterRaw } from "./utility";
+import { isFunction } from "./type";
 import { addEvent } from "./event";
 import { addOptions } from "./options";
 
@@ -60,8 +60,11 @@ const Collection = (function(){
 				};
 
 				Inner.prototype[p.remove] = function(item) {
-					const removed = removeItem(this[priv], item);
-					if (removed) {
+					const i = this[priv].findIndex(o => o === item);
+					const found = i !== -1;
+					if (found) {
+						this[priv].splice(i, 1);
+
 						if (p.onRemove) {
 							this["_" + p.onRemove].trigger(item);
 						}
@@ -69,7 +72,7 @@ const Collection = (function(){
 							this["_" + p.onChange].trigger(p.remove);
 						}
 					}
-					return removed;
+					return found;
 				};
 
 				if (p.clear) {
@@ -140,8 +143,8 @@ const Collection = (function(){
 		return Inner;
 	};
 
-	addGetterRaw(Inner2, "SINGLE", SINGLE);
-	addGetterRaw(Inner2, "MULTIPLE", MULTIPLE);
+	Object.defineProperty(Inner2, "SINGLE", {get: () => SINGLE});
+	Object.defineProperty(Inner2, "MULTIPLE", {get: () => MULTIPLE});
 
 	return Inner2;
 })();

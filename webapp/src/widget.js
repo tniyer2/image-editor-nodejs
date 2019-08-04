@@ -1,5 +1,6 @@
 
-import { myeval, clamp } from "./utility";
+import { isFunction } from "./type";
+import { clamp } from "./utility";
 import { addOptions } from "./options";
 import { MultiCommand } from "./command";
 import { UserActionHandler, ZoomActionHandler } from "./action";
@@ -18,12 +19,13 @@ class BoxWidget extends UserActionHandler {
 
 	_onStart(evt) {
 		this._commands = this._boxGroups.map((g) => {
-			let c = this._getCommand(myeval(g.boxes), evt);
+			const boxes = isFunction(g.boxes) ? g.boxes() : g.boxes;
+			let c = this._getCommand(boxes, evt);
 			if (c.constructor === Array) {
 				c = new MultiCommand(c);
 			}
 
-			const stack = myeval(g.stack);
+			const stack = isFunction(g.stack) ? g.stack() : g.stack;
 			if (stack) {
 				stack.add(c);
 			}
@@ -77,11 +79,11 @@ const ZoomWidget = (function(){
 		}
 
 		_onZoom(evt) {
-			if (this._options.get("condition", false)(evt)) {
+			if (this.options.get("condition", false)(evt)) {
 				let scale = this._box.localScaleX;
-				const factor = this._options.get("factor"),
-					  min = this._options.get("min"),
-					  max = this._options.get("max");
+				const factor = this.options.get("factor"),
+					  min = this.options.get("min"),
+					  max = this.options.get("max");
 
 				scale += evt.deltaY * BASE_FACTOR * factor;
 				scale = clamp(scale, min, max);

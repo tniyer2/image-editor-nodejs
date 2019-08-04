@@ -2,7 +2,7 @@
 import { AutoComplete } from "./input";
 import Editor from "./editor";
 import { Layer } from "./layer";
-import { $, setDisabled } from "./utility";
+import { $, setBooleanAttribute } from "./utility";
 
 const CLASSES =
 { toolBtn: "toolbar__tool",
@@ -91,8 +91,8 @@ function listenUndoRedoButtons() {
 		  redoBtn = $("#redo-btn");
 
 	g_editor.stack.onChange.addListener(() => {
-		setDisabled(undoBtn, !g_editor.stack.canUndo);
-		setDisabled(redoBtn, !g_editor.stack.canRedo);
+		setBooleanAttribute(undoBtn, "disabled", !g_editor.stack.canUndo);
+		setBooleanAttribute(redoBtn, "disabled", !g_editor.stack.canRedo);
 	});
 	undoBtn.addEventListener("click", () => {
 		g_editor.stack.undo();

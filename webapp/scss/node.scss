@@ -22,11 +22,17 @@ $border-color: #888;
 	.points.outputs {
 		top: 100%; }
 	$radius: 10px;
-	.point {
-		width: $radius;
-		height: $radius;
+	%point {
 		background-color: #ccc;
-		border-radius: 50%; }
+		border-radius: $radius/2; }
+	.point {
+		@extend %point;
+		width: $radius;
+		height: $radius; }
+	.multi-point {
+		@extend %point;
+		width: 50px;
+		height: $radius; }
 
 	.node {
 		@extend %max-size;
@@ -91,13 +97,13 @@ $border-color: #888;
 		fill: none;
 		stroke: black;
 		stroke-width: 1.5px;
-	}
+		vector-effect: non-scaling-stroke; }
 	.click-box {
 		pointer-events: none;
 		fill: none;
 		stroke: #0000;
 		stroke-width: 20px;
-	}
+		vector-effect: non-scaling-stroke; }
 }
 .node-link.completed {
 	.click-box {

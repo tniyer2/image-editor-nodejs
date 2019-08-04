@@ -1,5 +1,5 @@
 
-import { bindFunctions, forEach } from "./utility";
+import { isFunction } from "./type";
 import { Vector2 } from "./geometry";
 import { addOptions } from "./options";
 import { addEvent } from "./event";
@@ -28,12 +28,17 @@ class ActionHandler {
 		if (!ln) {
 			ln = en.map(n => "_" + n);
 		}
-		bindFunctions(this, ln, true);
+		ln.forEach((n) => {
+			if (isFunction(this[n])) {
+				this[n] = this[n].bind(this);
+			}
+		});
 		this._listenerNames = ln;
 	}
 
 	handle(action) {
-		forEach(this._eventNames, this._listenerNames, (e, l) => {
+		this._eventNames.forEach((e, i) => {
+			const l = this._listenerNames[i];
 			const f = this[l];
 			if (f) {
 				const a = action[e];
@@ -45,7 +50,8 @@ class ActionHandler {
 	}
 
 	stopHandling(action) {
-		forEach(this._eventNames, this._listenerNames, (e, l) => {
+		this._eventNames.forEach((e, i) => {
+			const l = this._listenerNames[i];
 			const f = this[l];
 			if (f) {
 				action[e].removeListener(f);
@@ -97,7 +103,7 @@ const MouseAction = (function(){
 			this._target = target;
 			this._bounds = bounds;
 			addOptions(this, DEFAULTS, options);
-			this._mouseMoveAlways = this._options.get("mouseMoveAlways");
+			this._mouseMoveAlways = this.options.get("mouseMoveAlways");
 
 			MouseAction.eventNames.forEach((n) => {
 				addEvent(this, n);
@@ -119,15 +125,15 @@ const MouseAction = (function(){
 		_initListeners() {
 			let upTarget;
 			let upCapture;
-			if (this._options.get("exitOnMouseLeave")) {
+			if (this.options.get("exitOnMouseLeave")) {
 				this._mouseLeavePromise = new PromiseListener(this._bounds, "mouseleave", (evt, l, resolve) => {
 					resolve(evt);
 				});
 				this._listeners.push(this._mouseLeavePromise);
 
-				if (this._options.get("mouseLeaveAlways")) {
+				if (this.options.get("mouseLeaveAlways")) {
 					this._mouseLeaveListener = new Listener(this._bounds, "mouseleave", (evt, l) => {
-						this._onEnd.trigger(evt, this._options.get("data"));
+						this._onEnd.trigger(evt, this.options.get("data"));
 					});
 					this._mouseLeaveListener.attach();
 					this._listeners.push(this._mouseLeaveListener);
@@ -157,7 +163,7 @@ const MouseAction = (function(){
 
 			this._mouseMoveListener = new Listener(this._bounds, "mousemove", (evt, l) => {
 				if (this._isMouseOver(l.target, evt)) {
-					this._onMove.trigger(evt, this._options.get("data"));
+					this._onMove.trigger(evt, this.options.get("data"));
 				}
 			});
 			this._listeners.push(this._mouseMoveListener);
@@ -169,7 +175,7 @@ const MouseAction = (function(){
 			}
 
 			this._mouseDownPromise.attach().then((evt) => {
-				const f = this._options.get("condition", false);
+				const f = this.options.get("condition", false);
 				if (!f || f(evt)) {
 					this._chooseClickOrStart(evt);
 				} else {
@@ -185,15 +191,15 @@ const MouseAction = (function(){
 				this._mouseUpPromise.remove();
 
 				if (evt.type === this._mouseMovePromise.type) {
-					this._onStart.trigger(mouseDownEvent, this._options.get("data"));
-					this._onMove.trigger(evt, this._options.get("data"));
+					this._onStart.trigger(mouseDownEvent, this.options.get("data"));
+					this._onMove.trigger(evt, this.options.get("data"));
 					if (!this._mouseMoveAlways) {
 						this._mouseMoveListener.attach();
 					}
 					this._attachEndListeners();
 				} else {
-					this._onClick.trigger(mouseDownEvent, evt, this._options.get("data"));
-					if (this._options.get("loop") === true) {
+					this._onClick.trigger(mouseDownEvent, evt, this.options.get("data"));
+					if (this.options.get("loop") === true) {
 						this._start();
 					}
 				}
@@ -202,7 +208,7 @@ const MouseAction = (function(){
 
 		_attachEndListeners() {
 			let p;
-			if (this._options.get("exitOnMouseLeave")) {
+			if (this.options.get("exitOnMouseLeave")) {
 				p = Promise.race([this._mouseUpPromise.attach(), this._mouseLeavePromise.attach()])
 					.finally(() => {
 						this._mouseUpPromise.remove();
@@ -218,8 +224,8 @@ const MouseAction = (function(){
 					this._mouseMoveListener.remove();
 				}
 			}).then((evt) => {
-				this._onEnd.trigger(evt, this._options.get("data"));
-				if (this._options.get("loop") === true) {
+				this._onEnd.trigger(evt, this.options.get("data"));
+				if (this.options.get("loop") === true) {
 					this._start();
 				}
 			}).catch(console.warn);
@@ -248,10 +254,10 @@ class KeyAction extends Action {
 
 	_initListeners() {
 		this._keyDownListener = new Listener(this._target, "keydown", (e) => {
-			this._onKeyDown.trigger(e, this._options.get("data"));
+			this._onKeyDown.trigger(e, this.options.get("data"));
 		});
 		this._keyUpListener = new Listener(this._target, "keyup", (e) => {
-			this._onKeyUp.trigger(e, this._options.get("data"));
+			this._onKeyUp.trigger(e, this.options.get("data"));
 		});
 
 		this._listeners.push(this._keyDownListener, this._keyUpListener);

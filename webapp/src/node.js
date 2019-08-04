@@ -1,13 +1,14 @@
 
-import { addGetter, removeItem,
-		 createSVG, preventBubble } from "./utility";
+import { isUdf, isFunction } from "./type";
+import { createSVG, stopBubbling } from "./utility";
 import { addOptions } from "./options";
 import { Dictionary } from "./dictionary";
 import ToolUI from "./toolUI";
-import { addEvent } from "./event";
+import { MyEvent, addEvent } from "./event";
+import { Command } from "./command";
 import { Box, Vector2 } from "./geometry";
 
-export { Node, NodeInput, NodeOutput, Link, NodeUI, EmptyNodeUI };
+export { Node, NodeInput, MultiNodeInput, NodeOutput, Link, NodeUI, EmptyNodeUI };
 
 const Link = (function(){
 	const CLASSES =
@@ -22,10 +23,7 @@ const Link = (function(){
 	return class extends Box {
 		constructor() {
 			const d = document.createElement("div");
-			d.classList.add(CLASSES.root);
-			preventBubble(d, "mousedown");
 			super(d);
-
 			this._createDOM();
 
 			this._input = null;
@@ -35,6 +33,10 @@ const Link = (function(){
 		}
 
 		_createDOM() {
+			const d = this._element;
+			d.classList.add(CLASSES.root);
+			stopBubbling(d, "mousedown");
+
 			const ns = createSVG.SVGNS;
 
 			const svg = document.createElementNS(ns, "svg");
@@ -67,10 +69,13 @@ const Link = (function(){
 		}
 
 		set input (val) {
-			if (!(val instanceof NodeInput)) {
+			if (!(val instanceof NodeInput || 
+				  val instanceof MultiNodeInput)) {
 				console.warn("Invalid value for input:", val);
+				return;
 			} else if (this._input) {
 				console.warn("Cannot change value of input.");
+				return;
 			}
 			this._input = val;
 			this._checkComplete();
@@ -83,8 +88,10 @@ const Link = (function(){
 		set output (val) {
 			if (!(val instanceof NodeOutput)) {
 				console.warn("Invalid value for output:", val);
+				return;
 			} else if (this._output) {
 				console.warn("Cannot change value of output.");
+				return;
 			}
 			this._output = val;
 			this._checkComplete();
@@ -99,7 +106,28 @@ const Link = (function(){
 
 		updatePath (i, o) {
 			if (!i) {
-				i = this.input.center;
+				const input = this._input;
+				if (input instanceof MultiNodeInput) {
+					const links = input.links;
+					const l = links.length;
+					const j = links.findIndex(lk => lk === this);
+
+					let place, total;
+					if (j === -1) {
+						place = l+1;
+						total = l+2;
+					} else {
+						place = j+1;
+						total = l+1;
+					}
+					const r = place / total;
+
+					const x = input.left + (input.width * r);
+					const y = input.centerY;
+					i = new Vector2(x, y);
+				} else {
+					i = input.center;
+				}
 			}
 			if (!o) {
 				o = this.output.center;
@@ -163,27 +191,120 @@ const NodePoint = (function(){
 	const cl_point = "point";
 
 	return class extends Box {
-		constructor() {
+		constructor(type) {
 			const d = document.createElement("div");
-			d.classList.add(cl_point);
-			preventBubble(d, "mousedown");
 			super(d);
+			this._createDOM();
+
+			this.type = type;
+			this._setPointColor();
 
 			this.node = null;
+		}
+
+		_createDOM() {
+			const d = this._element;
+			d.classList.add(cl_point);
+			stopBubbling(d, "mousedown");
+		}
+
+		_setPointColor(color) {
+			if (this.type && this.type.pointColor) {
+				this._element.style.backgroundColor = this.type.pointColor;
+			}
+		}
+	};
+})();
+
+class NodeInput extends NodePoint {
+	constructor(type) {
+		super(type);
+		this._link = null;
+		addEvent(this, "onChange");
+	}
+
+	get link() {
+		return this._link;
+	}
+
+	set link(val) {
+		if (this._link === val) return;
+
+		if (this._unlink) {
+			this._unlink();
+		}
+		this._unlink = val ? this._onChange.linkTo(val.output.onChange) : null;
+
+		this._link = val;
+		this._onChange.trigger();
+	}
+
+	get value() {
+		return this._link ? this._link.output.value : null;
+	}
+}
+
+const MultiNodeInput = (function(){
+	const cl_point = "multi-point";
+
+	return class extends NodePoint {
+		constructor(type) {
+			super(type);
+			this._links = [];
+			this._unlinkFunctions = [];
+			addEvent(this, "onChange");
+		}
+
+		_createDOM() {
+			const d = this._element;
+			d.classList.add(cl_point);
+			stopBubbling(d, "mousedown");
+		}
+
+		get links() {
+			return this._links.slice();
+		}
+
+		get value() {
+			return this._links.map(l => l.output.value);
+		}
+
+		addLink(link) {
+			const unlink = this._onChange.linkTo(link.output.onChange);
+			if (isUdf(link.p_index)) {
+				link.p_index = this._links.length;
+				this._links.push(link);
+			} else {
+				this._links.splice(link.p_index, 0, link);
+			}
+			this._unlinkFunctions.push(unlink);
+			this._onChange.trigger();
+		}
+
+		removeLink(link) {
+			const i = this._links.findIndex(l => l === link);
+			if (i !== -1) {
+				const unlink = this._unlinkFunctions[i];
+				unlink();
+				this._links.splice(i, 1);
+				this._onChange.trigger();
+			} else {
+				console.warn("Could not find link from this._links:", link);
+			}
 		}
 	};
 })();
 
 class NodeOutput extends NodePoint {
-	constructor() {
-		super();
+	constructor(type) {
+		super(type);
 		this._value = null;
 		this._links = [];
 		addEvent(this, "onChange");
 	}
 
 	get value() {
-		return this._value;
+		return this._value ? this._value.copy() : null;
 	}
 
 	set value(val) {
@@ -200,38 +321,13 @@ class NodeOutput extends NodePoint {
 	}
 
 	removeLink(link) {
-		const removed = removeItem(this._links, link);
-		if (!removed) {
-			console.warn("Could not remove link from this._links:", removed);
+		const i = this._links.findIndex(o => o === link);
+		const found = i !== -1;
+		if (found) {
+			this._links.splice(i, 1);
+		} else {
+			console.warn("Could not remove link from this._links:", link);
 		}
-	}
-}
-
-class NodeInput extends NodePoint {
-	constructor() {
-		super();
-		this._link = null;
-		addEvent(this, "onChange");
-	}
-
-	get link() {
-		return this._link;
-	}
-
-	set link(val) {
-		if (this._link === val) return;
-
-		if (this._unlink) {
-			this._unlink();
-		}
-		this._onChange.trigger();
-		this._unlink = val ? this._onChange.linkTo(val.output.onChange) : null;
-
-		this._link = val;
-	}
-
-	get value() {
-		return this._link ? this._link.output.value : null;
 	}
 }
 
@@ -255,24 +351,29 @@ const Node = (function(){
 	return class extends Box {
 		constructor(inputs, outputs, ui, options) {
 			const d = document.createElement("div");
-			preventBubble(d, "mousedown");
 			super(d);
 
-			addGetter(this, "inputs", inputs);
-			addGetter(this, "outputs", outputs);
-			ui.dictionary.onChange.addListener(() => {
-				this._dirty = true;
-				if (this.manager) {
-					this.manager.updateNetwork();
-				}
+			this.inputs = inputs;
+			this.outputs = outputs;
+
+			this._setUIOption = ui.dictionary
+			.onValue((name, oldValue, newValue) => {
+				const c = new SetOptionCommand(
+					this._setUIOption, name, oldValue, newValue, () => {
+						this.dirty = true;
+						this.manager.updateNetwork();
+					});
+				this.manager.stack.add(c);
+				c.execute();
 			});
-			addGetter(this, "ui", ui);
+			this.ui = ui;
+
 			addOptions(this, DEFAULTS, options);
 
-			addGetter(this, "dirty", true);
-			this._inputs.forEach((input) => {
+			this.dirty = true;
+			this.inputs.forEach((input) => {
 				input.onChange.addListener(() => {
-					this._dirty = true;
+					this.dirty = true;
 				});
 			});
 
@@ -284,28 +385,29 @@ const Node = (function(){
 			this._attachEvents();
 		}
 
+		_appendPoints(points, parent) {
+			points.forEach((p) => {
+				parent.element.appendChild(p.element);
+				p.parent = parent;
+				p.node = this;
+			});
+		}
+
 		_createDOM() {
 			const d = this._element;
 			d.classList.add(CLASSES.root);
-
-			const appendPoints = (points, parent) => {
-				points.forEach((p) => {
-					parent.element.appendChild(p.element);
-					p.parent = parent;
-					p.node = this;
-				});
-			};
+			stopBubbling(d, "mousedown");
 
 			const inputs = document.createElement("div");
 			inputs.classList.add(CLASSES.points, CLASSES.inputs);
 			this._inputsBox = new Box(inputs, this);
-			appendPoints(this._inputs, this._inputsBox);
+			this._appendPoints(this.inputs, this._inputsBox);
 			d.appendChild(inputs);
 
 			const outputs = document.createElement("div");
 			outputs.classList.add(CLASSES.points, CLASSES.outputs);
 			this._outputsBox = new Box(outputs, this);
-			appendPoints(this._outputs, this._outputsBox);
+			this._appendPoints(this.outputs, this._outputsBox);
 			d.appendChild(outputs);
 
 			const node = document.createElement("div");
@@ -327,7 +429,7 @@ const Node = (function(){
 			lockBtn.appendChild(svg2);
 			this._lockBtn = lockBtn;
 
-			const iconHref = this._options.get("icon");
+			const iconHref = this.options.get("icon");
 			let icon;
 			if (iconHref) {
 				icon = createSVG(iconHref);
@@ -344,13 +446,13 @@ const Node = (function(){
 		_attachEvents() {
 			const isLocked = () => this.manager.lock.locked;
 
-			preventBubble(this._viewBtn, "mouseup", "mousedown");
+			stopBubbling(this._viewBtn, "mouseup", "mousedown");
 			this._viewBtn.addEventListener("click", (evt) => {
 				if (isLocked()) return;
 				this.manager.nodes.visible = this._visible ? null : this;
 			});
 
-			preventBubble(this._lockBtn, "mouseup", "mousedown");
+			stopBubbling(this._lockBtn, "mouseup", "mousedown");
 			this._lockBtn.addEventListener("click", (evt) => {
 				if (isLocked()) return;
 				this.locked = !this._locked;
@@ -388,21 +490,44 @@ const Node = (function(){
 			this._viewBtn.classList.toggle(CLASSES.visible, val);
 		}
 
+		get inputLinks() {
+			const links = this.inputs.map((p) => {
+				if (p instanceof MultiNodeInput) {
+					return p.links;
+				} else {
+					return p.link;
+				}
+			});
+			let f = [];
+			links.forEach((l) => {
+				if (Array.isArray(l)) {
+					f.push.apply(f, l);
+				} else {
+					f.push(l);
+				}
+			});
+			f = f.filter(Boolean);
+			return f;
+		}
+
+		get outputLinks() {
+			let links = this.outputs.map(p => p.links);
+			links = [].concat(...links);
+			return links;
+		}
+
 		get dependencies() {
-			return this._inputs.filter(i => i.link)
-				   .map(i => i.link.output.node);
+			return this.inputLinks.map(l => l.output.node);
 		}
 
 		get links() {
-			const ilinks = this._inputs.map(p => p.link),
-				  olinks = this._outputs.map(p => p.links);
-			return ilinks.concat(...olinks).filter(Boolean);
+			return this.inputLinks.concat(this.outputLinks);
 		}
 
 		cook() {
 			console.log("cooking:", this._element);
 			return new Promise((resolve) => {
-				const inputs = this._inputs.map(i => i.value);
+				const inputs = this.inputs.map(i => i.value);
 				const p = this._cook(...inputs);
 				if (p instanceof Promise) {
 					p.then(resolve);
@@ -410,10 +535,10 @@ const Node = (function(){
 					resolve(p);
 				}
 			}).then((results) => {
-				this._outputs.forEach((o, i) => {
+				this.outputs.forEach((o, i) => {
 					o.value = results[i];
 				});
-				this._dirty = false;
+				this.dirty = false;
 			});
 		}
 	};
@@ -422,37 +547,97 @@ const Node = (function(){
 class NodeUI extends ToolUI {
 	constructor(options) {
 		super();
-		const dict = new NodeDictionary(options);
-		addGetter(this, "dictionary", dict);
+		this.dictionary = new NodeUIOptions(options);
 	}
 }
 
-class NodeDictionary extends Dictionary {
+class NodeUIOptions extends Dictionary {
     constructor(proto) {
         super(proto);
-        addEvent(this, "onChange");
+        this._onValue = null;
+        this._events = new Dictionary();
     }
 
-    edit(name, cb) {
-    	if (!this.has(name)) {
-    		console.warn("NodeDictionary does not contain key:", name);
-    	}
-        const value = super.get(name);
-        cb(value);
-        this._onChange.trigger(name);
+    _updateEvent(name, value) {
+        if (this._events.has(name)) {
+            this._events.get(name).trigger(value);
+        }
     }
 
-    put(name, value) {
-    	if (!this.has(name)) {
-    		console.warn("NodeDictionary does not support appending new values.");
+    onValue(cb) {
+    	if (isFunction(cb)) {
+    		this._onValue = cb;
+    		return (name, value) => {
+    			if (!this.has(name)) {
+		    		console.warn("NodeUIOptions does not contain key:", name);
+		    		return;
+		    	}
+    			super.put(name, value);
+    			this._updateEvent(name, value);
+    		};
+    	} else {
+    		console.warn("Invalid value for argument 'cb':", cb);
     	}
-        super.put(name, value);
-        this._onChange.trigger(name);
+    }
+
+    put(name, newValue) {
+    	if (!this.has(name)) {
+    		console.warn("NodeUIOptions does not contain key:", name);
+    		return;
+    	} else if (!this._onValue) {
+    		return;
+    	}
+
+    	const oldValue = this.get(name);
+        this._onValue(name, oldValue, newValue);
     }
 
     remove() {
-    	console.warn("NodeDictionary does not support the remove function.");
+    	console.warn("NodeUIOptions does not support the remove function.");
     }
+
+    addListener(name, listener) {
+        let event;
+        if (this._events.has(name)) {
+            event = this._events.get(name);
+        } else {
+            event = new MyEvent();
+            this._events.put(name, event);
+        }
+        event.interface.addListener(listener);
+    }
+
+    removeListener(name, listener) {
+        if (this._events.has(name)) {
+            this._events.get(name).interface.removeListener(listener);
+        }
+    }
+}
+
+class SetOptionCommand extends Command {
+	constructor(sf, name, o, n, cb) {
+		super(Command.IMMEDIATE);
+
+		this._setFunction = sf;
+		this._name = name;
+		this._oldValue = o;
+		this._newValue = n;
+		this._onChange = cb;
+	}
+
+	_execute() {
+		this._setFunction(this._name, this._newValue);
+		this._onChange();
+	}
+
+	_undo() {
+		this._setFunction(this._name, this._oldValue);
+		this._onChange();
+	}
+
+	_redo() {
+		this._execute();
+	}
 }
 
 class EmptyNodeUI extends NodeUI {

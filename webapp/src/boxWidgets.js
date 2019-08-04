@@ -32,8 +32,8 @@ const ResizeWidget = (function(){
 
 		_getCommand(boxes, evt) {
 			const mp = this._getMousePosition(evt),
-				  a  = this._options.get("angle");
-			return new ResizeCommand(boxes, mp, a, this._resizeOptions);
+				  a  = this.options.get("angle");
+			return new ResizeCommand(boxes, mp, a, this.resizeOptions);
 		}
 
 		_getArguments(evt) {
@@ -52,7 +52,7 @@ const RotateWidget = (function(){
 		}
 
 		_getCommand(boxes, evt) {
-			return new RotateCommand(boxes, this._options.get("center"));
+			return new RotateCommand(boxes, this.options.get("center"));
 		}
 
 		_getArguments(evt) {
