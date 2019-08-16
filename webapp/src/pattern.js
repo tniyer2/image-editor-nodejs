@@ -1,8 +1,8 @@
 
 import { extend } from "./utility";
-import ToolUI from "./toolUI";
+import { ToolUI } from "./toolUI";
 import { Slider } from "./input";
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { SmoothCirclePattern, SmoothCirclePatternToolUI };
 
@@ -11,7 +11,7 @@ const Pattern = (function(){
 
 	return class {
 		constructor(options) {
-			addOptions(this);
+			this.options = new Options();
 			this.options.addListener("color", (c) => {
 				this._color = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]})`;
 			});

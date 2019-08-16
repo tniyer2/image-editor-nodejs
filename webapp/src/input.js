@@ -1,7 +1,7 @@
 
 import { show, hide, setBooleanAttribute } from "./utility";
 import { addEvent } from "./event";
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { Toggle, Slider, FileInput, AutoComplete };
 
@@ -15,7 +15,8 @@ const Toggle = (function(){
 	return class {
 		constructor(iv, options) {
 			this._initialValue = iv;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._createDOM();
 			addEvent(this, "onToggle");
@@ -74,7 +75,8 @@ const Slider = (function(){
 			this._initialValue = val;
 			this._min = min;
 			this._max = max;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._createDOM();
 			addEvent(this, "onChange");
@@ -134,7 +136,8 @@ const FileInput = (function(){
 
 	return class {
 		constructor(options) {
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this.value  = null;
 
@@ -201,7 +204,8 @@ const AutoComplete = function(){
 	return class {
 		constructor(input, options) {
 			this._input = input;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			const values = this.options.get("values");
 			if (values.constructor !== Array) {

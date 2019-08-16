@@ -1,6 +1,6 @@
 
 import { isUdf, isFunction } from "./type";
-import { addOptions } from "./options";
+import Options from "./options";
 import { ConstantDictionary, EventDictionary } from "./dictionary";
 import { ColorPicker, ColorBox } from "./colorInput";
 import { CommandStack } from "./command";
@@ -10,30 +10,37 @@ import { MoveTool, MoveToolUI } from "./moveTool";
 import LayerManager from "./layerManager";
 import { TestNode, AsyncTestNode } from "./testNodes";
 import { ImageNode, MergeNode } from "./basicNodes";
+import { LayerGroup } from "./basicTypes";
+import { Anchor } from "./geometry";
 import NodeManager from "./nodeManager";
 
-const DEFAULTS = { viewport: null,
-				   primaryColor: [0, 0, 0, 255],
+const DEFAULTS = { primaryColor: [0, 0, 0, 255],
 				   stackLimit: null };
 
 export default class {
 	constructor(options) {
-		addOptions(this, DEFAULTS, options);
+		this.options = new Options();
+		this.options.set(DEFAULTS, options);
 
-		this._initLayerManager();
-		this._initStack();
-		this._initGlobals();
+		this.stack = new CommandStack(this.options.get("stackLimit"));
+
+		this.globals = new EventDictionary();
+		this.globals.put("primaryColor", this.options.get("primaryColor"));
 
 		this.colorPicker = new ColorPicker();
+
 		this.primaryColorBox = new ColorBox(this.colorPicker);
 		this.primaryColorBox.onChange.addListener((color) => {
 			this.globals.put("primaryColor", color);
 		});
 
-		this._initTools();
+		this.anchor = new Anchor(document.body);
+
+		this._initLayerManager();
 		this._initNodes();
-		this._initNodeAutoComplete();
 		this._initNodeManager();
+		this._initNodeAutoComplete();
+		this._initTools();
 	}
 
 	_initLayerManager() {
@@ -42,15 +49,37 @@ export default class {
 		this.layerManager = new LayerManager(this, v, iv);
 	}
 
-	_initStack() {
-		this.stack = new CommandStack(this.options.get("stackLimit"));
+	_initNodes() {
+		this._nodes = new ConstantDictionary();
+		this._nodes.put("test_node", TestNode);
+		this._nodes.put("async_test_node", AsyncTestNode);
+		this._nodes.put("image", ImageNode);
+		this._nodes.put("merge", MergeNode);
 	}
 
-	_initGlobals() {
-		const g = new EventDictionary();
-		this.globals = g;
+	_initNodeManager() {
+		const root = this.options.get("nodeEditor"),
+			  ns = this.options.get("nodeSpace"),
+			  ins = this.options.get("innerNodeSpace");
+		this.nodeManager = new NodeManager(this, root, ns, ins);
+	}
 
-		g.put("primaryColor", this.options.get("primaryColor"));
+	_initNodeAutoComplete() {
+		const ac = this.options.get("nodeAutoComplete");
+		this.nodeAutoComplete = ac;
+
+		ac.options.put("values", this._nodes.keys);
+		ac.onConfirm.addListener((value, input) => {
+			if (this._nodes.has(value)) {
+				const createNode = this._nodes.get(value);
+				if (isFunction(createNode)) {
+					const node = new createNode();
+					this.nodeManager.addNode(node);
+				} else {
+					console.warn("createNode is not of type Node:", createNode);
+				}
+			}
+		});
 	}
 
 	get tools() {
@@ -79,36 +108,11 @@ export default class {
 		this.selectTool("Move");
 	}
 
-	_initNodes() {
-		this._nodes = new ConstantDictionary();
-		this._nodes.put("test_node", TestNode);
-		this._nodes.put("async_test_node", AsyncTestNode);
-		this._nodes.put("image", ImageNode);
-		this._nodes.put("merge", MergeNode);
-	}
+	render(node) {
+		const outputs = node.outputs.map(p => p.value);
 
-	_initNodeAutoComplete() {
-		const ac = this.options.get("nodeAutoComplete");
-		this.nodeAutoComplete = ac;
-
-		ac.options.put("values", this._nodes.keys);
-		ac.onConfirm.addListener((value, input) => {
-			if (this._nodes.has(value)) {
-				const createNode = this._nodes.get(value);
-				if (isFunction(createNode)) {
-					const node = new createNode();
-					this.nodeManager.addNode(node);
-				} else {
-					console.warn("createNode is not of type Node:", createNode);
-				}
-			}
-		});
-	}
-
-	_initNodeManager() {
-		const ns = this.options.get("nodeSpace"),
-			  ins = this.options.get("innerNodeSpace");
-		this.nodeManager = new NodeManager(this, ns, ins);
+		const layerGroup = outputs.find(p => p instanceof LayerGroup) || null;
+		this.layerManager.render(layerGroup);
 	}
 
 	selectTool(toolName) {

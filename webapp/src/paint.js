@@ -12,12 +12,10 @@ class PaintCommand extends Command {
 		this._layer = layer;
 		this._context = this._layer.canvas.getContext("2d");
 
-		const x = this._layer.innerLeft,
-			  y = this._layer.innerTop,
-			  w = this._layer.innerWidth,
-			  h = this._layer.innerHeight;
-		const imageData = this._context.getImageData(x, y, w, h);
-		this._initialRect = new ImageRect(imageData, x, y);
+		const w = this._layer.source.width,
+			  h = this._layer.source.height;
+		const imageData = this._context.getImageData(0, 0, w, h);
+		this._initialRect = new ImageRect(imageData, 0, 0);
 	}
 
 	_execute(pattern, prevPos, pos) {

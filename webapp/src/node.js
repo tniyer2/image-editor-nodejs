@@ -1,14 +1,14 @@
 
-import { isUdf, isFunction } from "./type";
+import { isUdf, isFunction, isType } from "./type";
 import { createSVG, stopBubbling } from "./utility";
-import { addOptions } from "./options";
+import Options from "./options";
 import { Dictionary } from "./dictionary";
-import ToolUI from "./toolUI";
+import { ToolUI } from "./toolUI";
 import { MyEvent, addEvent } from "./event";
 import { Command } from "./command";
 import { Box, Vector2 } from "./geometry";
 
-export { Node, NodeInput, MultiNodeInput, NodeOutput, Link, NodeUI, EmptyNodeUI };
+export { Node, NodeInput, MultiNodeInput, NodeOutput, Link };
 
 const Link = (function(){
 	const CLASSES =
@@ -106,9 +106,8 @@ const Link = (function(){
 
 		updatePath (i, o) {
 			if (!i) {
-				const input = this._input;
-				if (input instanceof MultiNodeInput) {
-					const links = input.links;
+				if (this._input instanceof MultiNodeInput) {
+					const links = this._input.links;
 					const l = links.length;
 					const j = links.findIndex(lk => lk === this);
 
@@ -122,15 +121,15 @@ const Link = (function(){
 					}
 					const r = place / total;
 
-					const x = input.left + (input.width * r);
-					const y = input.centerY;
+					const x = this._input.left + (this._input.width * r);
+					const y = this._input.centerY;
 					i = new Vector2(x, y);
 				} else {
-					i = input.center;
+					i = this._input.center;
 				}
 			}
 			if (!o) {
-				o = this.output.center;
+				o = this._output.center;
 			}
 
 			const n = new Vector2(i.x, o.y), 
@@ -349,26 +348,45 @@ const Node = (function(){
 	const DEFAULTS = { icon: null };
 
 	return class extends Box {
-		constructor(inputs, outputs, ui, options) {
+		constructor(inputs, outputs, ui, uiOptions, options) {
+			if (!isType(inputs, Array) || 
+				!inputs.every(p => p instanceof NodeInput || 
+								   p instanceof MultiNodeInput)) {
+				console.log("inputs:", inputs);
+				throw new Error("Invalid argument.");
+			} else if (!isType(outputs, Array) || 
+					   !outputs.every(p => p instanceof NodeOutput)) {
+				throw new Error("Invalid argument.");
+			} else if (!(ui instanceof ToolUI)) {
+				throw new Error("Invalid argument.");
+			}
+
 			const d = document.createElement("div");
 			super(d);
 
 			this.inputs = inputs;
 			this.outputs = outputs;
 
-			this._setUIOption = ui.dictionary
-			.onValue((name, oldValue, newValue) => {
+			this.ui = ui;
+			this.uiOptions = new NodeUIOptions(uiOptions);
+			this.ui.options = this.uiOptions;
+			this.uiOptions.onValue((name, oldValue, newValue, meta) => {
 				const c = new SetOptionCommand(
-					this._setUIOption, name, oldValue, newValue, () => {
-						this.dirty = true;
-						this.manager.updateNetwork();
+					this.uiOptions.put, name, oldValue, newValue,
+					() => {
+						if (meta.noupdate !== true) {
+							this.dirty = true;
+							this.manager.updateNetwork();
+						}
 					});
-				this.manager.stack.add(c);
+				if (meta.nostack !== true) {
+					this.manager.stack.add(c);
+				}
 				c.execute();
 			});
-			this.ui = ui;
 
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this.dirty = true;
 			this.inputs.forEach((input) => {
@@ -544,18 +562,17 @@ const Node = (function(){
 	};
 })();
 
-class NodeUI extends ToolUI {
-	constructor(options) {
-		super();
-		this.dictionary = new NodeUIOptions(options);
-	}
-}
-
-class NodeUIOptions extends Dictionary {
+class NodeUIOptions {
     constructor(proto) {
-        super(proto);
-        this._onValue = null;
+    	if (!isUdf(proto) && typeof proto !== "object") {
+            throw new Error("Invalid argument.");
+        }
+
+    	this._inner = Object.create(proto || null);
+
         this._events = new Dictionary();
+        this._onValue = null;
+        this.put = this.put.bind(this);
     }
 
     _updateEvent(name, value) {
@@ -565,35 +582,37 @@ class NodeUIOptions extends Dictionary {
     }
 
     onValue(cb) {
-    	if (isFunction(cb)) {
-    		this._onValue = cb;
-    		return (name, value) => {
-    			if (!this.has(name)) {
-		    		console.warn("NodeUIOptions does not contain key:", name);
-		    		return;
-		    	}
-    			super.put(name, value);
-    			this._updateEvent(name, value);
-    		};
-    	} else {
-    		console.warn("Invalid value for argument 'cb':", cb);
+    	if (!isFunction(cb)) {
+    		throw new Error("Invalid argument.");
     	}
+		this._onValue = cb;
     }
 
-    put(name, newValue) {
+    has(name) {
+    	return name in this._inner;
+    }
+
+    get(name) {
+    	return this._inner[name].value;
+    }
+
+    put(name, value) {
+		if (!this.has(name)) {
+    		throw new Error("NodeUIOptions does not contain key: " + name);
+    	}
+
+    	const p = this._inner[name];
+    	p.value = value;
+		this._updateEvent(name, value);
+	}
+
+    tryPut(name, newValue) {
     	if (!this.has(name)) {
-    		console.warn("NodeUIOptions does not contain key:", name);
-    		return;
-    	} else if (!this._onValue) {
-    		return;
+    		throw new Error("NodeUIOptions does not contain key: " + name);
+    	} else if (this._onValue) {
+    		const p = this._inner[name];
+        	this._onValue(name, p.value, newValue, p);
     	}
-
-    	const oldValue = this.get(name);
-        this._onValue(name, oldValue, newValue);
-    }
-
-    remove() {
-    	console.warn("NodeUIOptions does not support the remove function.");
     }
 
     addListener(name, listener) {
@@ -637,15 +656,5 @@ class SetOptionCommand extends Command {
 
 	_redo() {
 		this._execute();
-	}
-}
-
-class EmptyNodeUI extends NodeUI {
-	constructor() {
-		super({});
-	}
-
-	_createUI() {
-		return document.createElement("div");
 	}
 }

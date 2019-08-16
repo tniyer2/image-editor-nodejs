@@ -1,13 +1,20 @@
 
+import { isType } from "./type";
 import { Vector2 } from "./geometry";
 import { Command } from "./command";
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { DragCommand, ResizeCommand, RotateCommand };
 
 class BoxCommand extends Command {
 	constructor(boxes, pos) {
 		super(Command.CONTINUOUS);
+
+		if (!isType(boxes, Array)) {
+			throw new Error("Invalid argument.");
+		} else if (!isType(pos, Vector2)) {
+			throw new Error("Invalid argument.");
+		}
 
 		this._boxes = boxes;
 		this._referencePosition = pos;
@@ -39,7 +46,8 @@ const DragCommand = (function(){
 	return class extends BoxCommand {
 		constructor(box, pos, options) {
 			super(box, pos);
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 		}
 
 		_execute(mousePosition, snapMovement, lock) {
@@ -88,7 +96,8 @@ const ResizeCommand = (function(){
 	return class extends BoxCommand {
 		constructor(boxes, pos, angle, options) {
 			super(boxes, pos);
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._right = Vector2.right.rotate(angle);
 			this._down = Vector2.down.rotate(angle);
@@ -201,7 +210,8 @@ const RotateCommand = (function(){
 		constructor(boxes, pos, options) {
 			super(boxes, pos);
 			
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._snapOffset = this.options.get("snapOffset") * Vector2.degToRad;
 			this._initialAngles = this._boxes.map(b => b.angle);

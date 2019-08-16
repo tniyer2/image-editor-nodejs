@@ -1,12 +1,12 @@
 
 import { show, hide, stopBubbling } from "./utility";
-import { addOptions } from "./options";
+import Options from "./options";
 import { Box } from "./geometry";
 import { MouseAction } from "./action";
 import { Toggle } from "./input";
 import { SelectWidget } from "./collectionWidgets";
 import { DragWidget, ResizeWidget, RotateWidget } from "./boxWidgets";
-import ToolUI from "./toolUI";
+import { ToolUI } from "./toolUI";
 
 export { MoveTool, MoveToolUI };
 
@@ -23,7 +23,8 @@ const MoveTool = (function(){
 	return class {
 		constructor(editor) {
 			this._editor = editor;
-			addOptions(this, DEFAULTS);
+			this.options = new Options();
+			this.options.set(DEFAULTS);
 
 			TO_BE_BOUND.forEach((n) => {
 				this[n] = this[n].bind(this);

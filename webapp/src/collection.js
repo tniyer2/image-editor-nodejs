@@ -1,7 +1,7 @@
 
 import { isFunction } from "./type";
 import { addEvent } from "./event";
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { Collection, BASE, SELECT };
 
@@ -21,7 +21,8 @@ const Collection = (function(){
 	const Inner2 = function (info) {
 		class Inner {
 			constructor(options) {
-				addOptions(this, options);
+				this.options = new Options();
+				this.options.set(options);
 
 				info.forEach((p) => {
 					if (p.type === Collection.MULTIPLE) {

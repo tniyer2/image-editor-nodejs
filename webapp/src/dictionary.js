@@ -1,59 +1,48 @@
 
+import { isUdf } from "./type";
 import { MyEvent } from "./event";
 
 export { Dictionary, ConstantDictionary, EventDictionary };
 
-const Dictionary = (function(){
-    const PROTO_PROP = "__proto__";
-
-    return class {
-        constructor(proto) {
-            this._inner = Object.create(proto || null);
+class Dictionary {
+    constructor(proto) {
+        if (!isUdf(proto) && typeof proto !== "object") {
+            throw new Error("Invalid argument.");
         }
+        this._inner = Object.create(proto || null);
+    }
 
-        get keys() {
-            return Object.keys(this._inner);
-        }
+    get keys() {
+        return Object.keys(this._inner);
+    }
 
-        get values() {
-            return Object.values(this._inner);
-        }
+    get values() {
+        return Object.values(this._inner);
+    }
 
-        get items() {
-            return Object.assign({}, this._inner);
-        }
+    get items() {
+        return Object.assign({}, this._inner);
+    }
 
-        _checkValidName(name) {
-            if (name === PROTO_PROP) {
-                throw new Error(`name cannot have the value '${PROTO_PROP}'`);
-            }
-        }
+    put(name, value) {
+        this._inner[name] = value;
+    }
 
-        put(name, value) {
-            this._checkValidName(name);
-            this._inner[name] = value;
-        }
+    remove(name) {
+        delete this._inner[name]; 
+    }
 
-        remove(name) {
-            this._checkValidName(name);
-            delete this._inner[name]; 
-        }
+    has(name) {
+        return name in this._inner;
+    }
 
-        has(name) {
-            this._checkValidName(name);
-            return name in this._inner;
-        }
-
-        get(name) {
-            this._checkValidName(name);
-            return this._inner[name];
-        }
-    };
-})();
+    get(name) {
+        return this._inner[name];
+    }
+}
 
 class ConstantDictionary extends Dictionary {
     put(name, value) {
-        this._checkValidName(name);
         if (this.has(name)) {
             throw new Error(`Cannot set value, key '${name}' has already been set.`);
         } else {

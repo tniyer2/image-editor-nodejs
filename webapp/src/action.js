@@ -1,7 +1,7 @@
 
 import { isFunction } from "./type";
 import { Vector2 } from "./geometry";
-import { addOptions } from "./options";
+import Options from "./options";
 import { addEvent } from "./event";
 import { Listener, PromiseListener } from "./listener";
 
@@ -102,7 +102,8 @@ const MouseAction = (function(){
 
 			this._target = target;
 			this._bounds = bounds;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 			this._mouseMoveAlways = this.options.get("mouseMoveAlways");
 
 			MouseAction.eventNames.forEach((n) => {
@@ -238,7 +239,8 @@ class KeyAction extends Action {
 		super();
 
 		this._target = target;
-		addOptions(this, options);
+		this.options = new Options();
+		this.options.set(options);
 
 		KeyAction.eventNames.forEach((e) => {
 			addEvent(this, e);

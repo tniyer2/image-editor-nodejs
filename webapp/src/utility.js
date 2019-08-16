@@ -1,11 +1,18 @@
 
 import { isUdf } from "./type";
 
-export { clamp, extend, show, hide, $, isDescendant, 
+export { clamp, deepcopy, extend, show, hide, $, isDescendant, 
          setBooleanAttribute, stopBubbling, 
          AddToEventLoop, createSVG, toPrecision };
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+function deepcopy(obj) {
+    if (typeof obj !== "object") {
+        throw new Error("Invalid argument.");
+    }
+    return JSON.parse(JSON.stringify(obj));
+}
 
 function extend() {
     const master = {};

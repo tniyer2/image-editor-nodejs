@@ -35,23 +35,19 @@ $std-border: 3px solid #444;
 	height: 100%; }
 .menubar__main-options { 
 	@extend %menubar__div; }
-.menubar__upload-btn {
-	position: relative;
-	width: 80px; 
+.menubar__save-image {
+	@extend %remove-button-defaults;
+	padding: 0 5px;
 	height: 40px;
-	margin-right: 20px;
+	margin-right: 10px;
+	text-align: center;
 	cursor: pointer;
 	border-radius: 5px;
-	background-color: #444; }
-.menubar__upload-btn input {
-	width: 0;
-	height: 0; }
-.menubar__upload-btn .text {
-	@extend %centered-absolute;
-	@extend %regular-font;
-	font-size: $big-font-size; }
-.menubar__upload-btn:hover .text {
-	color: $blue; }
+	background: #444;
+	span {
+		@extend %regular-font;
+		margin: auto;
+	} }
 .menubar__undo-btn {
 	@extend %remove-button-defaults;
 	width: 40px;
@@ -77,6 +73,57 @@ $std-border: 3px solid #444;
 	flex: 1;
 	display: flex;
 	flex-direction: row; }
+.area-wrapper {
+	position: relative;
+	flex: 1 1 auto; }
+.area {
+	position: relative;
+	flex: 1 1 auto;
+
+	.tab-bar {
+		height: 50px;
+		background-color: #888; }
+	.tab-bar-top {
+		height: 50%; }
+	.tabs {
+		display: inline-flex; }
+	.tab-bar-bottom {
+		height: 50%;
+		background-color: #333; }
+
+	.add-tab {
+		display: inline-block;
+		width: 20px;
+		height: 100%;
+
+		button {
+			@extend %remove-button-defaults;
+			@extend %max-size;
+
+			svg {
+				@extend %max-size; } }
+		button:hover svg { 
+			fill: $dark-blue; }
+	}
+
+	.tab {
+		width: 100px;
+		height: 100%;
+
+		.text {}
+		.remove-btn {}
+	}
+	.tab.active {
+		background-color: #333; }
+
+	.tab-parent {
+		position: relative;
+		flex: 1 1 auto;
+	}
+}
+.tab-wrapper {
+	position: relative;
+	@extend %max-size; }
 
 
 .toolbar {
@@ -117,12 +164,11 @@ $std-border: 3px solid #444;
 	border-left-width: 0;
 	border-bottom-width: 0; }
 .viewport {
-	@extend %default-absolute;
+	position: absolute;
 	top: 0;
 	bottom: 0;
 	left: 0;
 	right: 0;
-	margin: auto;
 	width: 0;
 	height: 0;
 	z-index: 0; }

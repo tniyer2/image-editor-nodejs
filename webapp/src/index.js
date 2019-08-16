@@ -1,8 +1,7 @@
 
+import { $, setBooleanAttribute } from "./utility";
 import { AutoComplete } from "./input";
 import Editor from "./editor";
-import { Layer } from "./layer";
-import { $, setBooleanAttribute } from "./utility";
 
 const CLASSES =
 { toolBtn: "toolbar__tool",
@@ -21,6 +20,7 @@ function main() {
 	g_editor = new Editor(
 	{ viewport: 	   $("#viewport-wrapper"),
 	  innerViewport:   $("#viewport"),
+	  nodeEditor: 	   $("#node-editor"),
 	  nodeSpace: 	   $("#node-space-wrapper"),
 	  innerNodeSpace:  $("#node-space"),
 	  nodeAutoComplete: ac });
@@ -29,7 +29,7 @@ function main() {
 	createToolButtons();
 	listenUndoRedoCommands();
 	listenUndoRedoButtons();
-	listenFileUpload();
+	listenSaveButton();
 
 	window.onbeforeunload = () => true;
 }
@@ -102,24 +102,6 @@ function listenUndoRedoButtons() {
 	});
 }
 
-function listenFileUpload() {
-	$("#file-upload").addEventListener("change", (evt) => {
-		const file = evt.target.files[0];
-		evt.target.value = null;
-		if (!file) return;
-
-		const image = new Image();
-		image.addEventListener("load", () => {
-			const layer = new Layer(image);
-			g_editor.layerManager.addLayer(layer);
-		});
-		image.addEventListener("error", () => {
-			console.warn("Failed to create layer, image could not load.");
-		});
-		image.src = URL.createObjectURL(file);
-	});
-}
-
 function createToolButtons() {
 	g_editor.tools.forEach((t) => {
 		const btn = document.createElement("button");
@@ -131,6 +113,22 @@ function createToolButtons() {
 		$("#tools").appendChild(btn);
 
 		selectToolOnClick(btn, t);
+	});
+}
+
+function listenSaveButton() {
+	$("#save-image").addEventListener("click", () => {
+		const uri = g_editor.layerManager.getImage();
+		if (uri) {
+			const link = document.createElement("a");
+			link.href = uri;
+			link.download = "image";
+
+			link.style.display = "none";
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+		}
 	});
 }
 

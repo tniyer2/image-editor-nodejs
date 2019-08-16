@@ -1,7 +1,7 @@
 
 import { isFunction } from "./type";
 import { clamp } from "./utility";
-import { addOptions } from "./options";
+import Options from "./options";
 import { MultiCommand } from "./command";
 import { UserActionHandler, ZoomActionHandler } from "./action";
 
@@ -74,12 +74,14 @@ const ZoomWidget = (function(){
 	return class extends ZoomActionHandler {
 		constructor(box, options) {
 			super();
+
 			this._box = box;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 		}
 
 		_onZoom(evt) {
-			if (this.options.get("condition", false)(evt)) {
+			if (this.options.get("condition")(evt)) {
 				let scale = this._box.localScaleX;
 				const factor = this.options.get("factor"),
 					  min = this.options.get("min"),

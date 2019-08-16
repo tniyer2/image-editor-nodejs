@@ -3,7 +3,7 @@ import { AddToEventLoop } from "./utility";
 import Lock from "./lock";
 import { MouseAction, KeyAction,
 		 ZoomAction, UserActionPiper } from "./action";
-import { Anchor, Box, Vector2 } from "./geometry";
+import { Box, Vector2 } from "./geometry";
 import { ZoomWidget } from "./widget";
 import { DragWidget } from "./boxWidgets";
 import { NodeLinkWidget, DragNodeWidget } from "./nodeWidgets";
@@ -58,15 +58,11 @@ class NodeCooker {
 			if (this._lock) {
 				key = this._lock.lock();
 			}
-			this._getChain(graph).then((time) => {
-				let total = time.reduce((a, b) => a + b, 0);
-				total /= 1000;
-				const outputs = node.outputs.map(o => o.value);
-				console.log("time:", total, "output:", ...outputs);
-			}).finally(() => {
+			return this._getChain(graph).finally((info) => {
 				if (this._lock) {
 					this._lock.free(key);
 				}
+				return info;
 			});
 		} else {
 			console.warn("graph is cyclic:", graph);
@@ -74,18 +70,22 @@ class NodeCooker {
 	}
 
 	_getChain(graph) {
-		return graph.reduce((chain, node) => chain.then((arr) => {
+		const last = graph.length - 1;
+		return graph.reduce((chain, node, cur) => chain.then((info) => {
 			if (node.locked || !node.dirty) {
-				return arr;
+				if (cur === last) {
+					info.clean = true;
+				}
+				return info;
 			} else {
 				const d = Date.now();
 				return node.cook().then(() => {
 					const elapsed = Date.now() - d;
-					arr.push(elapsed);
-					return arr;
+					info.time.push(elapsed);
+					return info;
 				});
 			}
-		}), Promise.resolve([]));
+		}), Promise.resolve({ time: [], clean: false }));
 	}
 
 	_getSubGraph(start) {
@@ -134,11 +134,14 @@ class NodeCooker {
 }
 
 export default class {
-	constructor (editor, ns, ins) {
+	constructor (editor, ned, ns, ins) {
 		this._editor = editor;
 
-		this.nodeSpace = new Anchor(ns);
+		this.nodeEditor = new Box(ned, this._editor.anchor);
+		this.nodeSpace = new Box(ns, this.nodeEditor);
 		this.innerNodeSpace = new Box(ins, this.nodeSpace);
+
+		console.log("position:", this.nodeSpace.position);
 
 		this.lock = new Lock();
 		this.lock.pipe(this._editor.stack.lock);
@@ -185,7 +188,20 @@ export default class {
 		this._networkUpdater = new AddToEventLoop(() => {
 			const n = this.nodes.visible;
 			if (n) {
-				this._cooker.cook(n);
+				const p = this._cooker.cook(n);
+				if (p) {
+					p.then((info) => {
+						let total = info.time.reduce((a, b) => a + b, 0);
+						total /= 1000;
+						const outputs = n.outputs.map(o => o.value);
+						console.log("time:", total, "output:", ...outputs);
+
+						if (n !== this._prevRendered || !info.clean) {
+							this._editor.render(n);
+							this._prevRendered = n;
+						}
+					});
+				}
 			}
 		});
 	}

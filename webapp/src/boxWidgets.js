@@ -1,5 +1,6 @@
 
-import { addOptions, addNamedOptions } from "./options";
+import { isFunction } from "./type";
+import Options from "./options";
 import { Vector2 } from "./geometry";
 import { DragCommand, ResizeCommand, RotateCommand } from "./boxCommands";
 import { BoxWidget } from "./widget";
@@ -23,16 +24,19 @@ const ResizeWidget = (function(){
 	const DEFAULTS = { angle: 0 };
 
 	return class extends BoxWidget {
-		constructor(groups, options, resizeOptions) {
+		constructor(groups, op, rop) {
 			super(groups);
 
-			addOptions(this, DEFAULTS, options);
-			addNamedOptions(this, "resizeOptions", resizeOptions);
+			this.options = new Options();
+			this.options.set(DEFAULTS, op);
+			this.resizeOptions = new Options();
+			this.resizeOptions.set(rop);
 		}
 
 		_getCommand(boxes, evt) {
-			const mp = this._getMousePosition(evt),
-				  a  = this.options.get("angle");
+			const mp = this._getMousePosition(evt);
+			let a = this.options.get("angle");
+			a = isFunction(a) ? a() : a;
 			return new ResizeCommand(boxes, mp, a, this.resizeOptions);
 		}
 
@@ -48,11 +52,14 @@ const RotateWidget = (function(){
 	return class extends BoxWidget {
 		constructor(groups, options) {
 			super(groups);
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 		}
 
 		_getCommand(boxes, evt) {
-			return new RotateCommand(boxes, this.options.get("center"));
+			let center = this.options.get("center");
+			center = isFunction(center) ? center() : center;
+			return new RotateCommand(boxes, center);
 		}
 
 		_getArguments(evt) {

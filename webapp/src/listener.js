@@ -1,5 +1,5 @@
 
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { Listener, PromiseListener };
 
@@ -12,7 +12,8 @@ const Listener = (function(){
 			this.target = target;
 			this.type = type;
 			this._listener = listener;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._eventOptions = this.options.get("eventOptions");
 

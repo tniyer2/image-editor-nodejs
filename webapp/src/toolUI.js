@@ -1,27 +1,42 @@
 
-const cl_element = "options-ui";
+export { ToolUI, EmptyToolUI };
 
-export default class {
-	_initialize() {
-		const d = this._createUI();
-		if (d instanceof HTMLElement) {
-			d.classList.add(cl_element);
-			this._element = d;
-		} else {
-			throw new Error("_createUI did not return an HTMLElement:", d);
-		}
-	}
+const ToolUI = (function(){
+	const cl_element = "options-ui";
 
-	enable(parent) {
-		if (!this._initialized) {
-			this._initialize();
-			this._initialized = true;
+	return class {
+		_initialize() {
+			const d = this._createUI();
+			if (d instanceof HTMLElement) {
+				d.classList.add(cl_element);
+				this._element = d;
+			} else {
+				throw new Error("_createUI did not return an HTMLElement:" + d);
+			}
 		}
 
-		parent.appendChild(this._element);
-	}
+		enable(parent) {
+			if (!this._initialized) {
+				try {
+					this._initialize();
+				} catch (e) {
+					console.error(e);
+					return;
+				}
+				this._initialized = true;
+			}
 
-	disable() {
-		this._element.remove();
+			parent.appendChild(this._element);
+		}
+
+		disable() {
+			this._element.remove();
+		}
+	};
+})();
+
+class EmptyToolUI extends ToolUI {
+	_createUI() {
+		return document.createElement("div");
 	}
 }

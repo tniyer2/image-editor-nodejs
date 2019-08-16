@@ -216,12 +216,20 @@ const Box = (function(){
 		}
 
 		set parent(val) {
-			if (!isUdf(this._parent)) {
-				throw new Error("parent has already been set");
-			} else if (!(val instanceof Anchor) && !(val instanceof Box)) {
-				throw new Error("invalid value for parent: " + val);
+			if (!(val instanceof Anchor) &&
+				!(val instanceof Box) &&
+				val !== null) {
+				throw new Error("Invalid argument.");
 			}
 			this._parent = val;
+		}
+
+		appendDOM() {
+			this._parent.element.appendChild(this._element);			
+		}
+
+		removeDOM() {
+			this._parent.element.removeChild(this._element);			
 		}
 
 		get rect() {

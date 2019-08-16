@@ -7,7 +7,7 @@ import { MouseAction } from "./action";
 import { DragWidget } from "./boxWidgets";
 import { Box } from "./geometry";
 import { Slider } from "./input";
-import { addOptions } from "./options";
+import Options from "./options";
 
 export { ColorPicker, ColorBox };
 
@@ -29,7 +29,8 @@ const ColorPicker = (function(){
 
 	return class {
 		constructor(options) {
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._updateInputs = this._updateInputs.bind(this);
 
@@ -195,7 +196,8 @@ const ColorBox = (function(){
 	return class {
 		constructor(cp, options) {
 			this._colorPicker = cp;
-			addOptions(this, DEFAULTS, options);
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
 
 			this._color = this.options.get("color");
 

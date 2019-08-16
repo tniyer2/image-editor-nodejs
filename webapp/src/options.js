@@ -1,64 +1,40 @@
 
-import { isFunction } from "./type";
+import { isType } from "./type";
 import { extend } from "./utility";
 import { Dictionary, EventDictionary } from "./dictionary";
 
-export { OptionsDictionary, addOptions, addNamedOptions };
+export default class extends EventDictionary {
+	set(...options) {
+		options = options.map(p =>
+			p instanceof Dictionary ? p.items : p);
 
-const OptionsDictionary = (function(){
-	return class extends EventDictionary {
-		constructor() {
-			super();
+		const all = extend(...options);
+		Object.keys(all).forEach((k) => {
+			this.put(k, all[k]);
+		});
+	}
+
+	addListener (name, listener) {
+		if (isType(name, Array)) {
+			name.forEach((n) => {
+				super.addListener(n, listener);
+			});
+		} else if (typeof name === "string") {
+			super.addListener(name, listener);
+		} else {
+			throw new Error("Invalid argument.");
 		}
+	}
 
-		set(...options) {
-			for (let i = 0, l = options.length; i < l; i+=1) {
-				const opt = options[i];
-				if (opt instanceof Dictionary) {
-					options[i] = opt.items;
-				}
-			}
-			const all = extend(...options);
-			for (const key in all) {
-				if (all.hasOwnProperty(key)) {
-					this.put(key, all[key]);
-				}
-			}
+	removeListener (name, listener) {
+		if (isType(name, Array)) {
+			name.forEach((n) => {
+				super.removeListener(n, listener);
+			});
+		} else if (typeof name === "string") {
+			super.removeListener(name, listener);
+		} else {
+			throw new Error("Invalid argument.");
 		}
-
-		get(name, evalFunctions=true) {
-			const val = super.get(name);
-			return evalFunctions && isFunction(val) ? val() : val;
-		}
-
-		addListener (name, listener) {
-			if (name.constructor === Array) {
-				name.forEach((n) => {
-					super.addListener(n, listener);
-				});
-			} else {
-				super.addListener(name, listener);
-			}
-		}
-
-		removeListener (name, listener) {
-			if (name.constructor === Array) {
-				name.forEach((n) => {
-					super.removeListener(n, listener);
-				});
-			} else {
-				super.removeListener(name, listener);
-			}
-		}
-	};
-})(); 
-
-function addNamedOptions(obj, name, ...options) {
-	const dict = new OptionsDictionary();
-	dict.set(...options);
-	obj[name] = dict;
-}
-
-function addOptions(obj, ...options) {
-	addNamedOptions(obj, "options", ...options);
-}
+	}
+} 
