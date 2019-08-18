@@ -45,6 +45,10 @@ $regular-font-color: black;
 	margin: none;
 	border: none;
 	outline: none; }
+%remove-list-defaults {
+	list-style-type: none;
+	margin: 0;
+	padding: 0; }
 %inline-image-helper {
 	display: inline-block;
 	vertical-align: middle;

@@ -1,7 +1,9 @@
 
 import { createSVG } from "./utility";
 import { addEvent } from "./event";
+import { Listener } from "./listener";
 import { Box } from "./geometry";
+import { FloatingList } from "./input";
 
 export { AreaWrapper, Area, Tab };
 
@@ -9,22 +11,72 @@ class Container {
 	constructor() {
 		const elm = document.createElement("div");
 		this._box = new Box(elm);
-		this.attached = false;
+		this._attached = false;
+		this._disposed = false;
 	}
 
-	attach(box) {
+	get attached() {
+		return this._attached;
+	}
+
+	get disposed() {
+		return this._disposed;
+	}
+
+	_attach(box) {
 		this._box.parent = box;
-		this._box.appendDOM();
-		this.attached = true;
+		this._box.appendElement();
 	}
 
-	detach() {
-		if (!this._box.parent) return;
-
-		this._box.removeDOM();
+	_detach() {
+		this._box.removeElement();
 		this._box.parent = null;
-		this.attached = false;
 	}
+
+	_checkState() {
+		if (this._disposed) {
+			throw new Error("Invalid state. Container is disposed.");
+		}
+	}
+
+	add(box) {
+		this._checkState();
+		if (this._attached) {
+			throw new Error("Invalid state. Container is attached.");
+		}
+
+		this._attach(box);
+		this._add(box);
+
+		this._attached = true;
+	}
+
+	remove() {
+		this._checkState();
+		if (!this._attached) {
+			throw new Error("Invalid state. Container is not attached.");
+		}
+
+		this._detach();
+		this._remove();
+
+		this._attached = false;
+	}
+
+	dispose() {
+		this._checkState();
+		if (this._attached) {
+			throw new Error("Invalid state. Container is attached.");
+		}
+
+		this._dispose();
+
+		this._disposed = true;
+	}
+
+	_add(box) {}
+	_remove() {}
+	_dispose() {}
 }
 
 const AreaWrapper = (function(){
@@ -35,8 +87,10 @@ const AreaWrapper = (function(){
 	return class extends Container {
 		constructor() {
 			super();
-			this._containers = [];
+
+			this._children = [];
 			this.rows = false;
+
 			this._box.element.classList.add(CLASSES.root);
 		}
 
@@ -48,31 +102,40 @@ const AreaWrapper = (function(){
 			if (typeof val !== "boolean") {
 				throw new Error("Invalid argument.");
 			}
-			this._rows = val;
+
 			this._box.element.classList.toggle(CLASSES.rows, val);
+			this._rows = val;
 		}
 
-		get containers() {
-			return this._containers.splice();
+		get children() {
+			return this._children.splice();
 		}
 
-		add(container) {
-			if (!(container instanceof Container)) {
+		appendChild(child) {
+			if (!(child instanceof Area) && !(child instanceof AreaWrapper)) {
 				throw new Error("Invalid argument.");
 			}
-			container.attach(this._box);
-			this._containers.push(container);
+
+			child.add(this._box);
+			this._children.push(child);
 		}
 
-		remove(container) {
-			const i = this._containers.findIndex(c => c === container);
+		removeChild(child) {
+			const i = this._children.findIndex(c => c === child);
 			if (i === -1) {
-				throw new Error("Cannot find argument 'container' in this._containers");
+				throw new Error("Cannot find argument 'child' in this._children");
 			}
 
-			const found = this._containers[i];
-			found.detach();
-			this._containers.splice(i, 1);
+			child.remove();
+			this._children.splice(i, 1);
+		}
+
+		_dispose() {
+			this._children.forEach((child) => {
+				child.remove();
+				child.dispose();
+			});
+			this._children = [];
 		}
 	};
 })();
@@ -85,18 +148,20 @@ const Area = (function(){
 	  tabs: "tabs",
 	  bottomBar: "tab-bar-bottom",
 	  addTab: "add-tab",
+	  tabMenu: "tab-menu",
 	  wrapper: "tab-parent" };
 	const ADD_ICON = "#icon-plus";
 
 	return class extends Container {
-		constructor(tabFactory) {
+		constructor(tabManager) {
 			super();
-			this._tabFactory = tabFactory;
+
+			this._tabManager = tabManager;
 			this._tabUIs = [];
 			this._activeTabUI = null;
 
 			this._createDOM();
-			this._attachListeners();
+			this._createListeners();
 		}
 
 		_createDOM() {
@@ -113,7 +178,7 @@ const Area = (function(){
 			const tabs = document.createElement("div");
 			tabs.classList.add(CLASSES.tabs);
 			topBar.appendChild(tabs);
-			this._tabUIParent = tabs;
+			this._tabUIParent = new Box(tabs);
 
 			const addTab = document.createElement("div");
 			addTab.classList.add(CLASSES.addTab);
@@ -122,10 +187,14 @@ const Area = (function(){
 			const addBtn = document.createElement("button");
 			addBtn.type = "button";
 			addTab.appendChild(addBtn);
-			this._addButton = addBtn;
+			this._addBtn = addBtn;
 
 			const addSvg = createSVG(ADD_ICON);
 			addBtn.appendChild(addSvg);
+
+			this._tabMenu = new FloatingList();
+			this._tabMenu.root.classList.add(CLASSES.tabMenu);
+			addTab.appendChild(this._tabMenu.root);
 
 			const bottomBar = document.createElement("div");
 			bottomBar.classList.add(CLASSES.bottomBar);
@@ -134,20 +203,57 @@ const Area = (function(){
 			const w = document.createElement("div");
 			w.classList.add(CLASSES.wrapper);
 			this._tabParent = new Box(w, this._box);
-			this._tabParent.appendDOM();
+			this._tabParent.appendElement();
 		}
 
-		_attachListeners() {
-			this._addButton.addEventListener("click", () => {
-				this._addTab();
+		_createListeners() {
+			this._tabSelectListener = (name, key) => {
+				this._addTabUI(key);
+			};
+
+			this._clickListener = new Listener(
+			this._addBtn, "click", () => {
+				this._tabMenu.show();
 			});
+
+			this._updateTabMenu = () => {
+				const tabs = this._tabManager.freeTabs;
+
+				const names = tabs.map(i => i.type.tabName);
+				const keys = tabs.map(i => i.key);
+
+				this._tabMenu.update(names, keys);
+			};
 		}
 
-		_addTab(tabString=null) {
+		_addListeners() {
+			this._tabMenu.onSelect.addListener(this._tabSelectListener);
+			this._clickListener.attach();
+			this._tabManager.onChange.addListener(this._updateTabMenu);
+		}
+
+		_removeListeners() {
+			this._tabMenu.onSelect.removeListener(this._tabSelectListener);
+			this._clickListener.remove();
+			this._tabManager.onChange.removeListener(this._updateTabMenu);
+		}
+
+		_add(box) {
+			this._updateTabMenu();
+			this._addListeners();
+		}
+
+		_remove() {
+			this._removeListeners();
+		}
+
+		_addTabUI(key) {
 			const ui = new TabUI();
-			ui.tab = this._tabManager.get(tabString);
-			this._tabUIParent.appendChild(ui.root);
+			ui.add(this._tabUIParent);
+			ui.tab = this._tabManager.use(key);
 			this._tabUIs.push(ui);
+
+			this._setActive(ui);
 
 			ui.onClick.addListener(() => {
 				this._setActive(ui);
@@ -155,8 +261,6 @@ const Area = (function(){
 			ui.onRemove.addListener(() => {
 				this._removeTabUI(ui);
 			});
-
-			this._setActive(ui);
 		}
 
 		_removeTabUI(val) {
@@ -166,14 +270,24 @@ const Area = (function(){
 
 			const i = this._tabUIs.findIndex(t => t === val);
 			if (i === -1) {
-				throw new Error("Cannot find argument 'val' in this._tabs");
+				throw new Error("Cannot find argument 'val' in this._tabUIs");
 			}
 
-			this._tabUIParent.removeChild(val.root);
 			if (val === this._activeTabUI) {
-				this._setActive(null);
+				const l = this._tabUIs.length;
+				if (l === 1) {
+					this._setActive(null);
+				} else {
+					const n = (i+1) % l,
+						  next = this._tabUIs[n];
+					this._setActive(next);
+				}
 			}
-			this._tabFactory.free(val.tab.tabString);
+
+			val.remove();
+			this._tabManager.free(val.tab.tabKey);
+			val.dispose();
+
 			this._tabUIs.splice(i, 1);
 		}
 
@@ -186,7 +300,7 @@ const Area = (function(){
 				this._activeTabUI.active = false;
 				const tab = this._activeTabUI.tab;
 				if (tab) {
-					tab.detach();
+					tab.remove();
 				}
 			}
 
@@ -194,11 +308,21 @@ const Area = (function(){
 				val.active = true;
 				const tab = val.tab;
 				if (tab) {
-					tab.attach(this._tabParent);
+					tab.add(this._tabParent);
 				}
 			}
 
 			this._activeTabUI = val;
+		}
+
+		_dispose() {
+			this._setActive(null);
+			this._tabUIs.forEach((ui) => {
+				ui.remove();
+				this._tabManager.free(ui.tab.tabKey);
+				ui.dispose();
+			});
+			this._tabUIs = [];
 		}
 	};
 })();
@@ -210,8 +334,10 @@ const TabUI = (function(){
 	  text: "text",
 	  remove: "remove-btn" };
 
-	return class {
+	return class extends Container {
 		constructor() {
+			super();
+
 			this._tab = null;
 			this._active = false;
 
@@ -219,7 +345,7 @@ const TabUI = (function(){
 			addEvent(this, "onRemove");
 
 			this._createDOM();
-			this._attachListeners();
+			this._createListeners();
 		}
 
 		get tab() {
@@ -230,11 +356,8 @@ const TabUI = (function(){
 			if (!(val instanceof Tab)) {
 				throw new Error("Invalid argument.");
 			}
-			if (this._tab) {
-				this._tab.onRemove();
-			}
-			this._name.innerText = val.tabName || "";
-			val.onAdd(this);
+
+			this._name.innerText = val.constructor.tabName || "";
 			this._tab = val;
 		}
 
@@ -246,52 +369,69 @@ const TabUI = (function(){
 			if (typeof val !== "boolean") {
 				throw new Error("Invalid argument.");
 			}
-			this.root.classList.toggle(CLASSES.active, val);
+
+			this._box.element.classList.toggle(CLASSES.active, val);
 			this._active = val;
 		}
 
 		_createDOM() {
-			const d = document.createElement("div");
-			d.classList.add(CLASSES.root);
-			this.root = d;
+			this._box.element.classList.add(CLASSES.root);
 
 			const text = document.createElement("span");
 			text.classList.add(CLASSES.text);
-			d.appendChild(text);
+			this._box.element.appendChild(text);
 			this._name = text;
 
 			const remove = document.createElement("button");
 			remove.type = "button";
-			remove.innerText = "&times;";
+			remove.innerHTML = "&times;";
 			remove.classList.add(CLASSES.remove);
-			d.appendChild(remove);
+			this._box.element.appendChild(remove);
 			this._removeBtn = remove;
 		}
 
-		_attachListeners() {
-			this.root.addEventListener("click", () => {
+		_createListeners() {
+			this._clickListener = new Listener(
+			this._box.element, "click", () => {
 				this._onClick.trigger();
 			});
-			this._removeBtn.addEventListener("click", () => {
+
+			this._removeListener = new Listener(
+			this._removeBtn, "click", (evt) => {
+				evt.stopPropagation();
 				this._onRemove.trigger();
 			});
 		}
+
+		_addListeners() {
+			this._clickListener.attach();
+			this._removeListener.attach();
+		}
+
+		_removeListeners() {
+			this._clickListener.remove();
+			this._removeListener.remove();
+		}
+
+		_add() {
+			this._addListeners();
+		}
+
+		_remove() {
+			this._removeListeners();
+			this._onClick.clear();
+			this._onRemove.clear();
+		}
+
+		_dispose() {
+			this._tab = null;
+		}
 	};
 })();
 
-const Tab = (function(){
-	const cl_root = "tab-wrapper";
-
-	return class extends Container {
-		constructor() {
-			super();
-			this._box.element.classList.add(cl_root);
-		}
-
-		onAdd(tabUI) {
-			this._tabUI = tabUI;
-		}
-
-		onRemove() {}
-	};
-})();
+class Tab extends Container {
+	constructor() {
+		super();
+		this._box.element.classList.add("tab-wrapper");
+	}
+}

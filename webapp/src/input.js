@@ -1,9 +1,11 @@
 
-import { show, hide, setBooleanAttribute } from "./utility";
+import { isArray } from "./type";
+import { show, hide, setBooleanAttribute, isDescendant } from "./utility";
 import { addEvent } from "./event";
+import { Listener } from "./listener";
 import Options from "./options";
 
-export { Toggle, Slider, FileInput, AutoComplete };
+export { Toggle, Slider, FileInput, FloatingList, AutoComplete };
 
 const Toggle = (function(){
 	const CLASSES =
@@ -183,23 +185,151 @@ const FileInput = (function(){
 	};
 })();
 
-const onKeyDown = function(elm, key, callback) {
-	elm.addEventListener("keydown", (evt) => {
-		if (evt.key === key)
-		{
-			callback(evt);
+const FloatingList = (function(){
+	const cl_root = "floating-list";
+
+	return class {
+		constructor(values) {
+			this._values = null;
+			this._datas = null;
+			this._listElements = null;
+			this._listListeners = null;
+			this._open = false;
+			this._dirty = true;
+
+			addEvent(this, "onSelect");
+
+			this._createDOM();
+			this._createListeners();
 		}
-	});
-};
+
+		_createDOM() {
+			const d = document.createElement("div");
+			d.classList.add(cl_root);
+			hide(d);
+			this.root = d;
+
+			const ul = document.createElement("ul");
+			d.appendChild(ul);
+			this._list = ul;
+		}
+
+		_createListeners() {
+			this._clickOutListener = new Listener(
+			document, "mousedown", (evt) => {
+				const t = evt.target;
+				if (t !== this.root && !isDescendant(this.root, t)) {
+					this.hide();
+				}
+			}, { eventOptions: true });
+		}
+
+		_updateList() {
+			this._clearList();
+			this._fillList();
+			this._dirty = false;
+		}
+
+		_clearList() {
+			if (!this._listElements) return;
+
+			this._listElements.forEach((li, i) => {
+				const l = this._listListeners[i];
+				li.removeEventListener("click", l);
+				this._list.removeChild(li);
+			});
+
+			this._listElements = null;
+			this._listListeners = null;
+		}
+
+		_fillList() {
+			this._listElements = [];
+			this._listListeners = [];
+
+			this._values.forEach((val, i) => {
+				const li = document.createElement("li");
+				li.innerText = val;
+				this._list.appendChild(li);
+				this._listElements.push(li);
+
+				const listener = () => {
+					if (this._datas) {
+						this._onSelect.trigger(val, this._datas[i]);
+					} else {
+						this._onSelect.trigger(val);
+					}
+					this.hide();
+				};
+				li.addEventListener("click", listener);
+				this._listListeners.push(listener);
+			});
+		}
+
+		update(values, datas=null) {
+			if (!isArray(values) || !values.every(v => typeof v === "string")) {
+				throw new Error("Invalid argument.");
+			} else if (datas !== null && !isArray(datas)) {
+				throw new Error("Invalid argument.");
+			}
+
+			this._values = values;
+			this._datas = datas;
+			if (this._open) {
+				this._updateList();
+			} else {
+				this._dirty = true;
+			}
+		}
+
+		show() {
+			if (this._open) {
+				return;
+			} else {
+				this._open = true;
+			}
+
+			if (this._dirty) {
+				this._updateList();
+			}
+
+			show(this.root);
+			setTimeout(() => {
+				this._clickOutListener.attach();
+			});
+		}
+
+		hide() {
+			if (!this._open) {
+				return;
+			} else {
+				this._open = false;
+			}
+
+			this._clickOutListener.remove();
+			hide(this.root);
+		}
+	};
+})();
 
 const AutoComplete = function(){
 
 	const g_evaluate = (b, s) => shortestMatch(b, s, true);
 
+	const cl_root = "auto-complete";
 	const cl_hide = "noshow";
 	const cl_activeLi = "active";
 	const DEFAULTS = { values: [],
 					   caseSensitive: false };
+
+	function onKeyDown(elm, key, callback) {
+		elm.addEventListener("keydown", (evt) => {
+			if (evt.key === key)
+			{
+				callback(evt);
+			}
+		});
+	}
 
 	return class {
 		constructor(input, options) {
@@ -221,6 +351,7 @@ const AutoComplete = function(){
 
 		_createDOM() {
 			this._list = document.createElement("ul");
+			this._list.classList.add(cl_root);
 		}
 
 		_attachEvents() {

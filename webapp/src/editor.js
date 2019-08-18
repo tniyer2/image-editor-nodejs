@@ -11,14 +11,19 @@ import LayerManager from "./layerManager";
 import { TestNode, AsyncTestNode } from "./testNodes";
 import { ImageNode, MergeNode } from "./basicNodes";
 import { LayerGroup } from "./basicTypes";
-import { Anchor } from "./geometry";
 import NodeManager from "./nodeManager";
+import ViewportTab from "./viewportTab";
+import NodeEditorTab from "./nodeEditorTab";
+import AreaManager from "./areaManager";
+import { AutoComplete } from "./input";
 
 const DEFAULTS = { primaryColor: [0, 0, 0, 255],
 				   stackLimit: null };
 
 export default class {
-	constructor(options) {
+	constructor(root, options) {
+		this._root = root;
+
 		this.options = new Options();
 		this.options.set(DEFAULTS, options);
 
@@ -34,8 +39,7 @@ export default class {
 			this.globals.put("primaryColor", color);
 		});
 
-		this.anchor = new Anchor(document.body);
-
+		this._initAreaManager();
 		this._initLayerManager();
 		this._initNodes();
 		this._initNodeManager();
@@ -43,10 +47,16 @@ export default class {
 		this._initTools();
 	}
 
+	_initAreaManager() {
+		this.areaManager = new AreaManager(this._root);
+		this.areaManager.tabs.register("viewport", ViewportTab);
+		this.areaManager.tabs.register("nodes", NodeEditorTab);
+	}
+
 	_initLayerManager() {
-		const v  = this.options.get("viewport"),
-			  iv = this.options.get("innerViewport");
-		this.layerManager = new LayerManager(this, v, iv);
+		const tab = this.areaManager.tabs.get("viewport", false);
+		tab.toolbarOptions.appendChild(this.primaryColorBox.root);
+		this.layerManager = new LayerManager(this, tab);
 	}
 
 	_initNodes() {
@@ -58,17 +68,19 @@ export default class {
 	}
 
 	_initNodeManager() {
-		const root = this.options.get("nodeEditor"),
-			  ns = this.options.get("nodeSpace"),
-			  ins = this.options.get("innerNodeSpace");
-		this.nodeManager = new NodeManager(this, root, ns, ins);
+		const tab = this.areaManager.tabs.get("nodes", false);
+		this.nodeManager = new NodeManager(this, tab);
 	}
 
 	_initNodeAutoComplete() {
-		const ac = this.options.get("nodeAutoComplete");
-		this.nodeAutoComplete = ac;
+		const tab = this.areaManager.tabs.get("nodes", false);
 
-		ac.options.put("values", this._nodes.keys);
+		const ac = new AutoComplete(
+			tab.searchInput, 
+			{ form: tab.form, 
+			  values: this._nodes.keys });
+		tab.wrapper2.appendChild(ac.list);
+
 		ac.onConfirm.addListener((value, input) => {
 			if (this._nodes.has(value)) {
 				const createNode = this._nodes.get(value);
@@ -80,10 +92,6 @@ export default class {
 				}
 			}
 		});
-	}
-
-	get tools() {
-		return this._tools.keys;
 	}
 
 	_initTools() {
@@ -106,6 +114,15 @@ export default class {
 		this._tools.put("Paint", t2);
 
 		this.selectTool("Move");
+
+		const tab = this.areaManager.tabs.get("viewport", false);
+
+		this._tools.keys.forEach((toolName) => {
+			const btn = tab.createToolButton(toolName);
+			btn.addEventListener("click", () => {
+				this.selectTool(toolName);
+			});
+		});
 	}
 
 	render(node) {

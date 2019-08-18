@@ -168,7 +168,7 @@ const ColorPicker = (function(){
 					this.root.style.top  = b.top + (b.height / 2) + "px";
 					this.root.style.left = b.left + (b.width / 2) + "px";
 				} else {
-					throw new Error("elm is not an HTMLElement:", elm);
+					throw new Error("Invalid argument.");
 				}
 			}
 

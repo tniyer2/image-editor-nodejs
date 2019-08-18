@@ -3,7 +3,7 @@ import { AddToEventLoop } from "./utility";
 import Lock from "./lock";
 import { MouseAction, KeyAction,
 		 ZoomAction, UserActionPiper } from "./action";
-import { Box, Vector2 } from "./geometry";
+import { Vector2 } from "./geometry";
 import { ZoomWidget } from "./widget";
 import { DragWidget } from "./boxWidgets";
 import { NodeLinkWidget, DragNodeWidget } from "./nodeWidgets";
@@ -40,8 +40,6 @@ const COLLECTION_INFO = [
   ["_onLinkAdd", "_onLinkRemove",
    "_onLinkSelect", "_onLinkDeselect",
    "_onSelectedLinkChange"]}];
-const CLASSES =
-{ links: "links-parent" };
 const NODE_SPAWN = new Vector2(10, 15);
 
 class NodeCooker {
@@ -134,43 +132,28 @@ class NodeCooker {
 }
 
 export default class {
-	constructor (editor, ned, ns, ins) {
+	constructor (editor, tab) {
 		this._editor = editor;
-
-		this.nodeEditor = new Box(ned, this._editor.anchor);
-		this.nodeSpace = new Box(ns, this.nodeEditor);
-		this.innerNodeSpace = new Box(ins, this.nodeSpace);
-
-		console.log("position:", this.nodeSpace.position);
+		this.tab = tab;
 
 		this.lock = new Lock();
 		this.lock.pipe(this._editor.stack.lock);
 		this._cooker = new NodeCooker(this.lock);
 
-		this._initDOM();
+		this.nodeOptionsParent = document.createElement("div");
 
 		this._initCollections();
 
 		this._initNetworkUpdater();
 		this._initUIUpdater();
 
-		this._keyAction = new KeyAction(this.nodeSpace.element);
+		this._keyAction = new KeyAction(this.tab.nodeSpace.element);
 		this._initZoomWidget();
 		this._initDeleteWidgets();
 		this._initNodeSpaceWidget();
 		this._initNodeWidgets();
 		this._initPointWidgets();
 		this._initLinkWidgets();
-	}
-
-	_initDOM() {
-		const links = document.createElement("div");
-		links.classList.add(CLASSES.links);
-		const ins = this.innerNodeSpace;
-		ins.element.appendChild(links);
-		this.linksParent = new Box(links, ins);
-
-		this.nodeOptionsParent = document.createElement("div");
 	}
 
 	_initCollections() {
@@ -215,13 +198,13 @@ export default class {
 	}
 
 	_initZoomWidget() {
-		this._zoomWidget = new ZoomWidget(this.innerNodeSpace, 
+		this._zoomWidget = new ZoomWidget(this.tab.innerNodeSpace, 
 		{ factor: 0.2,
 		  condition: () => {
 			const c = this._editor.stack.current;
 			return !c || !c.open;
 		} });
-		const action = new ZoomAction(this.nodeSpace.element);
+		const action = new ZoomAction(this.tab.nodeSpace.element);
 		this._zoomWidget.handle(action);
 	}
 
@@ -232,8 +215,8 @@ export default class {
 	}
 
 	_initNodeSpaceWidget() {
-		const w = new DragWidget({ boxes: [this.innerNodeSpace] });
-		const elm = this.nodeSpace.element;
+		const w = new DragWidget({ boxes: [this.tab.innerNodeSpace] });
+		const elm = this.tab.nodeSpace.element;
 		const action = new MouseAction(elm, elm, {
 			condition: (evt) => evt.button === 0 || evt.button === 1
 		});
@@ -257,14 +240,14 @@ export default class {
 		const piper = new UserActionPiper();
 
 		const action = new MouseAction(
-			this.innerNodeSpace.element,
-			this.nodeSpace.element, 
+			this.tab.innerNodeSpace.element,
+			this.tab.nodeSpace.element, 
 			{ mouseMoveAlways: true,
 			  mouseLeaveAlways: true });
 		piper.pipe(action);
 
 		const connect = new NodeLinkWidget(
-			this.links, this.linksParent, this._editor.stack, this.lock);
+			this.links, this.tab.linksParent, this._editor.stack, this.lock);
 		connect.handle(piper);
 		connect.handle(this._keyAction);
 
@@ -292,9 +275,9 @@ export default class {
 
 	_initNode(node) {
 		node.manager = this;
-		node.parent = this.innerNodeSpace;
+		node.parent = this.tab.innerNodeSpace;
 
-		const bounds = this.nodeSpace.element;
+		const bounds = this.tab.nodeSpace.element;
 
 		const m1 = new MouseAction(
 			node.element, bounds, { data: node });
@@ -306,11 +289,11 @@ export default class {
 			this._pointMouseAction.pipe(m2);
 		});
 
-		node.position = this.nodeSpace.position.add(NODE_SPAWN);
+		node.position = this.tab.nodeSpace.position.add(NODE_SPAWN);
 	}
 
 	_onNodeAdd(node) {
-		this.innerNodeSpace.element.appendChild(node.element);
+		this.tab.innerNodeSpace.element.appendChild(node.element);
 		if (node.p_links) {
 			node.p_links.forEach((l) => {
 				this.links.add(l);
@@ -342,7 +325,7 @@ export default class {
 
 	_onNodeSelect(node) {
 		node.selected = true;
-		this.innerNodeSpace.element.appendChild(node.element);
+		this.tab.innerNodeSpace.element.appendChild(node.element);
 	}
 
 	_onNodeDeselect(node) {
@@ -376,7 +359,7 @@ export default class {
 	}
 
 	_initLink(link) {
-		const bounds = this.nodeSpace.element;
+		const bounds = this.tab.nodeSpace.element;
 		const m = new MouseAction(link.element, bounds, 
 			{ data: link });
 		this._linkMouseAction.pipe(m);
@@ -392,7 +375,7 @@ export default class {
 			link.input.link = link;
 		}
 		link.output.addLink(link);
-		this.linksParent.element.appendChild(link.element);
+		this.tab.linksParent.element.appendChild(link.element);
 
 		if (!link.p_initialized) {
 			this._initLink(link);
@@ -422,7 +405,7 @@ export default class {
 	}
 
 	_onLinkSelect(link) {
-		this.linksParent.element.appendChild(link.element);
+		this.tab.linksParent.element.appendChild(link.element);
 		link.selected = true;
 	}
 

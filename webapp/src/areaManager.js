@@ -1,10 +1,9 @@
 
-import { isUdf } from "./type";
-import { ConstantDictionary } from "./dictionary";
+import { isSubclass } from "./type";
 import { addEvent } from "./event";
+import { ConstantDictionary } from "./dictionary";
 import { Anchor, Box } from "./geometry";
-import { NewTab } from "./tabs";
-import { AreaWrapper, Tab } from "./area";
+import { AreaWrapper, Area, Tab } from "./area";
 
 export default class {
 	constructor(root) {
@@ -14,92 +13,100 @@ export default class {
 
 		this._anchor = new Anchor(document.body);
 		this._root = new Box(root, this._anchor);
-		this.container = new AreaWrapper();
-		this.container.attach(this._root);
+		this.root = new AreaWrapper();
+		this.root.add(this._root);
 
-		this.tabs = new TabFactory();
+		this.tabs = new TabManager();
+	}
+
+	getArea() {
+		return new Area(this.tabs);
+	}
+
+	getAreaWrapper() {
+		return new AreaWrapper();
 	}
 }
 
-class TabFactory {
+class TabManager {
 	constructor() {
 		this._dictionary = new ConstantDictionary();
 		this._array = [];
 		addEvent(this, "onChange");
 	}
 
-	getFreeTabs() {
+	get freeTabs() {
 		return this._array.filter(i => !i.single || i.free)
 			   .map(o => Object.assign({}, o));
 	}
 
-	register(name, tabType, single=true) {
-		if (typeof tabType !== "object" ||
-			!(tabType.prototype instanceof Tab)) {
+	register(key, tabType, single=true) {
+		if (!isSubclass(tabType, Tab)) {
 			throw new Error("Invalid argument.");
 		} else if (typeof single !== "boolean") {
 			throw new Error("Invalid argument.");
 		}
 
 		const info =
-		{ name: name,
+		{ key: key,
 		  type: tabType,
 		  single: single };
 		if (single) {
 			const tab = new tabType();
-			tab.tabString = name;
+			tab.tabKey = key;
 			info.instance = tab;
 			info.free = true;
 		}
 
-		this._dictionary.put(name, info);
+		this._dictionary.put(key, info);
 		this._array.push(info);
 		this._onChange.trigger();
 	}
 
-	get(name, markUsed=true) {
-		let isDefault = false;
-		if (typeof markUsed !== "boolean") {
-			throw new Error("Invalid argument.");
-		} else if (isUdf(name) || name === null) {
-			isDefault = true;
-		} else if (!this._dictionary.has(name)) {
-			throw new Error("Argument 'name' is not a registered tab.");
+	get(key) {
+		if (!this._dictionary.has(key)) {
+			throw new Error("Argument 'key' is not a registered tab.");
 		}
 
-		if (isDefault) {
-			const tab = new NewTab(this);
-			tab.tabString = null;
-			return tab;
+		const info = this._dictionary.get(key);
+		if (info.single) {
+			return info.instance;
 		} else {
-			const info = this._dictionary.get(name);
-			if (info.single) {
-				if (markUsed) {
-					if (!info.free) {
-						throw new Error("Cannot access tab in use.");
-					}
-					info.free = false;
-					this._onChange.trigger();
-				}
-
-				return info.instance;
-			} else {
-				const tab = new info.type();
-				tab.tabString = null;
-				return tab;
-			}
+			throw new Error("Cannot get instance of tab '" + key + "'. Tab is not registered as single.");
 		}
 	}
 
-	free(name) {
-		if (name === null) {
-			return;
-		} else if (!this._dictionary.has(name)) {
-			throw new Error("Argument 'name' is not a registered tab.");
+	use(key) {
+		if (!this._dictionary.has(key)) {
+			throw new Error("Argument 'key' is not a registered tab.");
 		}
 
-		const info = this._dictionary.get(name);
-		if (info.free) {
+		const info = this._dictionary.get(key);
+		if (info.single) {
+			if (!info.free) {
+				throw new Error("Cannot access tab in use.");
+			}
+
+			info.free = false;
+			this._onChange.trigger();
+
+			return info.instance;
+		} else {
+			const tab = new info.type();
+			tab.tabKey = info.key;
+			return tab;
+		}
+	}
+
+	free(key) {
+		if (!this._dictionary.has(key)) {
+			throw new Error("Argument 'key' is not a registered tab.");
+		}
+
+		const info = this._dictionary.get(key);
+		if (!info.single) {
+			return;
+		} else if (info.free) {
 			throw new Error("Tab is already free.");
 		}
 

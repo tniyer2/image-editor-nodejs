@@ -4,9 +4,9 @@
 <head>
 	<title>Image Editor</title>
 	<link rel="stylesheet" type="text/css" href="../css/autoComplete.css">
-	<link rel="stylesheet" type="text/css" href="../css/optionsUI.css">
-	<link rel="stylesheet" type="text/css" href="../css/node.css">
 	<link rel="stylesheet" type="text/css" href="../css/widgets.css">
+	<link rel="stylesheet" type="text/css" href="../css/input.css">
+	<link rel="stylesheet" type="text/css" href="../css/node.css">
 	<link rel="stylesheet" type="text/css" href="../css/editor.css">
 	<meta charset="UTF-8">
 </head>
@@ -70,36 +70,7 @@
 				<div id="tool-options" class="menubar__tool-options"></div>
 				<div id="node-options" class="menubar__node-options"></div>
 			</div>
-			<div class="editor-content">
-				<div id="toolbar" class="toolbar">
-					<div id="tools" class="toolbar__tools"></div>
-					<div id="toolbar-options" class="toolbar__options"></div>
-				</div>
-				<div id="viewport-wrapper" class="viewport-wrapper" tabindex="0">
-					<div id="viewport" class="viewport">
-						<div class="viewport__background"></div>
-					</div>
-				</div>
-				<div id="node-editor" class="node-editor">
-					<form id="node-search" class="node-search">
-						<div class="node-search__wrapper">
-							<div id="node-search-w2" class="node-search__wrapper2">
-								<div class="node-search__wrapper3">
-									<input id="node-search-input" type="text"></input>
-									<button type="submit">
-										<svg>
-											<use href="#icon-search"/>
-										</svg>
-									</button>
-								</div>
-							</div>
-						</div>
-					</form>
-					<div id="node-space-wrapper" class="node-space-wrapper" tabindex="0">
-						<div id="node-space" class="node-space">
-						</div>
-					</div>
-				</div>
+			<div id="editor-content" class="editor-content">
 			</div>
 		</div>
 	</div>

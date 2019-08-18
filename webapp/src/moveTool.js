@@ -35,7 +35,7 @@ const MoveTool = (function(){
 		}
 
 		_createBoxes() {
-			const parent = this._editor.layerManager.innerViewport;
+			const parent = this._editor.layerManager.tab.innerViewport;
 
 			const d = document.createElement("div");
 			d.classList.add(cl_moveBox);
@@ -66,7 +66,7 @@ const MoveTool = (function(){
 		}
 
 		_createWidgets() {
-			const bounds = this._editor.layerManager.viewport.element;
+			const bounds = this._editor.layerManager.tab.viewport.element;
 			this._moveBoxAction = new MouseAction(this._moveBox.element, bounds);
 
 			this._selectWidget = new SelectWidget(this._editor.layerManager.layers);
@@ -139,7 +139,7 @@ const MoveTool = (function(){
 			this._editor.layerManager.layers.onSelectedChange.addListener(this._update);
 			this._editor.stack.onChange.addListener(this._updateMoveBox);
 
-			this._editor.layerManager.viewport.element.firstElementChild.appendChild(this._moveBox.element);
+			this._editor.layerManager.tab.viewport.element.firstElementChild.appendChild(this._moveBox.element);
 
 			this._update();
 		}

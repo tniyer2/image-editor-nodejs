@@ -1,31 +1,50 @@
 
-import Options from "./options";
+import { isFunction } from "./type";
+import { extend } from "./utility";
 
 export { Listener, PromiseListener };
 
 const Listener = (function(){
-	const DEFAULTS = { minEvents: 0 };
-	const invalidAttachMessage = "Cannot attach eventListener again until Promise is resolved or eventListener is removed.";
+	const DEFAULTS =
+	{ eventOptions: false, 
+	  minEvents: 0 };
 
 	return class {
 		constructor(target, type, listener, options) {
-			this.target = target;
-			this.type = type;
+			if (!(target instanceof EventTarget)) {
+				throw new Error("Invalid argument.");
+			} else if (typeof type !== "string") {
+				throw new Error("Invalid argument.");
+			} else if (!isFunction(listener)) {
+				throw new Error("Invalid argument.");
+			}
+
+			this._target = target;
+			this._type = type;
 			this._listener = listener;
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
+			this._options = extend(DEFAULTS, options);
 
-			this._eventOptions = this.options.get("eventOptions");
-
-			this.attached = false;
+			this._attached = false;
 		}
 
-		attach() {
-			if (this.attached) {
-				console.warn(invalidAttachMessage);
+		get target() {
+			return this._target;
+		}
+
+		get type() {
+			return this._type;
+		}
+
+		get attached() {
+			return this._attached;
+		}
+
+		attach(...args) {
+			if (this._attached) {
+				throw new Error("Invalid state. Listener is attached.");
 			} else {
-				const r = this._attach.apply(this, arguments);
-				this.attached = true;
+				const r = this._attach(...args);
+				this._attached = true;
 				return r;
 			}
 		}
@@ -38,24 +57,25 @@ const Listener = (function(){
 					this._listener(evt, this);
 				}
 			};
-			this.target.addEventListener(
-				this.type, this._wrapper, this._eventOptions);
+			this._target.addEventListener(
+				this._type, this._wrapper, this._options.eventOptions);
 		}
 
-		remove() {
-			if (this.attached) {
-				this._remove();
-				this.attached = false;
-			}
+		remove(...args) {
+			if (!this._attached) return;
+
+			const r = this._remove(...args);
+			this._attached = false;
+			return r;
 		}
 
 		_remove() {
-			this.target.removeEventListener(
-				this.type, this._wrapper, this._eventOptions);
+			this._target.removeEventListener(
+				this._type, this._wrapper, this._options.eventOptions);
 		}
 
 		_checkConditions() {
-			if (this._count < this.options.get("minEvents")) {
+			if (this._count < this._options.minEvents) {
 				this._count += 1;
 				return false;
 			} else {
@@ -88,14 +108,14 @@ class PromiseListener extends Listener {
 					this._listener(evt, this, resolveWrapper, rejectWrapper);
 				}
 			};
-			this.target.addEventListener(
-				this.type, this._wrapper, this._eventOptions);
+			this._target.addEventListener(
+				this._type, this._wrapper, this._options.eventOptions);
 		});
 	}
 
 	_remove() {
-		this.target.removeEventListener(
-			this.type, this._wrapper, this._eventOptions);
+		this._target.removeEventListener(
+			this._type, this._wrapper, this._options.eventOptions);
 		if (this._reject) {
 			this._reject();
 		}

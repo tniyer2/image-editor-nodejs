@@ -2,7 +2,7 @@
 import { AddToEventLoop } from "./utility";
 import { MouseAction, UserActionPiper, ZoomAction } from "./action";
 import { ZoomWidget } from "./widget";
-import { Box, Vector2 } from "./geometry";
+import { Vector2 } from "./geometry";
 import { LayerBox } from "./layer";
 import { Collection, BASE, SELECT } from "./collection";
 
@@ -15,28 +15,21 @@ const CALLBACK_PROPS =
 ["onAdd", "onRemove",
  "onSelect", "onDeselect"];
 const CLASSES =
-{ layers: "layers",
-  layer: "layer", 
+{ layer: "layer", 
   selected: "selected" };
 const H_PADDING = 20,
 	  V_PADDING = 20;
 
 export default class {
-	constructor(editor, vp, ivp) {
+	constructor(editor, tab) {
 		this._editor = editor;
-
-		this.viewport = new Box(vp, this._editor.anchor);
-		this.innerViewport = new Box(ivp, this.viewport);
+		this.tab = tab;
 
 		const opt = {};
 		CALLBACK_PROPS.forEach((b, i) => {
 		 	opt[b] = this[FNAMES[i]].bind(this);
 		 });
 		this.layers = new (Collection([BASE2, SELECT]))(opt);
-
-		this.parent = document.createElement("div");
-		this.parent.classList.add(CLASSES.layers);
-		ivp.appendChild(this.parent);
 
 		this.layerUserAction = new UserActionPiper();
 
@@ -45,9 +38,9 @@ export default class {
 	}
 
 	_initZoomWidget() {
-		this._zoomAction = new ZoomAction(this.viewport.element);
+		this._zoomAction = new ZoomAction(this.tab.viewport.element);
 
-		this._zoomWidget = new ZoomWidget(this.innerViewport, 
+		this._zoomWidget = new ZoomWidget(this.tab.innerViewport, 
 		{ factor: 0.2, 
 		  condition: () => {
 			const c = this._editor.stack.current;
@@ -61,10 +54,10 @@ export default class {
 			const dim = this.canvasDimensions;
 			if (!dim) return;
 
-			this.innerViewport.localScale = Vector2.one;
-			this.innerViewport.localDimensions = dim;
+			this.tab.innerViewport.localScale = Vector2.one;
+			this.tab.innerViewport.localDimensions = dim;
 
-			const parent = this.innerViewport.parent;
+			const parent = this.tab.innerViewport.parent;
 			const p = parent.localDimensions;
 
 			const w = p.x - H_PADDING;
@@ -73,14 +66,14 @@ export default class {
 			const sy = h / dim.y;
 
 			const scale = sx < sy ? sx : sy;
-			this.innerViewport.localScale = new Vector2(scale, scale);
-			this.innerViewport.center = parent.localCenter;
+			this.tab.innerViewport.localScale = new Vector2(scale, scale);
+			this.tab.innerViewport.center = parent.localCenter;
 		});
 	}
 
 	render(layerGroup) {
 		this.layers.removeAll();
-		this.innerViewport.localDimensions = Vector2.zero;
+		this.tab.innerViewport.localDimensions = Vector2.zero;
 
 		if (layerGroup) {
 			const promises = layerGroup.layers.map((l) => {
@@ -111,7 +104,7 @@ export default class {
 	}
 
 	getImage() {
-		const box = this.innerViewport;
+		const box = this.tab.innerViewport;
 		const w = box.localWidth,
 			  h = box.localHeight;
 		if (!w || !h) {
@@ -132,15 +125,15 @@ export default class {
 
 	_initLayer(layer) {
 		layer.element.classList.add(CLASSES.layer);
-		layer.parent = this.innerViewport;
-		const m = new MouseAction(layer.element, this.viewport.element, 
+		layer.parent = this.tab.innerViewport;
+		const m = new MouseAction(layer.element, this.tab.viewport.element, 
 					{ data: layer, 
 					  exitOnMouseLeave: false });
 		this.layerUserAction.pipe(m);
 	}
 
 	_onAdd(layer) {
-		this.parent.appendChild(layer.element);
+		this.tab.layerParent.appendChild(layer.element);
 		if (!layer.p_initialized) {
 			this._initLayer(layer);
 			layer.p_initialized = true;
@@ -148,7 +141,7 @@ export default class {
 	}
 
 	_onRemove(layer) {
-		this.parent.removeChild(layer.element);
+		this.tab.layerParent.removeChild(layer.element);
 		if (layer.selected) {
 			this.layers.deselect(layer);
 		} 
@@ -161,9 +154,9 @@ export default class {
 		const len = this.layers.selected.length;
 		if (len > 1) {
 			const b = this.layers.selected[len-2].element;
-			this.parent.insertBefore(layer.element, b);
+			this.tab.layerParent.insertBefore(layer.element, b);
 		} else {
-			this.parent.appendChild(layer.element);
+			this.tab.layerParent.appendChild(layer.element);
 		}
 	}
 

@@ -224,11 +224,11 @@ const Box = (function(){
 			this._parent = val;
 		}
 
-		appendDOM() {
+		appendElement() {
 			this._parent.element.appendChild(this._element);			
 		}
 
-		removeDOM() {
+		removeElement() {
 			this._parent.element.removeChild(this._element);			
 		}
 

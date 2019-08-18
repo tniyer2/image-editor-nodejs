@@ -71,14 +71,21 @@ $std-border: 3px solid #444;
 
 .editor-content {
 	flex: 1;
-	display: flex;
-	flex-direction: row; }
+	position: relative;
+	display: flex; }
 .area-wrapper {
-	position: relative;
-	flex: 1 1 auto; }
-.area {
-	position: relative;
 	flex: 1 1 auto;
+	position: relative;
+	display: flex;
+	border: 1px solid #333; }
+.area-wrapper.rows {
+	flex-direction: row; }
+.area {
+	flex: 1 1 auto;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid #333;
 
 	.tab-bar {
 		height: 50px;
@@ -86,15 +93,20 @@ $std-border: 3px solid #444;
 	.tab-bar-top {
 		height: 50%; }
 	.tabs {
-		display: inline-flex; }
+		display: inline-flex;
+		height: 100%;
+		vertical-align: top; }
 	.tab-bar-bottom {
 		height: 50%;
 		background-color: #333; }
 
 	.add-tab {
+		position: relative;
 		display: inline-block;
+		vertical-align: top;
 		width: 20px;
 		height: 100%;
+		background-color: #333;
 
 		button {
 			@extend %remove-button-defaults;
@@ -105,13 +117,27 @@ $std-border: 3px solid #444;
 		button:hover svg { 
 			fill: $dark-blue; }
 	}
+	.tab-menu {
+		top: 50%;
+		left: 50%;
+	}
 
 	.tab {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		padding-right: 5px;
+		padding-left: 2px;
 		width: 100px;
 		height: 100%;
 
-		.text {}
-		.remove-btn {}
+		.text {
+			@extend %regular-font; }
+		.remove-btn {
+			@extend %remove-button-defaults;
+			font-size: 25px; }
+		.remove-btn:hover {
+			color: $blue; }
 	}
 	.tab.active {
 		background-color: #333; }
@@ -124,6 +150,23 @@ $std-border: 3px solid #444;
 .tab-wrapper {
 	position: relative;
 	@extend %max-size; }
+
+
+.new-tab {
+	.tab-list {
+		@extend %remove-list-defaults; }
+	.tab-info {
+		padding: 3px 0;
+		border: 0 solid #333;
+		border-bottom-width: 1px; }
+	.tab-info:hover {
+		background-color: #555; }
+	.tab-name {
+		@extend %regular-font; }
+}
+.viewport-tab {
+	display: flex;
+	flex-direction: row; }
 
 
 .toolbar {
@@ -149,6 +192,10 @@ $std-border: 3px solid #444;
 	font-size: $big-font-size; }
 .toolbar__options {
 	display: flex; }
+.options-ui {
+	* {
+		margin-right: 10px; }
+}
 
 
 .viewport-wrapper {

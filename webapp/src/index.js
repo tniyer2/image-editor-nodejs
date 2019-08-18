@@ -1,13 +1,9 @@
 
 import { $, setBooleanAttribute } from "./utility";
-import { AutoComplete } from "./input";
 import Editor from "./editor";
 
 const CLASSES =
-{ toolBtn: "toolbar__tool",
-  toolName: "text",
-  autoComplete: "auto-complete",
-  top2: "menubar__tool-options2",
+{ top2: "menubar__tool-options2",
   nop2: "menubar__node-options2" };
 
 const UNDO_DELAY = 100;
@@ -15,31 +11,19 @@ const UNDO_DELAY = 100;
 let g_editor;
 
 function main() {
-	const ac = createNodeAutoComplete();
+	g_editor = new Editor($("#editor-content"));
 
-	g_editor = new Editor(
-	{ viewport: 	   $("#viewport-wrapper"),
-	  innerViewport:   $("#viewport"),
-	  nodeEditor: 	   $("#node-editor"),
-	  nodeSpace: 	   $("#node-space-wrapper"),
-	  innerNodeSpace:  $("#node-space"),
-	  nodeAutoComplete: ac });
+	const area1 = g_editor.areaManager.getArea();
+	const area2 = g_editor.areaManager.getArea();
+	g_editor.areaManager.root.appendChild(area1);
+	g_editor.areaManager.root.appendChild(area2);
 
 	appendDOM();
-	createToolButtons();
 	listenUndoRedoCommands();
 	listenUndoRedoButtons();
 	listenSaveButton();
 
 	window.onbeforeunload = () => true;
-}
-
-function createNodeAutoComplete() {
-	const ac = new AutoComplete($("#node-search-input"), 
-		{ form: $("#node-search") });
-	ac.list.classList.add(CLASSES.autoComplete);
-	$("#node-search-w2").appendChild(ac.list);
-	return ac;
 }
 
 function appendDOM() {
@@ -52,7 +36,6 @@ function appendDOM() {
 	$("#node-options").appendChild(nop);
 
 	$("#root").appendChild(g_editor.colorPicker.root);
-	$("#toolbar-options").appendChild(g_editor.primaryColorBox.root);
 }
 
 function listenUndoRedoCommands() {
@@ -102,20 +85,6 @@ function listenUndoRedoButtons() {
 	});
 }
 
-function createToolButtons() {
-	g_editor.tools.forEach((t) => {
-		const btn = document.createElement("button");
-		btn.classList.add(CLASSES.toolBtn);
-		const name = document.createElement("span");
-		name.innerText = t;
-		name.classList.add(CLASSES.toolName);
-		btn.appendChild(name);
-		$("#tools").appendChild(btn);
-
-		selectToolOnClick(btn, t);
-	});
-}
-
 function listenSaveButton() {
 	$("#save-image").addEventListener("click", () => {
 		const uri = g_editor.layerManager.getImage();
@@ -129,12 +98,6 @@ function listenSaveButton() {
 			link.click();
 			link.remove();
 		}
-	});
-}
-
-function selectToolOnClick(button, toolName) {
-	button.addEventListener("click", () => {
-		g_editor.selectTool(toolName);
 	});
 }
 
