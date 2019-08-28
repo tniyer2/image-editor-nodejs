@@ -1,14 +1,15 @@
 
-import { isUdf, isFunction, isType } from "./type";
-import { createSVG, stopBubbling } from "./utility";
-import Options from "./options";
-import { Dictionary } from "./dictionary";
-import { ToolUI } from "./toolUI";
+import { isUdf, isFunction, isType, isArray } from "./type";
+import { extend, deepcopy, createSVG, stopBubbling, AddToEventLoop } from "./utility";
 import { MyEvent, addEvent } from "./event";
-import { Command } from "./command";
+import { Dictionary } from "./dictionary";
 import { Box, Vector2 } from "./geometry";
+import { Command } from "./command";
+import Container from "./container";
 
-export { Node, NodeInput, MultiNodeInput, NodeOutput, Link };
+export
+	{ Node, NodeInput, MultiNodeInput, NodeOutput,
+		Link, NodeSettingsContainer, NodeSettings };
 
 const Link = (function(){
 	const CLASSES =
@@ -17,6 +18,7 @@ const Link = (function(){
 	  completed: "completed",
 	  path1: "line",
 	  path2: "click-box" };
+
 	const PADDING = 50,
 		  CP_OFFSET = 0.35;
 
@@ -24,18 +26,19 @@ const Link = (function(){
 		constructor() {
 			const d = document.createElement("div");
 			super(d);
-			this._createDOM();
 
 			this._input = null;
 			this._output = null;
 			this._selected = false;
 			this._completed = false;
+
+			this._createDOM();
+			this._initPathUpdater();
 		}
 
 		_createDOM() {
-			const d = this._element;
-			d.classList.add(CLASSES.root);
-			stopBubbling(d, "mousedown");
+			this._element.classList.add(CLASSES.root);
+			stopBubbling(this._element, "mousedown");
 
 			const ns = createSVG.SVGNS;
 
@@ -51,13 +54,86 @@ const Link = (function(){
 			});
 		}
 
+		_initPathUpdater() {
+			this._pathUpdater = new AddToEventLoop(() => {
+				let i = this._inputPosition;
+				let o = this._outputPosition;
+
+				if (!i) {
+					if (this._input instanceof MultiNodeInput) {
+						i = this._input.getPosition(this);
+					} else {
+						i = this._input.center;
+					}
+				}
+				if (!o) {
+					o = this._output.center;
+				}
+
+				const n = new Vector2(i.x, o.y), 
+					  m = new Vector2(o.x, i.y);
+
+				let tlbr = [[i, o], [o, i], [n, m], [m, n]].find((arr) => {
+					const [a, b] = arr;
+					return a.x < b.x && a.y < b.y;
+				});
+				if (!tlbr) {
+					tlbr = i.x < o.x || i.y < o.y ? [i, o] : [o, i];
+				}
+				let [tl, br] = tlbr;
+
+				const pd = new Vector2(PADDING, PADDING);
+				const pd2 = pd.negate();
+				const tl2 = tl.subtract(pd);
+				const br2 = br.add(pd);
+				const diff = br2.subtract(tl2);
+				const rect = [pd2.x, pd2.y, diff.x, diff.y];
+
+				this._svg.setAttributeNS(null, "viewBox", rect.join(" "));
+				this._svg.setAttributeNS(null, "width", diff.x);
+				this._svg.setAttributeNS(null, "height", diff.y);
+				this.position = tl2;
+				this.dimensions = diff;
+
+				const o2 = o.subtract(tl);
+				const i2 = i.subtract(tl);
+
+				const dir = i2.subtract(o2);
+				const mid = dir.divide(2).add(o2);
+
+				const offset = CP_OFFSET * dir.magnitude;
+				const offv = new Vector2(0, offset);
+
+				const ocp = o2.add(offv);
+				const icp = i2.subtract(offv);
+
+				const d = ["M", o2, "C", ocp, mid, mid, "S", icp, i2]
+				.reduce((acc, cur) => {
+					if (typeof cur === "string") {
+						acc.push(cur);
+					} else {
+						acc.push(cur.x, cur.y);
+					}
+					return acc;
+				}, []).join(" ");
+
+				this._paths.forEach((p) => {
+					p.setAttributeNS(null, "d", d);
+				});
+			});
+		}
+
 		get selected() {
 			return this._selected;
 		}
 
 		set selected(val) {
-			this._selected = val;
+			if (typeof val !== "boolean") {
+				throw new Error("Invalid argument.");
+			}
+
 			this._element.classList.toggle(CLASSES.selected, val);
+			this._selected = val;
 		}
 
 		get completed() {
@@ -69,14 +145,13 @@ const Link = (function(){
 		}
 
 		set input (val) {
-			if (!(val instanceof NodeInput || 
+			if (!(val instanceof NodeInput ||
 				  val instanceof MultiNodeInput)) {
-				console.warn("Invalid value for input:", val);
-				return;
+				throw new Error("Invalid argument.");
 			} else if (this._input) {
-				console.warn("Cannot change value of input.");
-				return;
+				throw new Error("Invalid state. this._input has a value.");
 			}
+
 			this._input = val;
 			this._checkComplete();
 		}
@@ -87,12 +162,11 @@ const Link = (function(){
 
 		set output (val) {
 			if (!(val instanceof NodeOutput)) {
-				console.warn("Invalid value for output:", val);
-				return;
+				throw new Error("Invalid argument.");
 			} else if (this._output) {
-				console.warn("Cannot change value of output.");
-				return;
+				throw new Error("Invalid state. this._output has a value.");
 			}
+
 			this._output = val;
 			this._checkComplete();
 		}
@@ -105,83 +179,9 @@ const Link = (function(){
 		}
 
 		updatePath (i, o) {
-			if (!i) {
-				if (this._input instanceof MultiNodeInput) {
-					const links = this._input.links;
-					const l = links.length;
-					const j = links.findIndex(lk => lk === this);
-
-					let place, total;
-					if (j === -1) {
-						place = l+1;
-						total = l+2;
-					} else {
-						place = j+1;
-						total = l+1;
-					}
-					const r = place / total;
-
-					const x = this._input.left + (this._input.width * r);
-					const y = this._input.centerY;
-					i = new Vector2(x, y);
-				} else {
-					i = this._input.center;
-				}
-			}
-			if (!o) {
-				o = this._output.center;
-			}
-
-			const n = new Vector2(i.x, o.y), 
-				  m = new Vector2(o.x, i.y);
-
-			let tlbr = [[i, o], [o, i], [n, m], [m, n]].find((arr) => {
-				const [a, b] = arr;
-				return a.x < b.x && a.y < b.y;
-			});
-			if (!tlbr) {
-				tlbr = i.x < o.x || i.y < o.y ? [i, o] : [o, i];
-			}
-			let [tl, br] = tlbr;
-
-			const pd = new Vector2(PADDING, PADDING);
-			const pd2 = pd.negate();
-			const tl2 = tl.subtract(pd);
-			const br2 = br.add(pd);
-			const diff = br2.subtract(tl2);
-			const rect = [pd2.x, pd2.y, diff.x, diff.y];
-
-			this._svg.setAttributeNS(null, "viewBox", rect.join(" "));
-			this._svg.setAttributeNS(null, "width", diff.x);
-			this._svg.setAttributeNS(null, "height", diff.y);
-			this.position = tl2;
-			this.dimensions = diff;
-
-			const o2 = o.subtract(tl);
-			const i2 = i.subtract(tl);
-
-			const dir = i2.subtract(o2);
-			const mid = dir.divide(2).add(o2);
-
-			const offset = CP_OFFSET * dir.magnitude;
-			const offv = new Vector2(0, offset);
-
-			const ocp = o2.add(offv);
-			const icp = i2.subtract(offv);
-
-			const d = ["M", o2, "C", ocp, mid, mid, "S", icp, i2]
-			.reduce((acc, cur) => {
-				if (typeof cur === "string") {
-					acc.push(cur);
-				} else {
-					acc.push(cur.x, cur.y);
-				}
-				return acc;
-			}, []).join(" ");
-
-			this._paths.forEach((p) => {
-				p.setAttributeNS(null, "d", d);
-			});
+			this._inputPosition = i;
+			this._outputPosition = o;
+			this._pathUpdater.invoke();
 		}
 	};
 })();
@@ -193,23 +193,25 @@ const NodePoint = (function(){
 		constructor(type) {
 			const d = document.createElement("div");
 			super(d);
-			this._createDOM();
 
 			this.type = type;
-			this._setPointColor();
-
 			this.node = null;
+
+			this._createDOM();
+			this._setPointColor();
 		}
 
 		_createDOM() {
-			const d = this._element;
-			d.classList.add(cl_point);
-			stopBubbling(d, "mousedown");
+			this._element.classList.add(cl_point);
+			stopBubbling(this._element, "mousedown");
 		}
 
-		_setPointColor(color) {
-			if (this.type && this.type.pointColor) {
-				this._element.style.backgroundColor = this.type.pointColor;
+		_setPointColor() {
+			if (this.type) {
+				const c = this.type.pointColor;
+				if (c) {
+					this._element.style.backgroundColor = c;
+				}
 			}
 		}
 	};
@@ -218,7 +220,9 @@ const NodePoint = (function(){
 class NodeInput extends NodePoint {
 	constructor(type) {
 		super(type);
+
 		this._link = null;
+
 		addEvent(this, "onChange");
 	}
 
@@ -232,7 +236,12 @@ class NodeInput extends NodePoint {
 		if (this._unlink) {
 			this._unlink();
 		}
-		this._unlink = val ? this._onChange.linkTo(val.output.onChange) : null;
+
+		if (val) {
+			this._unlink = this._onChange.linkTo(val.output.onChange);
+		} else {
+			this._unlink = null;
+		}
 
 		this._link = val;
 		this._onChange.trigger();
@@ -249,15 +258,11 @@ const MultiNodeInput = (function(){
 	return class extends NodePoint {
 		constructor(type) {
 			super(type);
+
 			this._links = [];
 			this._unlinkFunctions = [];
-			addEvent(this, "onChange");
-		}
 
-		_createDOM() {
-			const d = this._element;
-			d.classList.add(cl_point);
-			stopBubbling(d, "mousedown");
+			addEvent(this, "onChange");
 		}
 
 		get links() {
@@ -268,28 +273,55 @@ const MultiNodeInput = (function(){
 			return this._links.map(l => l.output.value);
 		}
 
+		_createDOM() {
+			this._element.classList.add(cl_point);
+			stopBubbling(this._element, "mousedown");
+		}
+
 		addLink(link) {
 			const unlink = this._onChange.linkTo(link.output.onChange);
+
 			if (isUdf(link.p_index)) {
 				link.p_index = this._links.length;
 				this._links.push(link);
 			} else {
 				this._links.splice(link.p_index, 0, link);
 			}
+
 			this._unlinkFunctions.push(unlink);
 			this._onChange.trigger();
 		}
 
 		removeLink(link) {
 			const i = this._links.findIndex(l => l === link);
-			if (i !== -1) {
-				const unlink = this._unlinkFunctions[i];
-				unlink();
-				this._links.splice(i, 1);
-				this._onChange.trigger();
-			} else {
-				console.warn("Could not find link from this._links:", link);
+			if (i === -1) {
+				throw new Error("Could not find argument 'link' in this._links");
 			}
+
+			const unlink = this._unlinkFunctions[i];
+			unlink();
+			this._links.splice(i, 1);
+			this._onChange.trigger();
+		}
+
+		getPosition(link) {
+			const len = this._links.length;
+			const i = this._links.findIndex(l => l === link);
+
+			let p, total;
+			if (i === -1) {
+				p = len+1;
+				total = len+2;
+			} else {
+				p = i+1;
+				total = len+1;
+			}
+			const r = p / total;
+
+			const x = this.left + (this.width * r);
+			const y = this.center.y;
+
+			return new Vector2(x, y);
 		}
 	};
 })();
@@ -297,13 +329,15 @@ const MultiNodeInput = (function(){
 class NodeOutput extends NodePoint {
 	constructor(type) {
 		super(type);
+
 		this._value = null;
 		this._links = [];
+
 		addEvent(this, "onChange");
 	}
 
 	get value() {
-		return this._value ? this._value.copy() : null;
+		return this._value;
 	}
 
 	set value(val) {
@@ -316,17 +350,20 @@ class NodeOutput extends NodePoint {
 	}
 
 	addLink(link) {
+		if (!(link instanceof Link)) {
+			throw new Error("Invalid argument.");
+		}
+
 		this._links.push(link);
 	}
 
 	removeLink(link) {
 		const i = this._links.findIndex(o => o === link);
-		const found = i !== -1;
-		if (found) {
-			this._links.splice(i, 1);
-		} else {
-			console.warn("Could not remove link from this._links:", link);
+		if (i === -1) {
+			throw new Error("Could not find argument 'link' in this._links");
 		}
+
+		this._links.splice(i, 1);
 	}
 }
 
@@ -343,21 +380,24 @@ const Node = (function(){
 	  locked: "on",
 	  visible: "on",
 	  icon: "icon" };
+
 	const svg_view = "#icon-view",
 		  svg_lock = "#icon-lock";
+
 	const DEFAULTS = { icon: null };
 
 	return class extends Box {
-		constructor(inputs, outputs, ui, uiOptions, options) {
-			if (!isType(inputs, Array) || 
-				!inputs.every(p => p instanceof NodeInput || 
+		constructor(inputs, outputs, ui, settings, options) {
+			if (!isArray(inputs) ||
+				!inputs.every(p => p instanceof NodeInput ||
 								   p instanceof MultiNodeInput)) {
-				console.log("inputs:", inputs);
 				throw new Error("Invalid argument.");
-			} else if (!isType(outputs, Array) || 
+			} else if (!isArray(outputs) ||
 					   !outputs.every(p => p instanceof NodeOutput)) {
 				throw new Error("Invalid argument.");
-			} else if (!(ui instanceof ToolUI)) {
+			} else if (!(ui instanceof NodeSettingsContainer)) {
+				throw new Error("Invalid argument.");
+			} else if (!(settings instanceof NodeSettings)) {
 				throw new Error("Invalid argument.");
 			}
 
@@ -366,72 +406,90 @@ const Node = (function(){
 
 			this.inputs = inputs;
 			this.outputs = outputs;
-
 			this.ui = ui;
-			this.uiOptions = new NodeUIOptions(uiOptions);
-			this.ui.options = this.uiOptions;
-			this.uiOptions.onValue((name, oldValue, newValue, meta) => {
-				const c = new SetOptionCommand(
-					this.uiOptions.put, name, oldValue, newValue,
-					() => {
-						if (meta.noupdate !== true) {
-							this.dirty = true;
-							this.manager.updateNetwork();
-						}
-					});
-				if (meta.nostack !== true) {
-					this.manager.stack.add(c);
-				}
-				c.execute();
-			});
-
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
+			this.settings = settings;
+			this._options = extend(DEFAULTS, options);
 
 			this.dirty = true;
-			this.inputs.forEach((input) => {
-				input.onChange.addListener(() => {
-					this.dirty = true;
-				});
-			});
-
 			this._selected = false;
 			this._locked = false;
 			this._visible = false;
 
+			this._initSettings();
 			this._createDOM();
-			this._attachEvents();
+			this._addListeners();
 		}
 
-		_appendPoints(points, parent) {
-			points.forEach((p) => {
-				parent.element.appendChild(p.element);
-				p.parent = parent;
-				p.node = this;
-			});
+		_initSettings() {
+			this.ui.options = this.settings;
+
+			const put = this.settings.put.bind(this.settings);
+			const push = this.settings.push.bind(this.settings);
+
+			this.settings.onTryPut = (name, oldValue, newValue, meta) => {
+				const callback = () => {
+					if (meta.noupdate !== true) {
+						this.dirty = true;
+						this.manager.updateNetwork();
+					}
+				};
+
+				const c =
+					new OptionCommand(
+						put, name, oldValue, newValue, callback);
+
+				if (meta.nostack !== true) {
+					this.manager.stack.add(c);
+				}
+				c.execute();
+			};
+
+			this.settings.onTryPush = (name, item, adding, meta) => {
+				const callback = () => {
+					if (meta.noupdate !== true) {
+						this.dirty = true;
+						this.manager.updateNetwork();
+					}
+				};
+
+				const c =
+					new ArrayOptionCommand(
+						push, name, item, adding, callback);
+
+				if (meta.nostack !== true) {
+					this.manager.stack.add(c);
+				}
+				c.execute();
+			};
 		}
 
 		_createDOM() {
-			const d = this._element;
-			d.classList.add(CLASSES.root);
-			stopBubbling(d, "mousedown");
+			this._element.classList.add(CLASSES.root);
+			stopBubbling(this._element, "mousedown");
+
+			const appendPoints = (points, parent) => {
+				points.forEach((p) => {
+					p.parent = parent;
+					p.appendElement();
+					p.node = this;
+				});
+			};
 
 			const inputs = document.createElement("div");
 			inputs.classList.add(CLASSES.points, CLASSES.inputs);
-			this._inputsBox = new Box(inputs, this);
-			this._appendPoints(this.inputs, this._inputsBox);
-			d.appendChild(inputs);
+			const inputsBox = new Box(inputs, this);
+			inputsBox.appendElement();
+			appendPoints(this.inputs, inputsBox);
 
 			const outputs = document.createElement("div");
 			outputs.classList.add(CLASSES.points, CLASSES.outputs);
-			this._outputsBox = new Box(outputs, this);
-			this._appendPoints(this.outputs, this._outputsBox);
-			d.appendChild(outputs);
+			const outputsBox = new Box(outputs, this);
+			outputsBox.appendElement();
+			appendPoints(this.outputs, outputsBox);
 
 			const node = document.createElement("div");
 			node.classList.add(CLASSES.node);
-			d.appendChild(node);
-			this._nodeElm = node;
+			this._element.appendChild(node);
 
 			const viewBtn = document.createElement("button");
 			viewBtn.type = "button";
@@ -447,7 +505,7 @@ const Node = (function(){
 			lockBtn.appendChild(svg2);
 			this._lockBtn = lockBtn;
 
-			const iconHref = this.options.get("icon");
+			const iconHref = this._options.icon;
 			let icon;
 			if (iconHref) {
 				icon = createSVG(iconHref);
@@ -461,18 +519,24 @@ const Node = (function(){
 			node.appendChild(viewBtn);
 		}
 
-		_attachEvents() {
-			const isLocked = () => this.manager.lock.locked;
+		_addListeners() {
+			this.inputs.forEach((input) => {
+				input.onChange.addListener(() => {
+					this.dirty = true;
+				});
+			});
+
+			const locked = () => this.manager.lock.locked;
 
 			stopBubbling(this._viewBtn, "mouseup", "mousedown");
 			this._viewBtn.addEventListener("click", (evt) => {
-				if (isLocked()) return;
+				if (locked()) return;
 				this.manager.nodes.visible = this._visible ? null : this;
 			});
 
 			stopBubbling(this._lockBtn, "mouseup", "mousedown");
 			this._lockBtn.addEventListener("click", (evt) => {
-				if (isLocked()) return;
+				if (locked()) return;
 				this.locked = !this._locked;
 			});
 		}
@@ -482,8 +546,12 @@ const Node = (function(){
 		}
 
 		set selected(val) {
-			this._selected = val;
+			if (typeof val !== "boolean") {
+				throw new Error("Invalid argument.");
+			}
+
 			this._element.classList.toggle(CLASSES.selected, val);
+			this._selected = val;
 		}
 
 		get locked() {
@@ -491,12 +559,15 @@ const Node = (function(){
 		}
 
 		set locked(val) {
-			const unlocking = this._locked && !val;
-			this._locked = val;
+			if (typeof val !== "boolean") {
+				throw new Error("Invalid argument.");
+			}
+
 			this._lockBtn.classList.toggle(CLASSES.locked, val);
-			if (unlocking) {
+			if (this._locked && !val) {
 				this.manager.updateNetwork();
 			}
+			this._locked = val;
 		}
 
 		get visible() {
@@ -504,28 +575,25 @@ const Node = (function(){
 		}
 
 		set visible(val) {
-			this._visible = val;
+			if (typeof val !== "boolean") {
+				throw new Error("Invalid argument.");
+			}
+
 			this._viewBtn.classList.toggle(CLASSES.visible, val);
+			this._visible = val;
 		}
 
 		get inputLinks() {
-			const links = this.inputs.map((p) => {
-				if (p instanceof MultiNodeInput) {
-					return p.links;
+			return this.inputs.map(p =>
+				p instanceof MultiNodeInput ? p.links : p.link)
+			.reduce((acc, l) => {
+				if (isArray(l)) {
+					acc.push.apply(acc, l);
 				} else {
-					return p.link;
+					acc.push(l);
 				}
-			});
-			let f = [];
-			links.forEach((l) => {
-				if (Array.isArray(l)) {
-					f.push.apply(f, l);
-				} else {
-					f.push(l);
-				}
-			});
-			f = f.filter(Boolean);
-			return f;
+				return acc;
+			}, []).filter(Boolean);
 		}
 
 		get outputLinks() {
@@ -534,20 +602,21 @@ const Node = (function(){
 			return links;
 		}
 
-		get dependencies() {
-			return this.inputLinks.map(l => l.output.node);
-		}
-
 		get links() {
 			return this.inputLinks.concat(this.outputLinks);
 		}
 
+		get dependencies() {
+			return this.inputLinks.map(l => l.output.node);
+		}
+
 		cook() {
-			console.log("cooking:", this._element);
 			return new Promise((resolve) => {
 				const inputs = this.inputs.map(i => i.value);
-				const p = this._cook(...inputs);
-				if (p instanceof Promise) {
+
+				const p = this._cook(inputs);
+
+				if (isType(p, Promise)) {
 					p.then(resolve);
 				} else {
 					resolve(p);
@@ -562,17 +631,54 @@ const Node = (function(){
 	};
 })();
 
-class NodeUIOptions {
+class NodeSettingsContainer extends Container {
+	constructor() {
+		super();
+		this._box.element.classList.add("node-settings");
+	}
+}
+
+class NodeSettings {
     constructor(proto) {
     	if (!isUdf(proto) && typeof proto !== "object") {
             throw new Error("Invalid argument.");
         }
 
+        if (proto) {
+        	proto = deepcopy(proto);
+	        Object.values(proto).forEach((val) => {
+	        	if (val.array === true) {
+	        		val.value = [];
+	        	}
+	        });
+        }
     	this._inner = Object.create(proto || null);
 
         this._events = new Dictionary();
-        this._onValue = null;
-        this.put = this.put.bind(this);
+        this._onTryPut = null;
+        this._onTryPush = null;
+    }
+
+    get onTryPut() {
+    	return this._onTryPut;
+    }
+
+    set onTryPut(val) {
+    	if (val !== null && !isFunction(val)) {
+    		throw new Error("Invalid argument.");
+    	}
+		this._onTryPut = val;
+    }
+
+    get onTryPush() {
+    	return this._onTryPush;
+    }
+
+    set onTryPush(val) {
+    	if (val !== null && !isFunction(val)) {
+    		throw new Error("Invalid argument.");
+    	}
+		this._onTryPush = val;
     }
 
     _updateEvent(name, value) {
@@ -581,11 +687,12 @@ class NodeUIOptions {
         }
     }
 
-    onValue(cb) {
-    	if (!isFunction(cb)) {
+    linkTo(other) {
+    	if (!(other instanceof NodeSettings)) {
     		throw new Error("Invalid argument.");
     	}
-		this._onValue = cb;
+    	this._onTryPut = other.onTryPut;
+    	this._onTryPush = other.onTryPush;
     }
 
     has(name) {
@@ -596,24 +703,81 @@ class NodeUIOptions {
     	return this._inner[name].value;
     }
 
+    tryPut(name, newValue) {
+    	if (!this.has(name)) {
+    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+    	}
+
+		const p = this._inner[name];
+		if (p.array === true) {
+    		throw new Error("Cannot call function on key: '" + name + "'");
+    	}
+
+    	if (this._onTryPut) {
+    		this._onTryPut(name, p.value, newValue, p);
+    	} else {
+    		this.put(name, newValue);
+    	}
+    }
+
     put(name, value) {
 		if (!this.has(name)) {
-    		throw new Error("NodeUIOptions does not contain key: " + name);
+    		throw new Error("NodeSettings does not contain key: '" + name + "'");
     	}
 
     	const p = this._inner[name];
+    	if (p.array === true) {
+    		throw new Error("Cannot call function on key: '" + name + "'");
+    	}
+
     	p.value = value;
 		this._updateEvent(name, value);
 	}
 
-    tryPut(name, newValue) {
+	tryPush(name, item, adding) {
     	if (!this.has(name)) {
-    		throw new Error("NodeUIOptions does not contain key: " + name);
-    	} else if (this._onValue) {
-    		const p = this._inner[name];
-        	this._onValue(name, p.value, newValue, p);
+    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+    	} else if (typeof adding !== "boolean") {
+    		throw new Error("Invalid argument.");
+    	}
+
+		const p = this._inner[name];
+		if (p.array !== true) {
+    		throw new Error("Cannot call function on key: '" + name + "'");
+    	}
+
+    	if (this._onTryPush) {
+    		this._onTryPush(name, item, adding, p);
+    	} else {
+    		this.push(name, item, adding);
     	}
     }
+
+    push(name, item, adding) {
+		if (!this.has(name)) {
+    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+    	} else if (typeof adding !== "boolean") {
+    		throw new Error("Invalid argument.");
+    	}
+
+    	const p = this._inner[name];
+    	if (p.array !== true) {
+    		throw new Error("Cannot call function on key: '" + name + "'");
+    	}
+
+    	const arr = p.value;
+    	if (adding) {
+    		arr.push(item);
+    	} else {
+    		const i = arr.indexOf(o => o === item);
+    		if (i === -1) {
+    			throw new Error("Could not find item in key: '" + name + "'");
+    		}
+    		arr.splice(i, 1);
+    	}
+
+		this._updateEvent(name, arr);
+	}
 
     addListener(name, listener) {
         let event;
@@ -633,28 +797,62 @@ class NodeUIOptions {
     }
 }
 
-class SetOptionCommand extends Command {
-	constructor(sf, name, o, n, cb) {
+class OptionCommand extends Command {
+	constructor(putFunction, name, oldValue, newValue, onChange) {
 		super(Command.IMMEDIATE);
 
-		this._setFunction = sf;
+		this._put = putFunction;
 		this._name = name;
-		this._oldValue = o;
-		this._newValue = n;
-		this._onChange = cb;
+		this._oldValue = oldValue;
+		this._newValue = newValue;
+		this._onChange = onChange;
 	}
 
-	_execute() {
-		this._setFunction(this._name, this._newValue);
+	_do() {
+		this._put(this._name, this._newValue);
 		this._onChange();
 	}
 
+	_execute() {
+		this._do();
+	}
+
 	_undo() {
-		this._setFunction(this._name, this._oldValue);
+		this._put(this._name, this._oldValue);
 		this._onChange();
 	}
 
 	_redo() {
-		this._execute();
+		this._do();
+	}
+}
+
+class ArrayOptionCommand extends Command {
+	constructor(pushFunction, name, item, adding, onChange) {
+		super(Command.IMMEDIATE);
+
+		this._push = pushFunction;
+		this._name = name;
+		this._item = item;
+		this._adding = adding;
+		this._onChange = onChange;
+	}
+
+	_do(bool) {
+		const add = bool === this._adding;
+		this._push(this._name, this._item, add);
+		this._onChange();
+	}
+
+	_execute() {
+		this._do(true);
+	}
+
+	_undo() {
+		this._do(false);
+	}
+
+	_redo() {
+		this._do(true);
 	}
 }

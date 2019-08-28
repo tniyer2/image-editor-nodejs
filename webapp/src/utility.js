@@ -1,9 +1,9 @@
 
 import { isUdf } from "./type";
 
-export { clamp, deepcopy, extend, show, hide, $, isDescendant, 
-         setBooleanAttribute, stopBubbling, 
-         AddToEventLoop, createSVG, toPrecision };
+export { clamp, deepcopy, extend, removeDuplicates, show, hide, $,
+         isDescendant, setBooleanAttribute, stopBubbling, AddToEventLoop,
+         createSVG, toPrecision };
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -25,6 +25,10 @@ function extend() {
         }
     }
     return master;
+}
+
+function removeDuplicates(arr) {
+    return Array.from(new Set(arr));
 }
 
 function show(elm) {
@@ -121,4 +125,6 @@ const createSVG = (function(){
     return Inner;
 })();
 
-function toPrecision(n, p) { return Number(Number.parseFloat(n).toPrecision(p)); }
+function toPrecision(n, p) { 
+    return Number(Number.parseFloat(n).toPrecision(p));
+}

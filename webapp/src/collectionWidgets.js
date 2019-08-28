@@ -5,15 +5,16 @@ import { UserActionHandler } from "./action";
 export { SelectWidget, ToggleItemCommand, DeleteWidget };
 
 class SelectWidget extends UserActionHandler {
-	constructor(cln) {
+	constructor(collection) {
 		super();
-		this._collection = cln;
+		this._collection = collection;
 	}
 
 	_onClick(mdEvt, muEvt, item) {
 		if (item) {
 			const ctrl = mdEvt.ctrlKey,
 				  shift = mdEvt.shiftKey;
+
 			if (ctrl && item.selected) {
 				this._collection.deselect(item);
 			} else if (shift && !item.selected) {
@@ -38,6 +39,7 @@ class SelectWidget extends UserActionHandler {
 class ToggleItemCommand extends Command {
 	constructor(collection, item, add, addName="add", removeName="remove") {
 		super(Command.IMMEDIATE);
+
 		this._collection = collection;
 		this._item = item;
 		this._add = add;
@@ -67,9 +69,10 @@ class ToggleItemCommand extends Command {
 }
 
 class DeleteWidget extends UserActionHandler {
-	constructor(clns, stack) {
+	constructor(collections, stack) {
 		super();
-		this._collections = clns;
+
+		this._collections = collections;
 		this._stack = stack;
 	}
 

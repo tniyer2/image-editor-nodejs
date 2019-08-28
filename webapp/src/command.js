@@ -1,152 +1,139 @@
 
-import { isNumber } from "./type";
+import { isNumber, isArray } from "./type";
 import { addEvent } from "./event";
 import Lock from "./lock";
 
 export { Command, MultiCommand, CommandStack };
 
-const Command = (function(){
-	const invalidStateMessage = "Cannot invoke this operation when another operation is executing.",
-		  notClosed = n => "Cannot call " + n + " if this Command is not closed.",
-		  invalidDone = (n, d) => "Cannot call " + n + " if this Command is " + (d ? "" : "not ") + "done.";
-
-	return class {
-		constructor(type) {
-			if (type === Command.IMMEDIATE) {/*ignore*/}
-			else if (type === Command.CONTINUOUS) {/*ignore*/}
-			else {
-				throw new Error("Invalid argument.");
-			}
-
-			this.type = type;
-			this._stack = null;
-			this.open = true;
-			this.executing = false;
-			this.done = false;
-			this._firstTime = true;
-
-			addEvent(this, "onDone");
-			addEvent(this, "onUndo");
-			addEvent(this, "onRedo");
+class Command {
+	constructor(type) {
+		if (type !== Command.IMMEDIATE &&
+			type !== Command.CONTINUOUS) {
+			throw new Error("Invalid argument.");
 		}
 
-		static get IMMEDIATE() {
-			return 0;
+		this._type = type;
+		this._stack = null;
+		this._open = true;
+		this._done = false;
+		this._firstTime = true;
+
+		addEvent(this, "onDone");
+		addEvent(this, "onUndo");
+		addEvent(this, "onRedo");
+	}
+
+	static get IMMEDIATE() {
+		return 0;
+	}
+
+	static get CONTINUOUS() {
+		return 1;
+	}
+
+	get type() {
+		return this._type;
+	}
+
+	get open() {
+		return this._open;
+	}
+
+	get done() {
+		return this._done;
+	}
+
+	get stack() {
+		return this._stack;
+	}
+
+	set stack(val) {
+		if (!(val instanceof CommandStack)) {
+			throw new Error("Invalid argument.");
+		} else if (this._stack) {
+			throw new Error("Property already set.");
 		}
 
-		static get CONTINUOUS() {
-			return 1;
+		this._stack = val;
+	}
+
+	get locked() {
+		return this._stack && this._stack.lock.locked;
+	}
+
+	get canUndo() {
+		return !this.locked && !this._open && this._done;
+	}
+
+	get canRedo() {
+		return !this.locked && !this._open && !this._done;
+	}
+
+	execute(...args) {
+		if (this.locked) {
+			return;
+		} else if (!this._open) {
+			throw new Error("Invalid state. Command is closed.");
 		}
 
-		get stack() {
-			return this._stack;
-		}
-
-		set stack(val) {
-			if (!(val instanceof CommandStack)) {
-				throw new Error("Invalid argument.");
-			} else if (this._stack) {
-				throw new Error("Property already set.");
-			}
-
-			this._stack = val;
-		}
-
-		get locked() {
-			return this._stack && this._stack.lock.locked;
-		}
-
-		execute(...args) {
-			if (this.locked) {
-				return;
-			} else if (this.executing) {
-				throw new Error(invalidStateMessage);
-			} else if (!this.open) {
-				throw new Error("Cannot call execute, this Command is closed.");
-			}
-
-			this.executing = true;
-			this._execute(...args);
-			this.executing = false;
-			this._firstTime = false;
-			if (this.type === Command.IMMEDIATE) {
-				this.open = false;
-				this.done = true;
-				this._onDone.trigger();
-			}
-		}
-
-		close() {
-			if (this.locked) {
-				return;
-			} else if (this.type === Command.IMMEDIATE) {
-				throw new Error("Cannot call close on an immediate Command");
-			} else if (this.executing) {
-				throw new Error(invalidStateMessage);
-			} else if (!this.open) {
-				throw new Error("Cannot call close, this Command is already closed.");
-			}
-
-			this.executing = true;
-			this._close();
-			this.executing = false;
-			this.open = false;
-			this.done = true;
+		this._execute(...args);
+		this._firstTime = false;
+		if (this._type === Command.IMMEDIATE) {
+			this._open = false;
+			this._done = true;
 			this._onDone.trigger();
 		}
+	}
 
-		get canUndo() {
-			return !this.locked && !this.executing
-				&& !this.open && this.done;
+	close() {
+		if (this.locked) {
+			return;
+		} else if (this._type === Command.IMMEDIATE) {
+			throw new Error("Cannot call close on an immediate Command");
+		} else if (!this._open) {
+			throw new Error("Invalid state. Command is closed.");
 		}
 
-		undo() {
-			if (this.locked) {
-				return;
-			} else if (this.executing) {
-				throw new Error(invalidStateMessage);
-			} else if (this.open) {
-				throw new Error(notClosed("undo"));
-			} else if (!this.done) {
-				throw new Error(invalidDone("undo", false));	
-			}
+		this._close();
+		this._open = false;
+		this._done = true;
+		this._onDone.trigger();
+	}
 
-			this.executing = true;
-			this._undo();
-			this.executing = false;
-			this.done = false;
-			this._onUndo.trigger();
+	undo() {
+		if (this.locked) {
+			return;
+		} else if (this._open) {
+			throw new Error("Invalid state. Command is open.");
+		} else if (!this._done) {
+			throw new Error("Invalid state. Command is not done.");
 		}
 
-		get canRedo() {
-			return !this.locked && !this.executing
-				&& !this.open && !this.done;
+		this._undo();
+		this._done = false;
+		this._onUndo.trigger();
+	}
+
+	redo() {
+		if (this.locked) {
+			return;
+		} else if (this._open) {
+			throw new Error("Invalid state. Command is open.");
+		} else if (this._done) {
+			throw new Error("Invalid state. Command is done.");	
 		}
 
-		redo() {
-			if (this.locked) {
-				return;
-			} else if (this.executing) {
-				throw new Error(invalidStateMessage);
-			} else if (this.open) {
-				throw new Error(notClosed("redo"));
-			} else if (this.done) {
-				throw new Error(invalidDone("redo", true));	
-			}
-
-			this.executing = true;
-			this._redo();
-			this.executing = false;
-			this.done = true;
-			this._onRedo.trigger();
-		}
-	};
-})();
+		this._redo();
+		this._done = true;
+		this._onRedo.trigger();
+	}
+}
 
 class MultiCommand extends Command {
 	constructor(commands) {
-		if (!commands.constructor === Array || !commands.length) {
-			console.log("invalid commands:", commands);
+		if (!isArray(commands) || !commands.length ||
+			!commands.every(c => c instanceof Command)) {
+			throw new Error("Invalid argument.");
 		}
 
 		const allImmediate = commands.every(c => c.type === Command.IMMEDIATE);
@@ -158,12 +145,12 @@ class MultiCommand extends Command {
 
 	get canUndo() {
 		return !this.locked && this._commands.every(
-			c => !c.executing && !c.open && c.done);		
+			c => !c.open && c.done);		
 	}
 
 	get canRedo() {
 		return !this.locked && this._commands.every(
-			c => !c.executing && !c.open && !c.done);		
+			c => !c.open && !c.done);		
 	}
 
 	_execute(...args) {
@@ -210,29 +197,44 @@ class CommandStack {
 		this._stack = [];
 		this._currentIndex = -1;
 		addEvent(this, "onChange");
-
 		this.lock = new Lock();
 	}
-	
+
+	get current() {
+		return this._stack[this._currentIndex] || null;
+	}
+
+	get next() {
+		return this._stack[this._currentIndex+1] || null;
+	}
+
+	get canUndo() {
+		const c = this.current;
+		return !this.lock.locked && c && c.canUndo;
+	}
+
+	get canRedo() {
+		const n = this.next,
+			  c = this.current;
+		return !this.lock.locked && n && n.canRedo && !(c && c.open);
+	}
+
 	add(command) {
 		if (this.lock.locked) {
+			// temporary fix, this is a bug
 			command.stack = this;
 			return;
-		} else if (this.current) {
-			if (this.current.open) {
-				throw new Error("Cannot add Command, current Command is not closed.");
-			} else if (this.current.executing) {
-				throw new Error("Cannot add Command, current Command is executing.");
-			}
+		} else if (this.current && this.current.open) {
+			throw new Error("Invalid state. The current Command is open.");
 		}
 
-		// console.log("adding command:", command.constructor.name);
 		command.stack = this;
 
-		let start = this._stack.length >= this._limit ? 1 : 0;
-		this._stack = this._stack.slice(start, this._currentIndex + 1);
+		const start = this._stack.length >= this._limit ? 1 : 0;
+		this._stack = this._stack.slice(start, this._currentIndex+1);
 		this._stack.push(command);
 		this._currentIndex += 1;
+
 		command.onDone.addListener(() => {			
 			this._onChange.trigger();
 		});
@@ -244,25 +246,6 @@ class CommandStack {
 			this._currentIndex += 1;
 			this._onChange.trigger();
 		});
-	}
-
-	get current() {
-		return this._stack[this._currentIndex] || null;
-	}
-
-	get next() {
-		return this._stack[this._currentIndex + 1] || null;
-	}
-
-	get canUndo() {
-		const c = this.current;
-		return !this.lock.locked && c && c.canUndo;
-	}
-
-	get canRedo() {
-		const n = this.next,
-			  c = this.current;
-		return !this.lock.locked && n && n.canRedo && !(c && (c.open || c.executing));
 	}
 
 	undo() {

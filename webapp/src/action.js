@@ -1,25 +1,13 @@
 
 import { isFunction } from "./type";
+import { extend } from "./utility";
 import { Vector2 } from "./geometry";
-import Options from "./options";
 import { addEvent } from "./event";
 import { Listener, PromiseListener } from "./listener";
 
 export { MouseAction, KeyAction, 
 		 UserActionHandler, UserActionPiper,
 		 ZoomAction, ZoomActionHandler };
-
-class Action {
-	constructor() {
-		this._listeners = [];
-	}
-
-	dispose() {
-		this._listeners.forEach((l) => {
-			l.remove();
-		});
-	}
-}
 
 class ActionHandler {
 	constructor(en, ln) {
@@ -60,51 +48,84 @@ class ActionHandler {
 	}
 }
 
-class ActionPiper extends Action {
+class ActionPiper {
 	constructor(en) {
-		super();
-
 		en.forEach((e) => {
 			addEvent(this, e);
 		});
 		this._eventNames = en;
 
-		this._cleanUpFunctions = [];
-	}
-
-	dispose() {
-		this._cleanUpFunctions.forEach((dispose) => {
-			dispose();
-		});
+		this._actions = [];
 		this._cleanUpFunctions = [];
 	}
 
 	pipe(action) {
+		const arr = [];
+
 		this._eventNames.forEach((n) => {
 			const event = action[n];
 			if (event) {
 				const dispose = this["_" + n].linkTo(event);
-				this._cleanUpFunctions.push(dispose);
+				arr.push(dispose);
 			}
 		});
+
+		this._actions.push(action);
+		this._cleanUpFunctions.push(arr);
+	}
+
+	remove(action)  {
+		const i = this._actions.findIndex(a => a === action);
+		if (i === -1) {
+			throw new Error("Could not find argument 'action' in this._actions");
+		}
+
+		this._cleanUpFunctions[i].forEach((f) => {
+			f();
+		});
+
+		this._actions.splice(i, 1);
+		this._cleanUpFunctions.splice(i, 1);
+	}
+
+	clear() {
+		this._cleanUpFunctions.forEach((arr) => {
+			arr.forEach((f) => {
+				f();
+			});
+		});
+		this._actions = [];
+		this._cleanUpFunctions = [];
 	}
 }
 
 const MouseAction = (function(){
 	const DEFAULTS =
-	{ loop: true, exitOnMouseLeave: true, 
-	  mouseMoveAlways: false, mouseLeaveAlways: false,
+	{ loop: true,
+	  exitOnMouseLeave: true, 
+	  mouseMoveAlways: false,
+	  mouseLeaveAlways: false,
 	  condition: (evt) => evt.button === 0 };
 
-	return class extends Action {
+	function isMouseOver(elm, evt) {
+		const topMostElm = document.elementFromPoint(evt.clientX, evt.clientY);
+		return elm === topMostElm || elm.contains(topMostElm);
+	}
+
+	return class {
 		constructor(target, bounds, options) {
-			super();
+			if (!(target instanceof EventTarget)) {
+				throw new Error("Invalid argument.");
+			} else if (!(bounds instanceof EventTarget)) {
+				throw new Error("Invalid argument.");
+			}
 
 			this._target = target;
 			this._bounds = bounds;
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
-			this._mouseMoveAlways = this.options.get("mouseMoveAlways");
+			this._options = extend(DEFAULTS, options);
+
+			this._listeners = [];
+			this._open = false;
 
 			MouseAction.eventNames.forEach((n) => {
 				addEvent(this, n);
@@ -118,129 +139,152 @@ const MouseAction = (function(){
 			return ["onClick", "onStart", "onMove", "onEnd"];	
 		}
 
-		_isMouseOver(elm, evt) {
-			let topMostElm = document.elementFromPoint(evt.clientX, evt.clientY);
-			return elm === topMostElm || elm.contains(topMostElm);
+		// calling this function results in undefined being thrown as an error
+		dispose() {
+			this._listeners.forEach((l) => {
+				l.remove();
+			});
+
+			if (this._open) {
+				this._onEnd.trigger(null, this._options.data);
+				this._open = false;
+			}
 		}
 
 		_initListeners() {
-			let upTarget;
-			let upCapture;
-			if (this.options.get("exitOnMouseLeave")) {
-				this._mouseLeavePromise = new PromiseListener(this._bounds, "mouseleave", (evt, l, resolve) => {
+			let mouseUpTarget, mouseUpUseCapture;
+
+			if (this._options.exitOnMouseLeave === true) {
+				this._mouseLeavePromise = new PromiseListener(
+					this._bounds, "mouseleave",
+				(evt, resolve) => {
 					resolve(evt);
 				});
+
 				this._listeners.push(this._mouseLeavePromise);
 
-				if (this.options.get("mouseLeaveAlways")) {
-					this._mouseLeaveListener = new Listener(this._bounds, "mouseleave", (evt, l) => {
-						this._onEnd.trigger(evt, this.options.get("data"));
+				if (this._options.mouseLeaveAlways) {
+					this._mouseLeaveListener = new Listener(
+						this._bounds, "mouseleave",
+					(evt) => {
+						this._onEnd.trigger(evt, this._options.data);
 					});
 					this._mouseLeaveListener.attach();
+
 					this._listeners.push(this._mouseLeaveListener);
 				}
 
-				upTarget = this._bounds;
-				upCapture = false;
+				mouseUpTarget = this._bounds;
+				mouseUpUseCapture = false;
 			} else {
-				upTarget = document;
-				upCapture = true;
+				mouseUpTarget = document;
+				mouseUpUseCapture = true;
 			}
 
-			const triggerOnMouseOver = (evt, l, resolve) => {
-				if (this._isMouseOver(l.target, evt)) resolve(evt);
+			const triggerOnMouseOver = function(evt, resolve) {
+				if (isMouseOver(this.target, evt)) resolve(evt);
 			};
-			this._mouseDownPromise = new PromiseListener(
-				this._target, "mousedown", triggerOnMouseOver);
-			this._mouseMovePromise = new PromiseListener(
-				this._bounds, "mousemove", triggerOnMouseOver, 
-				{ minEvents: 3 });
-			this._mouseUpPromise   = new PromiseListener(
-				upTarget, "mouseup", triggerOnMouseOver,
-				{ eventOptions: upCapture });
-			this._listeners.push(this._mouseDownPromise);
-			this._listeners.push(this._mouseMovePromise);
-			this._listeners.push(this._mouseUpPromise);
 
-			this._mouseMoveListener = new Listener(this._bounds, "mousemove", (evt, l) => {
-				if (this._isMouseOver(l.target, evt)) {
-					this._onMove.trigger(evt, this.options.get("data"));
+			this._mouseDownPromise = new PromiseListener(
+				this._target, "mousedown", triggerOnMouseOver,
+				{ condition: this._options.condition });
+
+			this._mouseMovePromise = new PromiseListener(
+				this._bounds, "mousemove", triggerOnMouseOver,
+				{ minEvents: 3 });
+
+			this._mouseUpPromise   = new PromiseListener(
+				mouseUpTarget, "mouseup", triggerOnMouseOver,
+				{ eventOptions: mouseUpUseCapture });
+
+			const self = this;
+			this._mouseMoveListener = new Listener(
+				this._bounds, "mousemove",
+			function(evt) {
+				if (isMouseOver(this.target, evt)) {
+					self._onMove.trigger(evt, self._options.data);
 				}
 			});
-			this._listeners.push(this._mouseMoveListener);
-		}
-
-		_start() {
-			if (this._mouseMoveAlways && !this._mouseMoveListener.attached) {
+			if (this._options.mouseMoveAlways) {
 				this._mouseMoveListener.attach();
 			}
 
+			this._listeners.push(
+				this._mouseDownPromise, this._mouseMovePromise,
+				this._mouseUpPromise, this._mouseMoveListener);
+		}
+
+		_start() {
 			this._mouseDownPromise.attach().then((evt) => {
-				const f = this.options.get("condition", false);
-				if (!f || f(evt)) {
-					this._chooseClickOrStart(evt);
-				} else {
-					this._start();
-				}
-			}).catch(console.warn);
+				this._chooseClickOrStart(evt);
+			});
 		}
 
 		_chooseClickOrStart(mouseDownEvent) {
-			Promise.race([this._mouseMovePromise.attach(), this._mouseUpPromise.attach()])
+			Promise.race([
+				this._mouseMovePromise.attach(),
+				this._mouseUpPromise.attach() ])
 			.then((evt) => {
 				this._mouseMovePromise.remove();
 				this._mouseUpPromise.remove();
 
+				const data = this._options.data;
 				if (evt.type === this._mouseMovePromise.type) {
-					this._onStart.trigger(mouseDownEvent, this.options.get("data"));
-					this._onMove.trigger(evt, this.options.get("data"));
-					if (!this._mouseMoveAlways) {
+					this._onStart.trigger(mouseDownEvent, data);
+					this._onMove.trigger(evt, data);
+
+					if (!this._options.mouseMoveAlways) {
 						this._mouseMoveListener.attach();
 					}
-					this._attachEndListeners();
+					this._addEndListeners();
+
+					this._open = true;
 				} else {
-					this._onClick.trigger(mouseDownEvent, evt, this.options.get("data"));
-					if (this.options.get("loop") === true) {
+					this._onClick.trigger(mouseDownEvent, evt, data);
+					if (this._options.loop === true) {
 						this._start();
 					}
 				}
-			}).catch(console.warn);
+			});
 		}
 
-		_attachEndListeners() {
+		_addEndListeners() {
 			let p;
-			if (this.options.get("exitOnMouseLeave")) {
-				p = Promise.race([this._mouseUpPromise.attach(), this._mouseLeavePromise.attach()])
-					.finally(() => {
-						this._mouseUpPromise.remove();
-						this._mouseLeavePromise.remove();
-					});
-			}
-			else {
+			if (this._options.exitOnMouseLeave) {
+				p = Promise.race([
+					this._mouseUpPromise.attach(),
+					this._mouseLeavePromise.attach() ])
+				.finally((evt) => {
+					this._mouseUpPromise.remove();
+					this._mouseLeavePromise.remove();
+					return evt;
+				});
+			} else {
 				p = this._mouseUpPromise.attach();
 			}
 
 			p.finally(() => {
-				if (!this._mouseMoveAlways) {
+				if (!this._options.mouseMoveAlways) {
 					this._mouseMoveListener.remove();
 				}
 			}).then((evt) => {
-				this._onEnd.trigger(evt, this.options.get("data"));
-				if (this.options.get("loop") === true) {
+				this._onEnd.trigger(evt, this._options.data);
+				this._open = false;
+
+				if (this._options.loop === true) {
 					this._start();
 				}
-			}).catch(console.warn);
+			});
 		}
 	};
 })();
 
-class KeyAction extends Action {
+class KeyAction {
 	constructor(target, options) {
-		super();
-
 		this._target = target;
-		this.options = new Options();
-		this.options.set(options);
+		this._options = extend(options);
+
+		this._listeners = [];
 
 		KeyAction.eventNames.forEach((e) => {
 			addEvent(this, e);
@@ -254,15 +298,21 @@ class KeyAction extends Action {
 		return ["onKeyDown", "onKeyUp"];
 	}
 
-	_initListeners() {
-		this._keyDownListener = new Listener(this._target, "keydown", (e) => {
-			this._onKeyDown.trigger(e, this.options.get("data"));
+	dispose() {
+		this._listeners.forEach((l) => {
+			l.remove();
 		});
-		this._keyUpListener = new Listener(this._target, "keyup", (e) => {
-			this._onKeyUp.trigger(e, this.options.get("data"));
+	}
+
+	_initListeners() {
+		const l1 = new Listener(this._target, "keydown", (evt) => {
+			this._onKeyDown.trigger(evt, this._options.data);
+		});
+		const l2 = new Listener(this._target, "keyup", (evt) => {
+			this._onKeyUp.trigger(evt, this._options.data);
 		});
 
-		this._listeners.push(this._keyDownListener, this._keyUpListener);
+		this._listeners.push(l1, l2);
 	}
 
 	_start() {
@@ -290,15 +340,13 @@ class UserActionPiper extends ActionPiper {
 	}
 }
 
-class ZoomAction extends Action {
+class ZoomAction {
 	constructor(target) {
-		super();
-
 		this._target = target;
 
 		addEvent(this, "onZoom");
 
-		this._initListeners();
+		this._initWheelListener();
 		this._start();
 	}
 
@@ -306,12 +354,15 @@ class ZoomAction extends Action {
 		return ["onZoom"];
 	}
 
-	_initListeners() {
+	dispose() {
+		this._wheelListener.remove();
+	}
+
+	_initWheelListener() {
 		this._wheelListener = new Listener(this._target, "wheel",
 		(evt) => {
 			this._onZoom.trigger(evt);
 		}, { eventOptions: { passive: true }});
-		this._listeners.push(this._wheelListener);
 	}
 
 	_start() {
@@ -322,5 +373,9 @@ class ZoomAction extends Action {
 class ZoomActionHandler extends ActionHandler {
 	constructor() {
 		super(ZoomAction.eventNames);
+	}
+
+	_getMousePosition(evt) {
+		return new Vector2(evt.clientX, evt.clientY);
 	}
 }

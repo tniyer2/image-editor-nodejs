@@ -11,30 +11,20 @@ body {
 .root {
 	@extend %max-size;
 	border-radius: 5px; }
-
-$std-border: 3px solid #444;
 .editor {
 	@extend %max-size;
 	display: flex;
 	flex-direction: column;
 	user-select: none; }
-%editor-box {
-	background-color: #888;
-	border: $std-border; }
 
 
 .menubar {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	height: 50px;
 	padding: 5px 10px;
-	@extend %editor-box; }
-%menubar__div {
-	display: flex;
-	align-items: center;
-	height: 100%; }
-.menubar__main-options { 
-	@extend %menubar__div; }
+	background-color: #888;
+	border: 3px solid #444; }
 .menubar__save-image {
 	@extend %remove-button-defaults;
 	padding: 0 5px;
@@ -59,14 +49,6 @@ $std-border: 3px solid #444;
 	fill: $dark-blue; }
 .menubar__undo-btn:disabled svg { 
 	fill: #444; }
-.menubar__tool-options { 
-	@extend %menubar__div; }
-.menubar__tool-options2 {
-	@extend %max-size; }
-.menubar__node-options {
-	@extend %menubar__div; }
-.menubar__node-options2 {
-	@extend %max-size; }
 
 
 .editor-content {
@@ -74,14 +56,14 @@ $std-border: 3px solid #444;
 	position: relative;
 	display: flex; }
 .area-wrapper {
-	flex: 1 1 auto;
+	flex: 1 1 0;
 	position: relative;
 	display: flex;
 	border: 1px solid #333; }
 .area-wrapper.rows {
 	flex-direction: row; }
 .area {
-	flex: 1 1 auto;
+	flex: 1 1 0;
 	position: relative;
 	display: flex;
 	flex-direction: column;
@@ -128,7 +110,7 @@ $std-border: 3px solid #444;
 		align-items: baseline;
 		padding-right: 5px;
 		padding-left: 2px;
-		width: 100px;
+		width: 120px;
 		height: 100%;
 
 		.text {
@@ -152,155 +134,6 @@ $std-border: 3px solid #444;
 	@extend %max-size; }
 
 
-.new-tab {
-	.tab-list {
-		@extend %remove-list-defaults; }
-	.tab-info {
-		padding: 3px 0;
-		border: 0 solid #333;
-		border-bottom-width: 1px; }
-	.tab-info:hover {
-		background-color: #555; }
-	.tab-name {
-		@extend %regular-font; }
-}
-.viewport-tab {
-	display: flex;
-	flex-direction: row; }
-
-
-.toolbar {
-	width: 138px;
-	padding: 10px;
-	@extend %editor-box;
-	border-top-width: 0;  }
-.toolbar__tools {
-	display: flex;
-	align-content: flex-start;
-	justify-content: space-between;
-	flex-wrap: wrap; }
-.toolbar__tool {
-	@extend %remove-button-defaults;
-	width: 64px;
-	height: 64px;
-	margin-bottom: 10px;
-	background-color: #666; }
-.toolbar__tool:hover {
-	background-color: $dark-blue; }
-.toolbar__tool .text {
-	@extend %regular-font;
-	font-size: $big-font-size; }
-.toolbar__options {
-	display: flex; }
-.options-ui {
-	* {
-		margin-right: 10px; }
-}
-
-
-.viewport-wrapper {
-	flex: 1;
-	position: relative;
-	height: 100%;
-	overflow: hidden;
-	outline: none;
-	background: #555;
-	border: $std-border;
-	border-color: #393939;
-	border-top-width: 0;
-	border-left-width: 0;
-	border-bottom-width: 0; }
-.viewport {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	width: 0;
-	height: 0;
-	z-index: 0; }
-.viewport__background {
-	@extend %default-absolute;
-	@extend %max-size;
-	z-index: -1;
-	background-image: url("../img/checkers.png"); }
-.viewport__layers {
-	position: absolute;
-	overflow: hidden;
+.node-settings-tab {
 	@extend %max-size; }
-.layer {
-	@extend %default-absolute;
-	overflow: hidden;
-	z-index: 0; }
-.layer.selected {
-	z-index: 2; }
-.layer canvas {
-	@extend %default-absolute;
-	transform-origin: top left; }
-
-
-.node-editor {
-	flex: 0.75;
-	position: relative;
-	z-index: 0;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	background: #555;
-	outline: none; }
-
-
-.node-search {
-	z-index: 1;
-	box-sizing: border-box;
-	height: 50px;
-	padding: 10px 10px;
-	background: #333; }
-.node-search__wrapper {
-	position: relative;
-	@extend %max-size; }
-.node-search__wrapper2 {
-	@extend %default-absolute;
-	min-width: 100%;
-	min-height: 100%;
-	box-sizing: border-box;
-	padding: 5px;
-	overflow: hidden;
-	background: #fff;
-	border-radius: 10px; }
-.node-search__wrapper3 {
-	display: flex;
-	height: 20px;
-	input {
-		@extend %remove-input-defaults;
-		flex: 1;
-		width: 100px;
-		height: 100%;
-		@extend %regular-font;
-		font-size: 18px; }
-	button {
-		@extend %remove-button-defaults;
-		position: relative;
-		width: 30px;
-		height: 100%;
-		svg {
-			@extend %default-absolute;
-			@extend %max-size;
-			fill: #333; }
-		svg:hover {
-			fill: $blue; } }
-}
-
-
-.node-space-wrapper {
-	flex: 1;
-	position: relative;
-	outline: none; }
-.node-space {
-	@extend %default-absolute;
-	@extend %max-size;
-
-	.links-parent {
-		@extend %default-absolute;
-		@extend %max-size; }
-}
+.node-settings {}

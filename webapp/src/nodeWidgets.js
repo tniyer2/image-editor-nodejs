@@ -9,9 +9,10 @@ import { NodeInput, MultiNodeInput, NodeOutput, Link } from "./node";
 export { NodeLinkWidget, DragNodeWidget };
 
 class NodeLinkWidget extends UserActionHandler {
-	constructor(cln, parent, stack, lock) {
+	constructor(collection, parent, stack, lock) {
 		super();
-		this._collection = cln;
+
+		this._collection = collection;
 		this._parent = parent;
 		this._stack = stack;
 		this._lock = lock;
@@ -183,6 +184,7 @@ class NodeLinkWidget extends UserActionHandler {
 class UpdateLinkCommand extends Command {
 	constructor(nodes) {
 		super(Command.CONTINUOUS);
+
 		this._nodes = nodes;
 		this._links = this._getLinks();
 	}

@@ -5,7 +5,7 @@ function isUdf(a) { return typeof a === "undefined"; }
 
 function isNumber(a) { return typeof a === "number" && !isNaN(a); }
 
-function isType(a, type) { return typeof a === "object" && a.constructor === type; }
+function isType(a, type) { return a !== null && typeof a === "object" && a.constructor === type; }
 
 function isArray(a) { return isType(a, Array); }
 

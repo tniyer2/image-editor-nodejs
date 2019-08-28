@@ -1,5 +1,5 @@
 
-import { isUdf } from "./type";
+import { isUdf, isType, isArray } from "./type";
 
 export { MyEvent, addEvent };
 
@@ -14,14 +14,10 @@ const MyEvent = (function(){
 		}
 
 		removeListener(l) {
-			const queue = this._common.queue;
-			const i = queue.findIndex(o => o === l);
-			const found = i !== -1;
-			if (found) {
-				queue.splice(i, 1);	
-			} else {
-				console.warn("Could not find listener:", l);
-			}
+			const i = this._common.queue.findIndex(o => o === l);
+			if (i === -1) return;
+
+			this._common.queue.splice(i, 1);
 		}
 	}
 	
@@ -41,8 +37,8 @@ const MyEvent = (function(){
 		triggerWithParams(getParams) {
 			this._common.queue.forEach((f) => {
 				const p = getParams();
-				if (typeof p !== "object" || p.constructor !== Array) {
-					throw new Error("Callback return value must be an array:", p);
+				if (!isArray(p)) {
+					throw new Error("Argument 'getParams' did not return an Array");
 				}
 				f(...p);
 			});
@@ -53,28 +49,23 @@ const MyEvent = (function(){
 		}
 
 		linkTo(a) {
-			let n, invalidArgument = false;
-			if (!a || typeof a !== "object") {
-				invalidArgument = true;
-			} else if (a.constructor === MyEventInterface) {
+			let n;
+			if (isType(a, MyEventInterface)) {
 				n = a;
-			} else if (a.constructor === MyEvent) {
+			} else if (isType(a, MyEvent)) {
 				n = a.interface;
 			} else {
-				invalidArgument = true;
-			}
-
-			if (invalidArgument) {
-				throw new Error("Invalid argument:", a);
+				throw new Error("Invalid argument.");
 			}
 
 			const l = (...args) => {
 				this.trigger(...args);
 			};
 			n.addListener(l);
-			return (function(){
+
+			return () => {
 				n.removeListener(l);
-			}).bind(this);
+			};
 		}
 	};
 })();

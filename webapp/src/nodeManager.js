@@ -1,153 +1,60 @@
 
 import { AddToEventLoop } from "./utility";
+import { ConstantDictionary } from "./dictionary";
 import Lock from "./lock";
+import { Vector2 } from "./geometry";
+import AutoComplete from "./autoComplete";
+
+import { Collection, BASE, SELECT } from "./collection";
+import { Node, MultiNodeInput } from "./node";
+import NodeCooker from "./nodeCooker";
+
 import { MouseAction, KeyAction,
 		 ZoomAction, UserActionPiper } from "./action";
-import { Vector2 } from "./geometry";
-import { ZoomWidget } from "./widget";
+import ZoomWidget from "./zoomWidget";
 import { DragWidget } from "./boxWidgets";
 import { NodeLinkWidget, DragNodeWidget } from "./nodeWidgets";
 import { SelectWidget, DeleteWidget,
 		 ToggleItemCommand } from "./collectionWidgets";
-import { MultiNodeInput } from "./node";
-import { Collection, BASE, SELECT } from "./collection";
 
-const CALLBACK_PROPS =
-["onAdd", "onRemove",
- "onSelect", "onDeselect",
- "onSelectedChange"];
-const COLLECTION_INFO = [
-{ name: "nodes",
-  collection: Collection([BASE, SELECT,
-	  { type: Collection.SINGLE,
-	  	var: "visible",
-	  	onSet: "onVisibleChange" },
-	  { type: Collection.SINGLE,
-	  	var: "active",
-	  	onSet: "onActiveChange" }]),
-  callbackProps: CALLBACK_PROPS.concat([
-  	"onVisibleChange", "onActiveChange" ]),
-  functions:
-  ["_onNodeAdd", "_onNodeRemove",
-   "_onNodeSelect", "_onNodeDeselect",
-   "_onSelectedNodeChange",
-   "_onVisibleNodeChange",
-   "_onActiveNodeChange"]},
-{ name: "links",
-  collection: Collection([BASE, SELECT]),
-  callbackProps: CALLBACK_PROPS,
-  functions:
-  ["_onLinkAdd", "_onLinkRemove",
-   "_onLinkSelect", "_onLinkDeselect",
-   "_onSelectedLinkChange"]}];
+import { TestNode, AsyncTestNode } from "./testNodes";
+import ImageNode from "./imageNode";
+import MergeNode from "./mergeNode";
+
+const NodeCollection = Collection([BASE, SELECT,
+{ type: Collection.SINGLE,
+  var: "visible",
+  onChange: "onVisibleChange" },
+{ type: Collection.SINGLE,
+  var: "active",
+  onChange: "onActiveChange" }]);
+
+const LinkCollection = Collection([BASE, SELECT]);
+
 const NODE_SPAWN = new Vector2(10, 15);
 
-class NodeCooker {
-	constructor(lock) {
-		this._lock = lock;
-	}
-
-	cook(node) {
-		if (this._lock && this._lock.locked) return;
-
-		const {graph, acyclic} = this._getSubGraph(node);
-		if (acyclic) {
-			let key;
-			if (this._lock) {
-				key = this._lock.lock();
-			}
-			return this._getChain(graph).finally((info) => {
-				if (this._lock) {
-					this._lock.free(key);
-				}
-				return info;
-			});
-		} else {
-			console.warn("graph is cyclic:", graph);
-		}
-	}
-
-	_getChain(graph) {
-		const last = graph.length - 1;
-		return graph.reduce((chain, node, cur) => chain.then((info) => {
-			if (node.locked || !node.dirty) {
-				if (cur === last) {
-					info.clean = true;
-				}
-				return info;
-			} else {
-				const d = Date.now();
-				return node.cook().then(() => {
-					const elapsed = Date.now() - d;
-					info.time.push(elapsed);
-					return info;
-				});
-			}
-		}), Promise.resolve({ time: [], clean: false }));
-	}
-
-	_getSubGraph(start) {
-		let graph = [];
-
-		const unmark = (node) => {
-			node.p_perm = node.p_temp = false;
-		};
-
-		const visit = (node, first=false) => {
-			if (node.p_perm) {
-				return true;
-			}
-			if (node.p_temp) {
-				graph.forEach(unmark);
-				graph = [];
-				return false;
-			}
-			node.p_temp = true;
-			if (!node.locked) {
-				for (const ref of node.dependencies) {
-					const acyclic = visit(ref);
-					if (!acyclic) {
-						unmark(ref);
-						graph.push(ref);
-						return false;
-					}
-				}
-			}
-			graph.push(node);
-			if (first) {
-				graph.forEach(unmark);
-			} else {
-				node.p_temp = false;
-				node.p_perm = true;
-			}
-			return true;
-		};
-
-		const acyclic = visit(start, true);
-		if (!acyclic) {
-			unmark(start);
-		}
-		return { graph: graph, acyclic: acyclic };
-	}
-}
-
 export default class {
-	constructor (editor, tab) {
+	constructor (editor, nodesTab, settingsTab) {
 		this._editor = editor;
-		this.tab = tab;
+		this._nodesTab = nodesTab;
+		this._settingsTab = settingsTab;
 
 		this.lock = new Lock();
 		this.lock.pipe(this._editor.stack.lock);
 		this._cooker = new NodeCooker(this.lock);
 
-		this.nodeOptionsParent = document.createElement("div");
+		this.nodes = new NodeCollection();
+		this._addNodeListeners();
+		this.links = new LinkCollection();
+		this._addLinkListeners();
 
-		this._initCollections();
+		this._initNodeDictionary();
+		this._createAutoComplete();
 
 		this._initNetworkUpdater();
-		this._initUIUpdater();
+		this._initActiveNodeUpdater();
 
-		this._keyAction = new KeyAction(this.tab.nodeSpace.element);
+		this._keyAction = new KeyAction(this._nodesTab.nodeSpace.element);
 		this._initZoomWidget();
 		this._initDeleteWidgets();
 		this._initNodeSpaceWidget();
@@ -156,14 +63,183 @@ export default class {
 		this._initLinkWidgets();
 	}
 
-	_initCollections() {
-		COLLECTION_INFO.forEach((d) => {
-			const opt = {},
-				  f = d.functions;
-			d.callbackProps.forEach((b, i) => {
-				opt[b] = this[f[i]].bind(this);
+	get stack() {
+		return this._editor.stack;
+	}
+
+	_initNode(node) {
+		node.manager = this;
+		node.parent = this._nodesTab.innerNodeSpace;
+
+		const bounds = this._nodesTab.nodeSpace.element;
+
+		const m1 = new MouseAction(
+			node.element, bounds, { data: node });
+		this._nodeMouseAction.pipe(m1);
+
+		node.inputs.concat(node.outputs).forEach((p) => {
+			const m2 = new MouseAction(
+				p.element, bounds, { data: p });
+			this._pointMouseAction.pipe(m2);
+		});
+
+		node.position = this._nodesTab.nodeSpace.position.add(NODE_SPAWN);
+	}
+
+	_addNodeListeners() {
+		this.nodes.onAdd.addListener((node) => {
+			this._nodesTab.innerNodeSpace.element.appendChild(node.element);
+			if (node.p_links) {
+				node.p_links.forEach((l) => {
+					this.links.add(l);
+				});
+				node.p_links = null;
+			}
+
+			if (!node.p_initialized) {
+				this._initNode(node);
+				node.p_initialized = true;
+			}
+		});
+
+		this.nodes.onRemove.addListener((node) => {
+			if (this.nodes.visible === node) {
+				this.nodes.visible = null;
+			}
+			if (node.selected) {
+				this.nodes.deselect(node);
+			}
+
+			node.element.remove();
+
+			node.p_links = node.links;
+			node.p_links.forEach((l) => {
+				this.links.remove(l);
 			});
-			this[d.name] = new d.collection(opt);
+		});
+
+		this.nodes.onSelect.addListener((node) => {
+			node.selected = true;
+			this._nodesTab.innerNodeSpace.element.appendChild(node.element);
+		});
+
+		this.nodes.onDeselect.addListener((node) => {
+			node.selected = false;
+		});
+
+		this.nodes.onSelectedChange.addListener((fname) => {
+			if (fname === "selectOnly") {
+				this.links.deselectAll();
+			}
+			this._activeNodeUpdater.invoke();
+		});
+
+		this.nodes.onVisibleChange.addListener((oldNode, node) => {
+			if (oldNode) {
+				oldNode.visible = false;
+			}
+			if (node) {
+				node.visible = true;
+			}
+			this.updateNetwork();
+		});
+
+		this.nodes.onActiveChange.addListener((oldNode, node) => {
+			if (oldNode) {
+				oldNode.ui.remove();
+			}
+			if (node) {
+				node.ui.add(this._settingsTab.box);
+			}
+		});
+	}
+
+	_initLink(link) {
+		const bounds = this._nodesTab.nodeSpace.element;
+		const m = new MouseAction(link.element, bounds, 
+			{ data: link });
+		this._linkMouseAction.pipe(m);
+	}
+
+	_addLinkListeners() {
+		this.links.onAdd.addListener((link) => {
+			if (link.input instanceof MultiNodeInput) {
+				link.input.addLink(link);
+				link.input.links.forEach((l) => {
+					l.updatePath();
+				});
+			} else {
+				link.input.link = link;
+			}
+			link.output.addLink(link);
+			this._nodesTab.linksParent.element.appendChild(link.element);
+
+			if (!link.p_initialized) {
+				this._initLink(link);
+				link.p_initialized = true;
+			}
+
+			this.updateNetwork();
+		});
+
+		this.links.onRemove.addListener((link) => {
+			if (link.selected) {
+				this.links.deselect(link);
+			}
+
+			if (link.input instanceof MultiNodeInput) {
+				link.input.removeLink(link);
+				link.input.links.forEach((l) => {
+					l.updatePath();
+				});
+			} else {
+				link.input.link = null;
+			}
+			link.output.removeLink(link);
+			link.element.remove();
+
+			this.updateNetwork();
+		});
+
+		this.links.onSelect.addListener((link) => {
+			this._nodesTab.linksParent.element.appendChild(link.element);
+			link.selected = true;
+		});
+
+		this.links.onDeselect.addListener((link) => {
+			link.selected = false;
+		});
+
+		this.links.onSelectedChange.addListener((fname) => {
+			if (fname === "selectOnly") {
+				this.nodes.deselectAll();
+			}
+		});
+	}
+
+	_initNodeDictionary() {
+		const n = this._nodeTypes = new ConstantDictionary();
+
+		n.put("test_node", TestNode);
+		n.put("async_test_node", AsyncTestNode);
+		n.put("image", ImageNode);
+		n.put("merge", MergeNode);
+	}
+
+	_createAutoComplete() {
+		const ac = new AutoComplete(
+			this._nodesTab.searchInput, 
+			{ form: this._nodesTab.form, 
+			  values: this._nodeTypes.keys });
+
+		this._nodesTab.wrapper2.appendChild(ac.list);
+
+		ac.onConfirm.addListener((value, input) => {
+			if (this._nodeTypes.has(value)) {
+				const nodeType = this._nodeTypes.get(value);
+				const node = new nodeType();
+				this._addNode(node);
+			}
 		});
 	}
 
@@ -189,8 +265,8 @@ export default class {
 		});
 	}
 
-	_initUIUpdater() {
-		this._uiUpdater = new AddToEventLoop(() => {
+	_initActiveNodeUpdater() {
+		this._activeNodeUpdater = new AddToEventLoop(() => {
 			const s = this.nodes.selected,
 				  l = s.length;
 			this.nodes.active = l ? s[l-1] : null;
@@ -198,13 +274,16 @@ export default class {
 	}
 
 	_initZoomWidget() {
-		this._zoomWidget = new ZoomWidget(this.tab.innerNodeSpace, 
-		{ factor: 0.2,
+		this._zoomWidget = new ZoomWidget(this._nodesTab.innerNodeSpace, 
+		{ factor: 0.3,
+		  min: 0.5,
+		  max: 2,
+		  zoomOnCursor: false,
 		  condition: () => {
 			const c = this._editor.stack.current;
 			return !c || !c.open;
 		} });
-		const action = new ZoomAction(this.tab.nodeSpace.element);
+		const action = new ZoomAction(this._nodesTab.nodeSpace.element);
 		this._zoomWidget.handle(action);
 	}
 
@@ -215,11 +294,13 @@ export default class {
 	}
 
 	_initNodeSpaceWidget() {
-		const w = new DragWidget({ boxes: [this.tab.innerNodeSpace] });
-		const elm = this.tab.nodeSpace.element;
+		const w = new DragWidget({ boxes: [this._nodesTab.innerNodeSpace] });
+
+		const elm = this._nodesTab.nodeSpace.element;
 		const action = new MouseAction(elm, elm, {
 			condition: (evt) => evt.button === 0 || evt.button === 1
 		});
+
 		w.handle(action);
 	}
 
@@ -240,14 +321,14 @@ export default class {
 		const piper = new UserActionPiper();
 
 		const action = new MouseAction(
-			this.tab.innerNodeSpace.element,
-			this.tab.nodeSpace.element, 
+			this._nodesTab.innerNodeSpace.element,
+			this._nodesTab.nodeSpace.element, 
 			{ mouseMoveAlways: true,
 			  mouseLeaveAlways: true });
 		piper.pipe(action);
 
 		const connect = new NodeLinkWidget(
-			this.links, this.tab.linksParent, this._editor.stack, this.lock);
+			this.links, this._nodesTab.linksParent, this._editor.stack, this.lock);
 		connect.handle(piper);
 		connect.handle(this._keyAction);
 
@@ -263,160 +344,14 @@ export default class {
 		this._linkMouseAction = piper;
 	}
 
-	get stack() {
-		return this._editor.stack;
-	}
+	_addNode(node) {
+		if (!(node instanceof Node)) {
+			throw new Error("Invalid argument.");
+		}
 
-	addNode(node) {
 		const c = new ToggleItemCommand(this.nodes, node, true);
 		this._editor.stack.add(c);
 		c.execute();
-	}
-
-	_initNode(node) {
-		node.manager = this;
-		node.parent = this.tab.innerNodeSpace;
-
-		const bounds = this.tab.nodeSpace.element;
-
-		const m1 = new MouseAction(
-			node.element, bounds, { data: node });
-		this._nodeMouseAction.pipe(m1);
-
-		node.inputs.concat(node.outputs).forEach((p) => {
-			const m2 = new MouseAction(
-				p.element, bounds, { data: p });
-			this._pointMouseAction.pipe(m2);
-		});
-
-		node.position = this.tab.nodeSpace.position.add(NODE_SPAWN);
-	}
-
-	_onNodeAdd(node) {
-		this.tab.innerNodeSpace.element.appendChild(node.element);
-		if (node.p_links) {
-			node.p_links.forEach((l) => {
-				this.links.add(l);
-			});
-			node.p_links = null;
-		}
-
-		if (!node.p_initialized) {
-			this._initNode(node);
-			node.p_initialized = true;
-		}
-	}
-
-	_onNodeRemove(node) {
-		if (this.nodes.visible === node) {
-			this.nodes.visible = null;
-		}
-		if (node.selected) {
-			this.nodes.deselect(node);
-		}
-
-		node.element.remove();
-
-		node.p_links = node.links;
-		node.p_links.forEach((l) => {
-			this.links.remove(l);
-		});
-	}
-
-	_onNodeSelect(node) {
-		node.selected = true;
-		this.tab.innerNodeSpace.element.appendChild(node.element);
-	}
-
-	_onNodeDeselect(node) {
-		node.selected = false;
-	}
-
-	_onSelectedNodeChange(fname) {
-		if (fname === "selectOnly") {
-			this.links.deselectAll();
-		}
-		this._uiUpdater.invoke();
-	}
-
-	_onVisibleNodeChange(oldNode, node) {
-		if (oldNode) {
-			oldNode.visible = false;
-		}
-		if (node) {
-			node.visible = true;
-		}
-		this.updateNetwork();
-	}
-
-	_onActiveNodeChange(oldNode, node) {
-		if (oldNode) {
-			oldNode.ui.disable();
-		}
-		if (node) {
-			node.ui.enable(this.nodeOptionsParent);
-		}
-	}
-
-	_initLink(link) {
-		const bounds = this.tab.nodeSpace.element;
-		const m = new MouseAction(link.element, bounds, 
-			{ data: link });
-		this._linkMouseAction.pipe(m);
-	}
-
-	_onLinkAdd(link) {
-		if (link.input instanceof MultiNodeInput) {
-			link.input.addLink(link);
-			link.input.links.forEach((l) => {
-				l.updatePath();
-			});
-		} else {
-			link.input.link = link;
-		}
-		link.output.addLink(link);
-		this.tab.linksParent.element.appendChild(link.element);
-
-		if (!link.p_initialized) {
-			this._initLink(link);
-			link.p_initialized = true;
-		}
-
-		this.updateNetwork();
-	}
-
-	_onLinkRemove(link) {
-		if (link.selected) {
-			this.links.deselect(link);
-		}
-
-		if (link.input instanceof MultiNodeInput) {
-			link.input.removeLink(link);
-			link.input.links.forEach((l) => {
-				l.updatePath();
-			});
-		} else {
-			link.input.link = null;
-		}
-		link.output.removeLink(link);
-		link.element.remove();
-
-		this.updateNetwork();
-	}
-
-	_onLinkSelect(link) {
-		this.tab.linksParent.element.appendChild(link.element);
-		link.selected = true;
-	}
-
-	_onLinkDeselect(link) {
-		link.selected = false;
-	}
-
-	_onSelectedLinkChange(fname) {
-		if (fname === "selectOnly") {
-			this.nodes.deselectAll();
-		}
 	}
 
 	updateNetwork() {

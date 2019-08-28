@@ -1,38 +1,38 @@
 
-import { isFunction } from "./type";
+import { isArray } from "./type";
 import { addEvent } from "./event";
-import Options from "./options";
 
 export { Collection, BASE, SELECT };
 
 const Collection = (function(){
 	const SINGLE = 0, MULTIPLE = 1;
 
-	function addEventAndListen(obj, n, l) {
-		if (n) {
-			addEvent(obj, n);
-			const f = obj.options.get(l, false);
-			if (isFunction(f)) {
-				obj[n].addListener(f);
-			}
-		}
-	}
-
 	const Inner2 = function (info) {
-		class Inner {
-			constructor(options) {
-				this.options = new Options();
-				this.options.set(options);
+		if (!isArray(info) || !info.every(o => typeof o === "object")) {
+			throw new Error("Invalid argument.");
+		}
 
+		class Inner {
+			constructor() {
 				info.forEach((p) => {
 					if (p.type === Collection.MULTIPLE) {
 						this["_" + p.var] = [];
-						addEventAndListen(this, p.onAdd, p.onAdd);
-						addEventAndListen(this, p.onRemove, p.onRemove);
-						addEventAndListen(this, p.onChange, p.onChange);
+
+						if (p.onAdd) {
+							addEvent(this, p.onAdd);
+						}
+						if (p.onRemove) {
+							addEvent(this, p.onRemove);
+						}
+						if (p.onChange) {
+							addEvent(this, p.onChange);
+						}
 					} else if (p.type === Collection.SINGLE) {
 						this["_" + p.var] = p.defaultVar;
-						addEventAndListen(this, p.onSet, p.onSet);
+
+						if (p.onChange) {
+							addEvent(this, p.onChange);
+						}
 					} else {
 						throw new Error("Invalid type: " + p.type);
 					}
@@ -43,6 +43,7 @@ const Collection = (function(){
 		info.forEach((p) => {
 			const pub = p.var,
 				  priv = "_" + pub;
+
 			if (p.type === Collection.MULTIPLE) {
 				Object.defineProperty(Inner.prototype, pub, {
 					get: function() {
@@ -131,8 +132,8 @@ const Collection = (function(){
 					set: function(val) {
 						const old = this[priv];
 						this[priv] = val;
-						if (p.onSet) {
-							this["_" + p.onSet].trigger(old, val);
+						if (p.onChange) {
+							this["_" + p.onChange].trigger(old, val);
 						}
 					}
 				});
@@ -144,8 +145,8 @@ const Collection = (function(){
 		return Inner;
 	};
 
-	Object.defineProperty(Inner2, "SINGLE", {get: () => SINGLE});
-	Object.defineProperty(Inner2, "MULTIPLE", {get: () => MULTIPLE});
+	Object.defineProperty(Inner2, "SINGLE", { get: () => SINGLE });
+	Object.defineProperty(Inner2, "MULTIPLE", { get: () => MULTIPLE });
 
 	return Inner2;
 })();

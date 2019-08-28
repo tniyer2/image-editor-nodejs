@@ -4,80 +4,9 @@ import { addEvent } from "./event";
 import { Listener } from "./listener";
 import { Box } from "./geometry";
 import { FloatingList } from "./input";
+import Container from "./container";
 
 export { AreaWrapper, Area, Tab };
-
-class Container {
-	constructor() {
-		const elm = document.createElement("div");
-		this._box = new Box(elm);
-		this._attached = false;
-		this._disposed = false;
-	}
-
-	get attached() {
-		return this._attached;
-	}
-
-	get disposed() {
-		return this._disposed;
-	}
-
-	_attach(box) {
-		this._box.parent = box;
-		this._box.appendElement();
-	}
-
-	_detach() {
-		this._box.removeElement();
-		this._box.parent = null;
-	}
-
-	_checkState() {
-		if (this._disposed) {
-			throw new Error("Invalid state. Container is disposed.");
-		}
-	}
-
-	add(box) {
-		this._checkState();
-		if (this._attached) {
-			throw new Error("Invalid state. Container is attached.");
-		}
-
-		this._attach(box);
-		this._add(box);
-
-		this._attached = true;
-	}
-
-	remove() {
-		this._checkState();
-		if (!this._attached) {
-			throw new Error("Invalid state. Container is not attached.");
-		}
-
-		this._detach();
-		this._remove();
-
-		this._attached = false;
-	}
-
-	dispose() {
-		this._checkState();
-		if (this._attached) {
-			throw new Error("Invalid state. Container is attached.");
-		}
-
-		this._dispose();
-
-		this._disposed = true;
-	}
-
-	_add(box) {}
-	_remove() {}
-	_dispose() {}
-}
 
 const AreaWrapper = (function(){
 	const CLASSES =
@@ -247,6 +176,10 @@ const Area = (function(){
 			this._removeListeners();
 		}
 
+		addTab(key) {
+			return this._addTabUI(key);
+		}
+
 		_addTabUI(key) {
 			const ui = new TabUI();
 			ui.add(this._tabUIParent);
@@ -261,6 +194,8 @@ const Area = (function(){
 			ui.onRemove.addListener(() => {
 				this._removeTabUI(ui);
 			});
+
+			return ui;
 		}
 
 		_removeTabUI(val) {
@@ -289,6 +224,13 @@ const Area = (function(){
 			val.dispose();
 
 			this._tabUIs.splice(i, 1);
+		}
+
+		setActive(val) {
+			if (val !== null && !this._tabUIs.find(t => t === val)) {
+				throw new Error("Could not find argument 'val' in this._tabUIs");
+			}
+			this._setActive(val);
 		}
 
 		_setActive(val) {

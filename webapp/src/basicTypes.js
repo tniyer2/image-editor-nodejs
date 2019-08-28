@@ -1,8 +1,8 @@
 
-import { isNumber, isType } from "./type";
-import { Vector2 } from "./geometry";
+import { isUdf, isNumber, isType, isArray } from "./type";
+import { Vector2, Box } from "./geometry";
 
-export { LayerGroup, ImageLayer, ImageRect };
+export { LayerGroup, Layer, ImageRect };
 
 const ImageRect = (function(){
 	function blend(oldColor, newColor) {
@@ -144,6 +144,11 @@ const ImageRect = (function(){
 		}
 
 		copy() {
+			return new ImageRect(
+				this.imageData.data, this.position.x, this.position.y);
+		}
+
+		deepcopy() {
 			const data = new ImageData(
 				this.imageData.data, this.imageData.width);
 			return new ImageRect(data, this.position.x, this.position.y);
@@ -151,79 +156,79 @@ const ImageRect = (function(){
 	};
 })();
 
-class Transform {
-	constructor(x=0, y=0, sx=1, sy=1, a=0) {
-		this.x = x;
-		this.y = y;
-		this.scaleX = sx;
-		this.scaleY = sy;
-		this.angle = a;
-	}
+const Layer = (function(){
+	const CLASSES =
+	{ layer: "layer",
+	  selected: "selected" };
 
-	copy() {
-		return new Transform(
-			this.x, this.y, this.scaleX, this.scaleY, this.angle);
-	}
-}
-
-class Layer {
-	constructor(data, tfm) {
-		this.imageRect = data;
-		this.transform = tfm;
-	}
-
-	copy() {
-		const data = this.imageRect ? this.imageRect.copy() : null;
-		const tfm = this.transform.copy();
-		return new Layer(data, tfm);
-	}
-}
-
-const ImageLayer = (function(){
-	function checkValidImage(image) {
-		if (!(image instanceof HTMLImageElement)) {
-			throw new Error("image is not an HTMLImageElement");
-		} else if (!image.complete) {
-			throw new Error("image is not loaded.");
-		}
-	}
-
-	function getImageData(image) {
+	function createCanvas(source, width, height) {
 		const canvas = document.createElement("canvas");
-		const {naturalWidth: w, naturalHeight: h} = image;
-
-		canvas.width = w;
-		canvas.height = h;
+		canvas.width = width;
+		canvas.height = height;
 
 		const context = canvas.getContext("2d");
-		context.drawImage(image, 0, 0);
-		const data = context.getImageData(0, 0, w, h);
+		context.drawImage(source, 0, 0);
 
-		return data;
+		return canvas;
 	}
 
-	return class extends Layer {
-		constructor(image) {
-			checkValidImage(image);
-			const data = getImageData(image);
-			const rect = new ImageRect(data, 0, 0);
+	return class {
+		constructor(source, box) {
+			if (source instanceof HTMLImageElement) {
+				if (!source.complete) {
+					throw new Error("Argument 'source' is not fully loaded.");
+				}
+				this.canvas = createCanvas(
+								source,
+								source.naturalWidth,
+								source.naturalHeight);
+			} else if (source instanceof HTMLCanvasElement) {
+				this.canvas = source;
+			} else {
+				throw new Error("Invalid argument.");
+			}
 
-			const tfm = new Transform();
+			if (isUdf(box)) {
+				const d = document.createElement("div");
+				d.classList.add(CLASSES.layer);
+				this.box = new Box(d);
 
-			super(rect, tfm);
+				this.box.localWidth = this.canvas.width;
+				this.box.localHeight = this.canvas.height;
+			}
+
+			this.box.element.appendChild(this.canvas);
+
+			this._selected = false;
+		}
+
+		get selected() {
+			return this._selected;
+		}
+
+		set selected(val) {
+			if (typeof val !== "boolean") {
+				throw new Error("Invalid argument.");
+			}
+			this.box.element.classList.toggle(CLASSES.selected, val);
+			this._selected = val;
+		}
+
+		copy() {
+			const canvas =
+			createCanvas(
+				this.canvas,
+				this.canvas.width,
+				this.canvas.height);
+
+			return new Layer(canvas, this.box);
 		}
 	};
 })();
 
-class DrawingLayer extends Layer {
-	constructor() {
-		super(null, new Transform());
-	}
-}
-
 class LayerGroup {
 	constructor(layers, cinfo=null) {
-		if (!isType(layers, Array) || !layers.every(l => l instanceof Layer)) {
+		if (!isArray(layers) || !layers.every(l => l instanceof Layer)) {
 			throw new Error("Invalid argument.");
 		} else if (typeof cinfo !== "object") {
 			throw new Error("Invalid argument.");
@@ -237,10 +242,25 @@ class LayerGroup {
 		return "#f00";
 	}
 
-	copy() {
-		const layers = this.layers.map(l => l.copy());
-		const cinfo = this.canvasInfo === null ? null : 
-					  Object.assign({}, this.canvasInfo);
+	copy(arr) {
+		const udf = isUdf(arr);
+		if (!udf && !isArray(arr)) {
+			throw new Error("Invalid argument.");
+		}
+
+		const layers = this.layers.map((l, i) => {
+			if (udf || !arr.find(j => j === i)) {
+				return l;
+			} else {
+				return l.copy();
+			}
+		});
+
+		let cinfo = null;
+		if (this.canvasInfo) {
+			cinfo = Object.assign({}, this.canvasInfo);	
+		}
+
 		return new LayerGroup(layers, cinfo);
 	}
 }

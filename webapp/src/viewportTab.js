@@ -1,23 +1,24 @@
 
-import { Box } from "./geometry";
+import { AddToEventLoop } from "./utility";
+import { Vector2, Box } from "./geometry";
 import { Tab } from "./area";
 
 const CLASSES =
 { root: "viewport-tab",
-  toolbar: "toolbar",
-  tools: "toolbar__tools",
-  toolBtn: "toolbar__tool",
-  toolName: "text",
-  options: "toolbar__options",
-  viewport: "viewport-wrapper",
-  innerViewport: "viewport",
+  viewport: "viewport",
+  innerViewport: "viewport__inner",
   background: "viewport__background",
-  layerParent: "layers" };
+  layerParent: "viewport__layersParent" };
+
+const H_PADDING = 20,
+	  V_PADDING = 20;
 
 export default class extends Tab {
 	constructor() {
 		super();
+
 		this._createDOM();
+		this._createUpdateDOM();
 	}
 
 	static get tabName() {
@@ -26,20 +27,6 @@ export default class extends Tab {
 
 	_createDOM() {
 		this._box.element.classList.add(CLASSES.root);
-
-		const toolbar = document.createElement("div");
-		toolbar.classList.add(CLASSES.toolbar);
-		this._box.element.appendChild(toolbar);
-
-		const tools = document.createElement("div");
-		tools.classList.add(CLASSES.tools);
-		toolbar.appendChild(tools);
-		this.toolsParent = tools;
-
-		const options = document.createElement("div");
-		options.classList.add(CLASSES.options);
-		toolbar.appendChild(options);
-		this.toolbarOptions = options;
 
 		const vp = document.createElement("div");
 		vp.tabIndex = "0";
@@ -51,6 +38,7 @@ export default class extends Tab {
 		ivp.classList.add(CLASSES.innerViewport);
 		this.innerViewport = new Box(ivp, this.viewport);
 		this.innerViewport.appendElement();
+		this.innerViewport.setOriginCenter();
 
 		const background = document.createElement("div");
 		background.classList.add(CLASSES.background);
@@ -62,16 +50,40 @@ export default class extends Tab {
 		this.layerParent = lp;
 	}
 
-	createToolButton(name) {
-		const btn = document.createElement("button");
-		btn.classList.add(CLASSES.toolBtn);
-		this.toolsParent.appendChild(btn);
+	_createUpdateDOM() {
+		this._updateDOM = new AddToEventLoop(() => {
+			const dim = this.innerViewport.rawDimensions;
+			const p = this.viewport.localDimensions;
 
-		const text = document.createElement("span");
-		text.innerText = name;
-		text.classList.add(CLASSES.toolName);
-		btn.appendChild(text);
+			const w = p.x - H_PADDING;
+			const sx = w / dim.x;
+			const h = p.y - V_PADDING;
+			const sy = h / dim.y;
 
-		return btn;
+			const scale = sx < sy ? sx : sy;
+			this.innerViewport.localScale = new Vector2(scale, scale);
+			this.innerViewport.center = this.viewport.center;
+		});
+	}
+
+	_add() {
+		let width = this._box.width;
+
+		this._intervalID = setInterval(() => {
+			const cur = this._box.width;
+
+			if (width !== cur) {
+				this.innerViewport.center = this.viewport.center;
+				width = cur;
+			}
+		});
+	}
+
+	_remove() {
+		clearTimeout(this._intervalID);
+	}
+
+	updateDOM() {
+		this._updateDOM.invoke();
 	}
 }

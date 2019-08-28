@@ -7,6 +7,8 @@
 	<link rel="stylesheet" type="text/css" href="../css/widgets.css">
 	<link rel="stylesheet" type="text/css" href="../css/input.css">
 	<link rel="stylesheet" type="text/css" href="../css/node.css">
+  <link rel="stylesheet" type="text/css" href="../css/nodeEditor.css">
+  <link rel="stylesheet" type="text/css" href="../css/viewport.css">
 	<link rel="stylesheet" type="text/css" href="../css/editor.css">
 	<meta charset="UTF-8">
 </head>
@@ -52,23 +54,19 @@
 	<div id="root" class="root">
 		<div class="editor">
 			<div class="menubar">
-				<div class="menubar__main-options">
-					<button id="save-image" class="menubar__save-image" type="button">
-						<span>Download</span>
-					</button>
-      		<button id="undo-btn" class="menubar__undo-btn" type="button" disabled>
-      			<svg>
-      				<use href="#icon-undo"/>
-      			</svg>
-      		</button>
-      		<button id="redo-btn" class="menubar__undo-btn" type="button" disabled>
-      			<svg>
-      				<use href="#icon-redo"/>
-      			</svg>
-      		</button>
-				</div>
-				<div id="tool-options" class="menubar__tool-options"></div>
-				<div id="node-options" class="menubar__node-options"></div>
+				<button id="save-image" class="menubar__save-image" type="button">
+					<span>Download</span>
+				</button>
+    		<button id="undo-btn" class="menubar__undo-btn" type="button" disabled>
+    			<svg>
+    				<use href="#icon-undo"/>
+    			</svg>
+    		</button>
+    		<button id="redo-btn" class="menubar__undo-btn" type="button" disabled>
+    			<svg>
+    				<use href="#icon-redo"/>
+    			</svg>
+    		</button>
 			</div>
 			<div id="editor-content" class="editor-content">
 			</div>

@@ -2,19 +2,17 @@
 import { isSubclass } from "./type";
 import { addEvent } from "./event";
 import { ConstantDictionary } from "./dictionary";
-import { Anchor, Box } from "./geometry";
+import { Box } from "./geometry";
 import { AreaWrapper, Area, Tab } from "./area";
 
 export default class {
 	constructor(root) {
-		if (!(root instanceof HTMLElement)) {
+		if (!(root instanceof Box)) {
 			throw new Error("Invalid argument.");
 		}
 
-		this._anchor = new Anchor(document.body);
-		this._root = new Box(root, this._anchor);
 		this.root = new AreaWrapper();
-		this.root.add(this._root);
+		this.root.add(root);
 
 		this.tabs = new TabManager();
 	}

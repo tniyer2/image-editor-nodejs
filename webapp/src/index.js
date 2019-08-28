@@ -2,10 +2,6 @@
 import { $, setBooleanAttribute } from "./utility";
 import Editor from "./editor";
 
-const CLASSES =
-{ top2: "menubar__tool-options2",
-  nop2: "menubar__node-options2" };
-
 const UNDO_DELAY = 100;
 
 let g_editor;
@@ -13,29 +9,11 @@ let g_editor;
 function main() {
 	g_editor = new Editor($("#editor-content"));
 
-	const area1 = g_editor.areaManager.getArea();
-	const area2 = g_editor.areaManager.getArea();
-	g_editor.areaManager.root.appendChild(area1);
-	g_editor.areaManager.root.appendChild(area2);
-
-	appendDOM();
 	listenUndoRedoCommands();
 	listenUndoRedoButtons();
 	listenSaveButton();
 
 	window.onbeforeunload = () => true;
-}
-
-function appendDOM() {
-	const top = g_editor.toolOptionsParent;
-	top.classList.add(CLASSES.top2);
-	$("#tool-options").appendChild(top);
-
-	const nop = g_editor.nodeManager.nodeOptionsParent;
-	nop.classList.add(CLASSES.nop2);
-	$("#node-options").appendChild(nop);
-
-	$("#root").appendChild(g_editor.colorPicker.root);
 }
 
 function listenUndoRedoCommands() {
@@ -87,16 +65,20 @@ function listenUndoRedoButtons() {
 
 function listenSaveButton() {
 	$("#save-image").addEventListener("click", () => {
-		const uri = g_editor.layerManager.getImage();
-		if (uri) {
-			const link = document.createElement("a");
-			link.href = uri;
-			link.download = "image";
+		const canvas = g_editor.getFinalImage();
+		if (canvas) {
+			canvas.toBlob((blob) => {
+				const url = URL.createObjectURL(blob);
 
-			link.style.display = "none";
-			document.body.appendChild(link);
-			link.click();
-			link.remove();
+				const link = document.createElement("a");
+				link.href = url;
+				link.download = "image";
+
+				link.style.display = "none";
+				document.body.appendChild(link);
+				link.click();
+				link.remove();
+			});
 		}
 	});
 }

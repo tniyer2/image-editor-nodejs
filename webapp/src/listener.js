@@ -7,7 +7,8 @@ export { Listener, PromiseListener };
 const Listener = (function(){
 	const DEFAULTS =
 	{ eventOptions: false, 
-	  minEvents: 0 };
+	  minEvents: 0,
+	  condition: null };
 
 	return class {
 		constructor(target, type, listener, options) {
@@ -39,34 +40,34 @@ const Listener = (function(){
 			return this._attached;
 		}
 
-		attach(...args) {
+		attach() {
 			if (this._attached) {
 				throw new Error("Invalid state. Listener is attached.");
-			} else {
-				const r = this._attach(...args);
-				this._attached = true;
-				return r;
 			}
+
+			this._count = 0;
+			const r = this._attach();
+			this._attached = true;
+
+			return r;
 		}
 
 		_attach() {
-			this._count = 0;
-
 			this._wrapper = (evt) => {
-				if (this._checkConditions()) {
-					this._listener(evt, this);
+				if (this._checkConditions(evt)) {
+					this._listener.call(this, evt);
 				}
 			};
+
 			this._target.addEventListener(
 				this._type, this._wrapper, this._options.eventOptions);
 		}
 
-		remove(...args) {
+		remove() {
 			if (!this._attached) return;
 
-			const r = this._remove(...args);
+			this._remove();
 			this._attached = false;
-			return r;
 		}
 
 		_remove() {
@@ -74,12 +75,17 @@ const Listener = (function(){
 				this._type, this._wrapper, this._options.eventOptions);
 		}
 
-		_checkConditions() {
+		_checkConditions(evt) {
 			if (this._count < this._options.minEvents) {
 				this._count += 1;
 				return false;
 			} else {
 				this._count = 0;
+			}
+
+			const f = this._options.condition;
+			if (f && !f(evt)) {
+				return false;
 			}
 
 			return true;
@@ -89,9 +95,9 @@ const Listener = (function(){
 
 class PromiseListener extends Listener {
 	_attach() {
-		this._count = 0;
-
 		return new Promise((resolve, reject) => {
+			this._reject = reject;
+
 			const resolveWrapper = (value) => {
 				this._reject = null;
 				this.remove();
@@ -102,12 +108,13 @@ class PromiseListener extends Listener {
 				this.remove();
 				reject(reason);
 			};
-			this._reject = reject;
+
 			this._wrapper = (evt) => {
-				if (this._checkConditions()) {
-					this._listener(evt, this, resolveWrapper, rejectWrapper);
+				if (this._checkConditions(evt)) {
+					this._listener.call(this, evt, resolveWrapper, rejectWrapper);
 				}
 			};
+
 			this._target.addEventListener(
 				this._type, this._wrapper, this._options.eventOptions);
 		});
@@ -116,6 +123,7 @@ class PromiseListener extends Listener {
 	_remove() {
 		this._target.removeEventListener(
 			this._type, this._wrapper, this._options.eventOptions);
+
 		if (this._reject) {
 			this._reject();
 		}

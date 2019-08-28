@@ -3,7 +3,7 @@ import { isFunction } from "./type";
 import Options from "./options";
 import { Vector2 } from "./geometry";
 import { DragCommand, ResizeCommand, RotateCommand } from "./boxCommands";
-import { BoxWidget } from "./widget";
+import BoxWidget from "./boxWidget";
 
 export { DragWidget, ResizeWidget, RotateWidget };
 
@@ -14,9 +14,7 @@ class DragWidget extends BoxWidget {
 	}
 
 	_getArguments(evt) {
-		return [ this._getMousePosition(evt), 
-				 evt.shiftKey, 
-				 evt.ctrlKey ];
+		return [this._getMousePosition(evt), evt.shiftKey, evt.ctrlKey];
 	}
 }
 
@@ -52,6 +50,7 @@ const RotateWidget = (function(){
 	return class extends BoxWidget {
 		constructor(groups, options) {
 			super(groups);
+
 			this.options = new Options();
 			this.options.set(DEFAULTS, options);
 		}
@@ -63,7 +62,7 @@ const RotateWidget = (function(){
 		}
 
 		_getArguments(evt) {
-			return [ this._getMousePosition(evt), evt.shiftKey ];
+			return [this._getMousePosition(evt), evt.shiftKey];
 		}
 	};
 })();

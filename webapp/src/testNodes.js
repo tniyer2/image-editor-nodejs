@@ -1,8 +1,9 @@
 
-import { deepcopy } from "./utility";
 import { Slider } from "./input";
-import { ToolUI, EmptyToolUI } from "./toolUI";
-import { Node, NodeInput, NodeOutput } from "./node";
+import
+	{ Node, NodeInput, NodeOutput,
+		NodeSettingsContainer, NodeSettings }
+			from "./node";
 
 export { TestNode, AsyncTestNode };
 
@@ -20,46 +21,51 @@ class TestOutputType {
 	}
 }
 
-class TestNode extends Node {
-	constructor() {
-		const input = new NodeInput(TestOutputType),
-			  output = new NodeOutput(TestOutputType),
-			  ui = new EmptyToolUI();
-		super([input], [output], ui, null, { icon: "#icon-test-node" });
-	}
-
-	_cook(a) {
-		if (a) {
-			a.value += 1;
-		} else {
-			a = new TestOutputType(1);
-		}
-		return [a];
-	}
-}
-
-const AsyncTestNode = (function(){
-	const OPTIONS = { icon: "#icon-async-test-node" };
-	const UI_OPTIONS = { delay: { value: 1 } };
+const TestNode = (function(){
+	const OPTIONS = { icon: "#icon-test-node" };
 
 	return class extends Node {
 		constructor() {
 			const input = new NodeInput(TestOutputType),
 				  output = new NodeOutput(TestOutputType),
-				  ui = new AsyncTestUI();
-			super([input], [output], ui, deepcopy(UI_OPTIONS), OPTIONS);
+				  ui = new NodeSettingsContainer(),
+				  settings = new NodeSettings();
+
+			super([input], [output], ui, settings, OPTIONS);
 		}
 
-		_cook(a) {
-			const delay = this.uiOptions.get("delay");
-			return new Promise((resolve) => {
-				if (a) {
-					a.value += 1;
-				} else {
-					a = new TestOutputType(1);
-				}
-				const o = [a];
+		_cook(inputs) {
+			const a = inputs[0];
+			const val = a ? a.value+1 : 1;
+			const output = new TestOutputType(val);
 
+			return [output];
+		}
+	};
+})();
+
+const AsyncTestNode = (function(){
+	const OPTIONS = { icon: "#icon-async-test-node" };
+	const SETTINGS = { delay: { value: 1 } };
+
+	return class extends Node {
+		constructor() {
+			const input = new NodeInput(TestOutputType),
+				  output = new NodeOutput(TestOutputType),
+				  ui = new AsyncTestNodeSettings(),
+				  settings = new NodeSettings(SETTINGS);
+
+			super([input], [output], ui, settings, OPTIONS);
+		}
+
+		_cook(inputs) {
+			return new Promise((resolve) => {
+				const a = inputs[0];
+				const val = a ? a.value+1 : 1;
+				const output = new TestOutputType(val);
+				const o = [output];
+
+				const delay = this.settings.get("delay");
 				setTimeout(() => {
 					resolve(o);
 				}, 1000 * delay);
@@ -68,20 +74,25 @@ const AsyncTestNode = (function(){
 	};
 })(); 
 
-class AsyncTestUI extends ToolUI {
-	_createUI() {
-		const d = document.createElement("div");
-
+class AsyncTestNodeSettings extends NodeSettingsContainer {
+	_createDOM() {
 		const delay = this.options.get("delay");
-		const ds = new Slider(delay, 0, 5, { text: "delay", step: "0.5" });
-		ds.onChange.addListener((val) => {
+		const s = new Slider(delay, 0, 5, { text: "delay", step: "0.5" });
+
+		s.onChange.addListener((val) => {
 			this.options.tryPut("delay", val);
 		});
 		this.options.addListener("delay", (val) => {
-			ds.value = val;
+			s.value = val;
 		});
-		d.appendChild(ds.root);
 
-		return d;
+		this._box.element.appendChild(s.root);
+	}
+
+	_add(box) {
+		if (!this._initialized) {
+			this._createDOM();
+			this._initialized = true;
+		}
 	}
 }

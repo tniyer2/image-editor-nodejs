@@ -4,14 +4,15 @@ import { Box } from "./geometry";
 import { Tab } from "./area";
 
 const CLASSES =
-{ root: "node-editor",
+{ root: "node-editor-tab",
   search: "node-search",
   searchWrapper: "node-search__wrapper",
   searchWrapper2: "node-search__wrapper2",
   searchWrapper3: "node-search__wrapper3",
-  nodeSpace: "node-space-wrapper",
-  innerNodeSpace: "node-space",
-  linksParent: "links-parent" };
+  nodeSpace: "node-space",
+  innerNodeSpace: "node-space__inner",
+  linksParent: "node-space__links-parent" };
+
 const SEARCH_ICON = "#icon-search";
 
 export default class extends Tab {
