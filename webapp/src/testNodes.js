@@ -88,11 +88,4 @@ class AsyncTestNodeSettings extends NodeSettingsContainer {
 
 		this._box.element.appendChild(s.root);
 	}
-
-	_add(box) {
-		if (!this._initialized) {
-			this._createDOM();
-			this._initialized = true;
-		}
-	}
 }

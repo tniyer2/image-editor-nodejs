@@ -11,7 +11,7 @@ const SETTINGS = { image: { value: null, nostack: true } };
 export default class extends Node {
 	constructor() {
 		const output = new NodeOutput(LayerGroup),
-			  ui = new Settings(),
+			  ui = new ImageNodeSettings(),
 			  settings = new NodeSettings(SETTINGS);
 
 		super([], [output], ui, settings, OPTIONS);
@@ -31,7 +31,7 @@ export default class extends Node {
 	}
 }
 
-class Settings extends NodeSettingsContainer {
+class ImageNodeSettings extends NodeSettingsContainer {
 	_createDOM() {
 		const f = new FileInput(
 			{ text: "upload",
@@ -51,12 +51,5 @@ class Settings extends NodeSettingsContainer {
 			image.src = url;
 		});
 		this._box.element.appendChild(f.root);
-	}
-
-	_add(box) {
-		if (!this._initialized) {
-			this._createDOM();
-			this._initialized = true;
-		}
 	}
 }

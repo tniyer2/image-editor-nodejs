@@ -110,8 +110,12 @@ class Vector2 {
     	return new Vector2(f(this.x), f(this.y));
     }
 
+    copy() {
+    	return new Vector2(this.x, this.y);
+    }
+
     toString() {
-    	return "( " + this.x + ", " + this.y + ")";
+    	return "(" + this.x + ", " + this.y + ")";
     }
 }
 
@@ -224,9 +228,13 @@ const Box = (function(){
 				this.parent = parent;
 			}
 
-			this._angle = 0;
+			this._localTop = 0;
+			this._localLeft = 0;
+			this._rawWidth = 0;
+			this._rawHeight = 0;
 			this._localScaleX = 1;
 			this._localScaleY = 1;
+			this._angle = 0;
 
 			this.setOriginTopLeft();
 			this._initTransformUpdater();
@@ -382,7 +390,7 @@ const Box = (function(){
 		}
 
 		get localTop() {
-			let v = this._element.offsetTop;
+			let v = this._parent ? this._element.offsetTop : this._localTop;
 			if (this._origin === CENTER) {
 				v += this._getTopDiff();
 			}
@@ -394,10 +402,11 @@ const Box = (function(){
 				val -= this._getTopDiff();
 			}
 			this._element.style.top = val + "px";
+			this._localTop = val;
 		}
 
 		get localLeft() {
-			let v = this._element.offsetLeft;
+			let v = this._parent ? this._element.offsetLeft : this._localLeft;
 			if (this._origin === CENTER) {
 				v += this._getLeftDiff();
 			}
@@ -409,6 +418,7 @@ const Box = (function(){
 				val -= this._getLeftDiff();
 			}
 			this._element.style.left = val + "px";
+			this._localLeft = val;
 		}
 
 		get top() {
@@ -432,19 +442,29 @@ const Box = (function(){
 		}
 
 		get rawWidth() {
-			return this._element.offsetWidth;
+			if (this._parent) {
+				return this._element.offsetWidth;
+			} else {
+				return this._rawWidth;
+			}
 		}
 
 		set rawWidth(val) {
 			this._element.style.width = val + "px";
+			this._rawWidth = val;
 		}
 
 		get rawHeight() {
-			return this._element.offsetHeight;
+			if (this._parent) {
+				return this._element.offsetHeight;
+			} else {
+				return this._rawHeight;
+			}
 		}
 
 		set rawHeight(val) {
 			this._element.style.height = val + "px";
+			this._rawHeight = val;
 		}
 
 		get localWidth() {

@@ -1,18 +1,11 @@
 
-import { isUdf } from "./type";
+import { isUdf, isFunction, isArray } from "./type";
 
-export { clamp, deepcopy, extend, removeDuplicates, show, hide, $,
-         isDescendant, setBooleanAttribute, stopBubbling, AddToEventLoop,
-         createSVG, toPrecision };
+export { clamp, extend, removeDuplicates, partition,
+         show, hide, $, isDescendant, setBooleanAttribute,
+         stopBubbling, AddToEventLoop, createSVG, toPrecision };
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
-
-function deepcopy(obj) {
-    if (typeof obj !== "object") {
-        throw new Error("Invalid argument.");
-    }
-    return JSON.parse(JSON.stringify(obj));
-}
 
 function extend() {
     const master = {};
@@ -29,6 +22,27 @@ function extend() {
 
 function removeDuplicates(arr) {
     return Array.from(new Set(arr));
+}
+
+function partition(arr, cb, thisArg) {
+    if (!isArray(arr)) {
+        throw new Error("Invalid argument.");
+    } else if (!isFunction(cb)) {
+        throw new Error("Invalid argument.");
+    }
+
+    return arr.reduce((acc, cur, index) => {
+        let b;
+        if (isUdf(thisArg)) {
+            b = cb(cur, index, arr);
+        } else {
+            b = cb.call(thisArg, cur, index, arr);
+        }
+
+        acc[b?0:1].push(cur);
+
+        return acc;
+    }, [[], []]);
 }
 
 function show(elm) {

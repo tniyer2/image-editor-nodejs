@@ -1,15 +1,14 @@
 
-import { isUdf, isFunction, isType, isArray } from "./type";
-import { extend, deepcopy, createSVG, stopBubbling, AddToEventLoop } from "./utility";
+import { isUdf, isObject, isFunction, isType, isArray } from "./type";
+import { extend, createSVG, stopBubbling, AddToEventLoop } from "./utility";
 import { MyEvent, addEvent } from "./event";
 import { Dictionary } from "./dictionary";
 import { Box, Vector2 } from "./geometry";
 import { Command } from "./command";
 import Container from "./container";
 
-export
-	{ Node, NodeInput, MultiNodeInput, NodeOutput,
-		Link, NodeSettingsContainer, NodeSettings };
+export { Node, NodeInput, MultiNodeInput, NodeOutput,
+		 Link, NodeSettingsContainer, NodeSettings };
 
 const Link = (function(){
 	const CLASSES =
@@ -410,7 +409,10 @@ const Node = (function(){
 			this.settings = settings;
 			this._options = extend(DEFAULTS, options);
 
-			this.dirty = true;
+			this._dirtyInput = true;
+			this._dirtySettings = false;
+			this._dirtySettingsName = null;
+			this._dirtySettingsObject = null;
 			this._selected = false;
 			this._locked = false;
 			this._visible = false;
@@ -423,43 +425,44 @@ const Node = (function(){
 		_initSettings() {
 			this.ui.options = this.settings;
 
-			const put = this.settings.put.bind(this.settings);
-			const push = this.settings.push.bind(this.settings);
-
-			this.settings.onTryPut = (name, oldValue, newValue, meta) => {
-				const callback = () => {
-					if (meta.noupdate !== true) {
-						this.dirty = true;
-						this.manager.updateNetwork();
-					}
-				};
-
-				const c =
-					new OptionCommand(
-						put, name, oldValue, newValue, callback);
-
-				if (meta.nostack !== true) {
-					this.manager.stack.add(c);
+			const onCommand = (nodeSettings, name, meta) => {
+				if (this.manager.nodes.active !== this) {
+					this.manager.nodes.select(this);
 				}
-				c.execute();
+
+				if (meta.noupdate !== true) {
+					this._dirtySettings = true;
+					this._dirtySettingsName = name;
+					this._dirtySettingsObject = nodeSettings;
+					this.manager.updateNetwork();
+				}
 			};
 
-			this.settings.onTryPush = (name, item, adding, meta) => {
-				const callback = () => {
-					if (meta.noupdate !== true) {
-						this.dirty = true;
-						this.manager.updateNetwork();
-					}
-				};
-
-				const c =
-					new ArrayOptionCommand(
-						push, name, item, adding, callback);
-
+			const executeCommand = (command, meta) => {
 				if (meta.nostack !== true) {
-					this.manager.stack.add(c);
+					this.manager.stack.add(command);
 				}
-				c.execute();
+				command.execute();
+			};
+
+			this.settings.onTryPut = (nodeSettings, name, oldValue, newValue, meta) => {
+				const cb = onCommand.bind(null, nodeSettings, name, meta);
+				const put = nodeSettings.put.bind(nodeSettings);
+				const command =
+					new OptionCommand(
+						put, name, oldValue, newValue, cb);
+
+				executeCommand(command, meta);
+			};
+
+			this.settings.onTryPush = (nodeSettings, name, item, adding, meta) => {
+				const cb = onCommand.bind(null, nodeSettings, name, meta);
+				const push = nodeSettings.push.bind(nodeSettings);
+				const command =
+					new ArrayOptionCommand(
+						push, name, item, adding, cb);
+
+				executeCommand(command, meta);
 			};
 		}
 
@@ -522,7 +525,7 @@ const Node = (function(){
 		_addListeners() {
 			this.inputs.forEach((input) => {
 				input.onChange.addListener(() => {
-					this.dirty = true;
+					this._dirtyInput = true;
 				});
 			});
 
@@ -539,6 +542,10 @@ const Node = (function(){
 				if (locked()) return;
 				this.locked = !this._locked;
 			});
+		}
+
+		get dirty() {
+			return this._dirtyInput || this._dirtySettings;
 		}
 
 		get selected() {
@@ -625,7 +632,10 @@ const Node = (function(){
 				this.outputs.forEach((o, i) => {
 					o.value = results[i];
 				});
-				this.dirty = false;
+				this._dirtyInput = false;
+				this._dirtySettings = false;
+				this._dirtySettingsName = null;
+				this._dirtySettingsObject = null;
 			});
 		}
 	};
@@ -636,166 +646,205 @@ class NodeSettingsContainer extends Container {
 		super();
 		this._box.element.classList.add("node-settings");
 	}
-}
 
-class NodeSettings {
-    constructor(proto) {
-    	if (!isUdf(proto) && typeof proto !== "object") {
-            throw new Error("Invalid argument.");
-        }
-
-        if (proto) {
-        	proto = deepcopy(proto);
-	        Object.values(proto).forEach((val) => {
-	        	if (val.array === true) {
-	        		val.value = [];
-	        	}
-	        });
-        }
-    	this._inner = Object.create(proto || null);
-
-        this._events = new Dictionary();
-        this._onTryPut = null;
-        this._onTryPush = null;
-    }
-
-    get onTryPut() {
-    	return this._onTryPut;
-    }
-
-    set onTryPut(val) {
-    	if (val !== null && !isFunction(val)) {
-    		throw new Error("Invalid argument.");
-    	}
-		this._onTryPut = val;
-    }
-
-    get onTryPush() {
-    	return this._onTryPush;
-    }
-
-    set onTryPush(val) {
-    	if (val !== null && !isFunction(val)) {
-    		throw new Error("Invalid argument.");
-    	}
-		this._onTryPush = val;
-    }
-
-    _updateEvent(name, value) {
-        if (this._events.has(name)) {
-            this._events.get(name).trigger(value);
-        }
-    }
-
-    linkTo(other) {
-    	if (!(other instanceof NodeSettings)) {
-    		throw new Error("Invalid argument.");
-    	}
-    	this._onTryPut = other.onTryPut;
-    	this._onTryPush = other.onTryPush;
-    }
-
-    has(name) {
-    	return name in this._inner;
-    }
-
-    get(name) {
-    	return this._inner[name].value;
-    }
-
-    tryPut(name, newValue) {
-    	if (!this.has(name)) {
-    		throw new Error("NodeSettings does not contain key: '" + name + "'");
-    	}
-
-		const p = this._inner[name];
-		if (p.array === true) {
-    		throw new Error("Cannot call function on key: '" + name + "'");
-    	}
-
-    	if (this._onTryPut) {
-    		this._onTryPut(name, p.value, newValue, p);
-    	} else {
-    		this.put(name, newValue);
-    	}
-    }
-
-    put(name, value) {
-		if (!this.has(name)) {
-    		throw new Error("NodeSettings does not contain key: '" + name + "'");
-    	}
-
-    	const p = this._inner[name];
-    	if (p.array === true) {
-    		throw new Error("Cannot call function on key: '" + name + "'");
-    	}
-
-    	p.value = value;
-		this._updateEvent(name, value);
+	get box() {
+		return this._box;
 	}
 
-	tryPush(name, item, adding) {
-    	if (!this.has(name)) {
-    		throw new Error("NodeSettings does not contain key: '" + name + "'");
-    	} else if (typeof adding !== "boolean") {
-    		throw new Error("Invalid argument.");
-    	}
-
-		const p = this._inner[name];
-		if (p.array !== true) {
-    		throw new Error("Cannot call function on key: '" + name + "'");
-    	}
-
-    	if (this._onTryPush) {
-    		this._onTryPush(name, item, adding, p);
-    	} else {
-    		this.push(name, item, adding);
-    	}
-    }
-
-    push(name, item, adding) {
-		if (!this.has(name)) {
-    		throw new Error("NodeSettings does not contain key: '" + name + "'");
-    	} else if (typeof adding !== "boolean") {
-    		throw new Error("Invalid argument.");
-    	}
-
-    	const p = this._inner[name];
-    	if (p.array !== true) {
-    		throw new Error("Cannot call function on key: '" + name + "'");
-    	}
-
-    	const arr = p.value;
-    	if (adding) {
-    		arr.push(item);
-    	} else {
-    		const i = arr.indexOf(o => o === item);
-    		if (i === -1) {
-    			throw new Error("Could not find item in key: '" + name + "'");
-    		}
-    		arr.splice(i, 1);
-    	}
-
-		this._updateEvent(name, arr);
+	_add(box) {
+		if (!this._initialized) {
+			this._createDOM();
+			this._initialized = true;
+		}
 	}
 
-    addListener(name, listener) {
-        let event;
-        if (this._events.has(name)) {
-            event = this._events.get(name);
-        } else {
-            event = new MyEvent();
-            this._events.put(name, event);
-        }
-        event.interface.addListener(listener);
-    }
-
-    removeListener(name, listener) {
-        if (this._events.has(name)) {
-            this._events.get(name).interface.removeListener(listener);
-        }
-    }
+	_createDOM() {}
 }
+
+const NodeSettings = (function(){
+	function deepcopy(p) {
+		if (isObject(p)) {
+			if (p.constructor === Object) {
+				return Object.keys(p).reduce((acc, k) => {
+					acc[k] = deepcopy(p[k]);
+					return acc;
+				}, {});
+			} else if (isFunction(p.deepcopy)) {
+				return p.deepcopy();
+			} else if (isFunction(p.copy)) {
+				return p.copy();
+			}
+		}
+
+		return p;
+	}
+
+	return class {
+	    constructor(proto) {
+	    	if (!isUdf(proto) && typeof proto !== "object") {
+	            throw new Error("Invalid argument.");
+	        }
+
+	        if (proto) {
+	        	proto = deepcopy(proto);
+		        Object.values(proto).forEach((val) => {
+		        	if (val.array === true) {
+		        		val.value = [];
+		        	}
+		        });
+	        }
+	    	this._inner = Object.create(proto || null);
+
+	        this._events = new Dictionary();
+	        this._onTryPut = null;
+	        this._onTryPush = null;
+	    }
+
+	    get onTryPut() {
+	    	return this._onTryPut;
+	    }
+
+	    set onTryPut(val) {
+	    	if (val !== null && !isFunction(val)) {
+	    		throw new Error("Invalid argument.");
+	    	}
+			this._onTryPut = val;
+	    }
+
+	    get onTryPush() {
+	    	return this._onTryPush;
+	    }
+
+	    set onTryPush(val) {
+	    	if (val !== null && !isFunction(val)) {
+	    		throw new Error("Invalid argument.");
+	    	}
+			this._onTryPush = val;
+	    }
+
+	    _updateEvent(name, ...args) {
+	        if (this._events.has(name)) {
+	            this._events.get(name).trigger(...args);
+	        }
+	    }
+
+	    linkTo(other) {
+	    	if (!(other instanceof NodeSettings)) {
+	    		throw new Error("Invalid argument.");
+	    	}
+	    	this._onTryPut = other.onTryPut;
+	    	this._onTryPush = other.onTryPush;
+	    }
+
+	    has(name) {
+	    	return name in this._inner;
+	    }
+
+	    get(name) {
+	    	if (!this.has(name)) {
+	    		throw new Error("Invalid key: '" + name + "'");
+	    	}
+	    	return this._inner[name].value;
+	    }
+
+	    tryPut(name, newValue) {
+	    	if (!this.has(name)) {
+	    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+	    	}
+
+			const p = this._inner[name];
+			if (p.array === true) {
+	    		throw new Error("Cannot call function on key: '" + name + "'");
+	    	}
+
+	    	if (this._onTryPut) {
+	    		this._onTryPut(this, name, p.value, newValue, p);
+	    	} else {
+	    		this.put(name, newValue);
+	    	}
+	    }
+
+	    put(name, value, fromTryPut=false) {
+			if (!this.has(name)) {
+	    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+	    	} else if (typeof fromTryPut !== "boolean") {
+	    		throw new Error("Invalid argument.");
+	    	}
+
+	    	const p = this._inner[name];
+	    	if (p.array === true) {
+	    		throw new Error("Cannot call function on key: '" + name + "'");
+	    	}
+
+	    	p.value = value;
+			this._updateEvent(name, value, fromTryPut);
+		}
+
+		tryPush(name, item, adding=true) {
+	    	if (!this.has(name)) {
+	    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+	    	} else if (typeof adding !== "boolean") {
+	    		throw new Error("Invalid argument.");
+	    	}
+
+			const p = this._inner[name];
+			if (p.array !== true) {
+	    		throw new Error("Cannot call function on key: '" + name + "'");
+	    	}
+
+	    	if (this._onTryPush) {
+	    		this._onTryPush(this, name, item, adding, p);
+	    	} else {
+	    		this.push(name, item, adding);
+	    	}
+	    }
+
+	    push(name, item, adding=true, fromTryPut=false) {
+			if (!this.has(name)) {
+	    		throw new Error("NodeSettings does not contain key: '" + name + "'");
+	    	} else if (typeof adding !== "boolean") {
+	    		throw new Error("Invalid argument.");
+	    	} else if (typeof fromTryPut !== "boolean") {
+	    		throw new Error("Invalid argument.");
+	    	}
+
+	    	const p = this._inner[name];
+	    	if (p.array !== true) {
+	    		throw new Error("Cannot call function on key: '" + name + "'");
+	    	}
+
+	    	const arr = p.value;
+	    	if (adding) {
+	    		arr.push(item);
+	    	} else {
+	    		const i = arr.indexOf(item);
+	    		if (i === -1) {
+	    			throw new Error("Could not find item in key: '" + name + "'");
+	    		}
+	    		arr.splice(i, 1);
+	    	}
+
+			this._updateEvent(name, item, adding, fromTryPut);
+		}
+
+	    addListener(name, listener) {
+	        let event;
+	        if (this._events.has(name)) {
+	            event = this._events.get(name);
+	        } else {
+	            event = new MyEvent();
+	            this._events.put(name, event);
+	        }
+	        event.interface.addListener(listener);
+	    }
+
+	    removeListener(name, listener) {
+	        if (this._events.has(name)) {
+	            this._events.get(name).interface.removeListener(listener);
+	        }
+	    }
+	};
+})();
 
 class OptionCommand extends Command {
 	constructor(putFunction, name, oldValue, newValue, onChange) {
@@ -808,13 +857,13 @@ class OptionCommand extends Command {
 		this._onChange = onChange;
 	}
 
-	_do() {
-		this._put(this._name, this._newValue);
+	_do(firstTime) {
+		this._put(this._name, this._newValue, firstTime);
 		this._onChange();
 	}
 
 	_execute() {
-		this._do();
+		this._do(true);
 	}
 
 	_undo() {
@@ -823,7 +872,7 @@ class OptionCommand extends Command {
 	}
 
 	_redo() {
-		this._do();
+		this._do(false);
 	}
 }
 
@@ -838,21 +887,21 @@ class ArrayOptionCommand extends Command {
 		this._onChange = onChange;
 	}
 
-	_do(bool) {
-		const add = bool === this._adding;
-		this._push(this._name, this._item, add);
+	_do(add, firstTime) {
+		add = add === this._adding;
+		this._push(this._name, this._item, add, firstTime);
 		this._onChange();
 	}
 
 	_execute() {
-		this._do(true);
+		this._do(true, true);
 	}
 
 	_undo() {
-		this._do(false);
+		this._do(false, false);
 	}
 
 	_redo() {
-		this._do(true);
+		this._do(true, false);
 	}
 }

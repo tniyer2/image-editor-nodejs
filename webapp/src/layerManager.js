@@ -25,6 +25,9 @@ export default class {
 		this.layers.onAdd.addListener((layer) => {
 			this.tab.layerParent.appendChild(layer.box.element);
 			layer.box.parent = this.tab.innerViewport;
+			if (layer.canvas.parentElement !== layer.box.element) {
+				layer.box.element.appendChild(layer.canvas);
+			}
 
 			layer.p_action = new MouseAction(
 				layer.box.element,
@@ -83,12 +86,7 @@ export default class {
 			});
 
 			const cinfo = layerGroup.canvasInfo;
-			let dim;
-			if (cinfo) {
-				dim = new Vector2(cinfo.width, cinfo.height);
-			} else {
-				dim = layerGroup.layers[0].box.localDimensions;
-			}
+			const dim = new Vector2(cinfo.width, cinfo.height);
 
 			this.tab.innerViewport.localScale = Vector2.one;
 			this.tab.innerViewport.localDimensions = dim;

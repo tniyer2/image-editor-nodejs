@@ -20,6 +20,7 @@ import { SelectWidget, DeleteWidget,
 import { TestNode, AsyncTestNode } from "./testNodes";
 import ImageNode from "./imageNode";
 import MergeNode from "./mergeNode";
+import TransformNode from "./transformNode";
 
 const NodeCollection = Collection([BASE, SELECT,
 { type: Collection.SINGLE,
@@ -224,6 +225,7 @@ export default class {
 		n.put("async_test_node", AsyncTestNode);
 		n.put("image", ImageNode);
 		n.put("merge", MergeNode);
+		n.put("transform", TransformNode);
 	}
 
 	_createAutoComplete() {

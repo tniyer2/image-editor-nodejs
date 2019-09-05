@@ -119,6 +119,60 @@ $slider-height: $regular-font-size;
 		border-bottom-width: 1px; }
 }
 
+.dynamic-list {
+	@extend %remove-list-defaults;
+	display: flex;
+	flex-direction: column;
+
+	.item {}
+	.item-space {
+		display: inline-block; }
+	.remove-btn-parent {
+		display: inline-block;
+		width: 30px; }
+	.remove-btn {
+		@extend %remove-button-defaults;
+		width: 20px;
+		height: 20px; }
+	.add-btn-parent {}
+	.add-btn {
+		@extend %remove-button-defaults;
+		width: 20px;
+		height: 20px; }
+	svg {
+		@extend %max-size;
+		fill: black; }
+	svg:hover {
+		fill: $blue; }
+}
+
+.text-input {
+	display: flex;
+
+	.text {
+		display: inline-block;
+		@extend %regular-font;
+	}
+	input {
+		display: inline-block; }
+}
+.text-input.inverse {
+	flex-direction: row-reverse; }
+
+.dropdown {
+	display: flex;
+
+	.text {
+		display: inline-block;
+		@extend %regular-font; }
+	select {
+		display: inline-block; }
+	option {
+		@extend %regular-font; }
+}
+.dropdown.inverse {
+	flex-direction: row-reverse; }
+
 .color-picker {
 	position: fixed;
 	top: 0;

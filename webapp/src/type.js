@@ -1,14 +1,32 @@
 
-export { isUdf, isNumber, isType, isArray, isFunction, isSubclass };
+export
+	{ isUdf, isNumber, isObject,
+	  isFunction, isType, isArray, isSubclass };
 
-function isUdf(a) { return typeof a === "undefined"; }
+function isUdf(a) {
+	return typeof a === "undefined";
+}
 
-function isNumber(a) { return typeof a === "number" && !isNaN(a); }
+function isNumber(a) {
+	return typeof a === "number" && !isNaN(a);
+}
 
-function isType(a, type) { return a !== null && typeof a === "object" && a.constructor === type; }
+function isObject(a) {
+	return a !== null && typeof a === "object";
+}
 
-function isArray(a) { return isType(a, Array); }
+function isFunction(a) {
+	return typeof a === "function";
+}
 
-function isFunction(a) { return typeof a === "function"; }
+function isType(a, type) {
+	return isObject(a) && a.constructor === type;
+}
 
-function isSubclass(a, b) { return isFunction(a) && a.prototype instanceof b; }
+function isArray(a) {
+	return isType(a, Array);
+}
+
+function isSubclass(a, b) {
+	return isFunction(a) && a.prototype instanceof b;
+}

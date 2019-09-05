@@ -1,17 +1,20 @@
 
-import { isArray } from "./type";
-import { show, hide, setBooleanAttribute, isDescendant } from "./utility";
+import { isNumber, isObject, isFunction, isArray } from "./type";
+import { show, hide, setBooleanAttribute, isDescendant, createSVG }
+	from "./utility";
 import { addEvent } from "./event";
 import { Listener } from "./listener";
 import Options from "./options";
 
-export { Toggle, Slider, FileInput, FloatingList };
+export { Toggle, Slider, FileInput,
+		 FloatingList, DynamicList, TextInput, Dropdown };
 
 const Toggle = (function(){
-	const CLASSES =
-	{ root: "toggle", 
-	  text: "toggle__text", 
-	  slider: "toggle__slider" };
+	const CLASSES = {
+		root: "toggle", 
+		text: "toggle__text", 
+		slider: "toggle__slider"
+	};
 	const DEFAULTS = { text: "" };
 
 	return class {
@@ -20,8 +23,9 @@ const Toggle = (function(){
 			this.options = new Options();
 			this.options.set(DEFAULTS, options);
 
-			this._createDOM();
 			addEvent(this, "onToggle");
+
+			this._createDOM();
 			this._addListeners();
 		}
 
@@ -40,7 +44,7 @@ const Toggle = (function(){
 
 			const text = document.createElement("span");
 			text.classList.add(CLASSES.text);
-			text.innerText = this.options.get("text");
+			text.textContent = this.options.get("text");
 			d.appendChild(text);
 
 			const label = document.createElement("label");
@@ -67,14 +71,16 @@ const Toggle = (function(){
 })();
 
 const Slider = (function(){
-	const CLASSES =
-	{ root: "slider",
-	  text: "slider__text" };
+	const CLASSES = {
+		root: "slider",
+		text: "slider__text"
+	};
 
-	const DEFAULTS =
-	{ text: "",
-	  reverse: false,
-	  step: null };
+	const DEFAULTS = {
+		text: "",
+		reverse: false,
+		step: null
+	};
 
 	return class {
 		constructor(val, min, max, options) {
@@ -84,8 +90,9 @@ const Slider = (function(){
 			this.options = new Options();
 			this.options.set(DEFAULTS, options);
 
-			this._createDOM();
 			addEvent(this, "onChange");
+
+			this._createDOM();
 			this._addListeners();
 		}
 
@@ -103,7 +110,10 @@ const Slider = (function(){
 			this.root = d;
 
 			const span = document.createElement("span");
-			span.innerText = this.options.get("text");
+			const text = this.options.get("text");
+			if (text) {
+				span.textContent = text;
+			}
 			span.classList.add(CLASSES.text);
 			d.appendChild(span);
 
@@ -131,15 +141,17 @@ const Slider = (function(){
 })();
 
 const FileInput = (function(){
-	const CLASSES =
-	{ root: "file-input",
-	  text: "text" };
+	const CLASSES = {
+		root: "file-input",
+		text: "text"
+	};
 
-	const DEFAULTS =
-	{ text: "",
-	  accept: "",
-	  multiple: false,
-	  clear: true };
+	const DEFAULTS = {
+		text: "",
+		accept: "",
+		multiple: false,
+		clear: true
+	};
 
 	return class {
 		constructor(options) {
@@ -148,8 +160,9 @@ const FileInput = (function(){
 
 			this.value  = null;
 
-			this._createDOM();
 			addEvent(this, "onChange");
+
+			this._createDOM();
 			this._addListeners();
 		}
 
@@ -168,7 +181,10 @@ const FileInput = (function(){
 			this._input = input;
 
 			const span = document.createElement("span");
-			span.innerText = this.options.get("text");
+			const text = this.options.get("text");
+			if (text) {
+				span.textContent = text;
+			}
 			span.classList.add(CLASSES.text);
 			d.appendChild(span);
 		}
@@ -254,7 +270,7 @@ const FloatingList = (function(){
 
 			this._values.forEach((val, i) => {
 				const li = document.createElement("li");
-				li.innerText = val;
+				li.textContent = val;
 				this._list.appendChild(li);
 				this._listElements.push(li);
 
@@ -313,6 +329,334 @@ const FloatingList = (function(){
 
 			this._clickOutListener.remove();
 			hide(this.root);
+		}
+	};
+})();
+
+const DynamicList = (function(){
+	const CLASSES = {
+		root: "dynamic-list",
+		item: "item",
+		itemSpace: "item-space",
+		removeBtnParent: "remove-btn-parent",
+		removeBtn: "remove-btn",
+		addBtnParent: "add-btn-parent",
+		addBtn: "add-btn"
+	};
+
+	const ADD_ICON = "#icon-plus",
+		  REMOVE_ICON = "#icon-minus";
+
+	return class {
+		constructor() {
+			this._items = [];
+			this._onAdd = null;
+			this._onRemove = null;
+
+			this._createDOM();
+			this._addListeners();
+		}
+
+		get length() {
+			return this._items.length;
+		}
+
+		set onAdd(val) {
+			if (val !== null && !isFunction(val)) {
+				throw new Error("Invalid argument.");
+			}
+			this._onAdd = val;
+		}
+
+		set onRemove(val) {
+			if (val !== null && !isFunction(val)) {
+				throw new Error("Invalid argument.");
+			}
+			this._onRemove = val;
+		}
+
+		_createDOM() {
+			this.root = document.createElement("ul");
+			this.root.classList.add(CLASSES.root);
+
+			const p = document.createElement("li");
+			p.classList.add(CLASSES.addBtnParent);
+			this.root.appendChild(p);
+			this._addBtnParent = p;
+
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.classList.add(CLASSES.addBtn);
+			p.appendChild(btn);
+			this._addBtn = btn;
+
+			const svg = createSVG(ADD_ICON);
+			btn.appendChild(svg);
+		}
+
+		_addListeners() {
+			this._addBtn.addEventListener("click", () => {
+				if (this._onAdd) {
+					this._onAdd();
+				}
+			});
+		}
+
+		_createItem(info) {
+			const item = document.createElement("li");
+			item.classList.add(CLASSES.item);
+			this.root.insertBefore(item, this._addBtnParent);
+			info.item = item;
+
+			const itemSpace = document.createElement("div");
+			itemSpace.classList.add(CLASSES.itemSpace);
+			itemSpace.appendChild(info.element);
+			item.appendChild(itemSpace);
+
+			const p = document.createElement("div");
+			p.classList.add(CLASSES.removeBtnParent);
+			item.appendChild(p);
+
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.classList.add(CLASSES.removeBtn);
+			p.appendChild(btn);
+
+			const svg = createSVG(REMOVE_ICON);
+			btn.appendChild(svg);
+
+			const listener = () => {
+				if (this._onRemove) {
+					this._onRemove(info.element, info.data);
+				}
+			};
+			btn.addEventListener("click", listener);
+			info.removeListeners = () => {
+				btn.removeEventListener("click", listener);
+			};
+
+			this._items.push(info);
+		}
+
+		add(info) {
+			if (!isObject(info)) {
+				throw new Error("Invalid argument.");
+			} else if (!(info.element instanceof HTMLElement)) {
+				throw new Error("Invalid argument.");
+			}
+
+			const copy = Object.assign({}, info);
+			this._createItem(copy);
+		}
+
+		remove(element) {
+			const i = this._items.findIndex(o => o.element === element);
+			if (i === -1) {
+				throw new Error("Could not find argument 'element'");
+			}
+
+			const info = this._items[i];
+			info.removeListeners();
+			info.element.remove();
+			info.item.remove();
+
+			this._items.splice(i, 1);
+		}
+	};
+})();
+
+const TextInput = (function(){
+	const CLASSES = {
+		root: "text-input",
+		inverse: "inverse",
+		text: "text"
+	};
+
+	const DEFAULTS = {
+		text: null,
+		textRight: false,
+		placeholder: null,
+		value: null,
+		numerical: false
+	};
+
+	return class {
+		constructor(options) {
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
+			this._numerical = this.options.get("numerical") === true;
+
+			addEvent(this, "onChange");
+
+			this._createDOM();
+			this._addListeners();
+		}
+
+		get value() {
+			const val = this._input.value;
+
+			if (this._numerical) {
+				return Number(val);
+			} else {
+				return val;
+			}
+		}
+
+		set value(val) {
+			if (this._numerical) {
+				if (!isNumber(val)) {
+					throw new Error("Invalid argument.");
+				}
+			} else {
+				if (typeof val !== "string") {
+					throw new Error("Invalid argument.");
+				}
+			}
+
+			this._input.value = val;
+		}
+
+		_createDOM() {
+			this.root = document.createElement("div");
+			this.root.classList.add(CLASSES.root);
+			if (this.options.get("textRight")) {
+				this.root.classList.add(CLASSES.inverse);
+			}
+
+			const span = document.createElement("span");
+			const text = this.options.get("text");
+			if (text) {
+				span.textContent = text;
+			}
+			span.classList.add(CLASSES.text);
+			this.root.appendChild(span);
+
+			const input = document.createElement("input");
+			input.type = "text";
+			const placeholder = this.options.get("placeholder");
+			if (placeholder) {
+				input.placeholder = placeholder;
+			}
+			this.root.appendChild(input);
+			this._input = input;
+			const val = this.options.get("value");
+			if (val !== null) {
+				this.value = val;
+			}
+		}
+
+		_addListeners() {
+			if (this._numerical) {
+				this._input.addEventListener("change", (evt) => {
+					const val = Number(evt.target.value);
+					if (isNumber(val)) {
+						this._onChange.trigger(val);
+					} else {
+						evt.target.value = Number(this.options.get("value")) || 0;
+					}
+				});
+			} else {
+				this._input.addEventListener("change", (evt) => {
+					this._onChange.trigger(evt.target.value);
+				});
+			}
+		}
+	};
+})();
+
+const Dropdown = (function(){
+	const CLASSES = {
+		root: "dropdown",
+		inverse: "inverse",
+		text: "text"
+	};
+
+	const DEFAULTS = {
+		text: null,
+		textRight: false,
+		selectedIndex: null
+	};
+
+	return class {
+		constructor(values, options) {
+			if (!isArray(values) ||
+					!values.every(v => 
+						isObject(v) || typeof v === "string")) {
+				throw new Error("Invalid argument.");
+			}
+
+			this._values = values;
+			this.options = new Options();
+			this.options.set(DEFAULTS, options);
+
+			addEvent(this, "onSelect");
+
+			this._createDOM();
+			this._addListeners();
+		}
+
+		get value() {
+			const i = this._selectElement.selectedIndex;
+			if (i === -1) {
+				return null;
+			} else {
+				return this._selectElement.options[i].value;
+			}
+		}
+
+		set value(val) {
+			if (Number.isInteger(val) && val >= -1) {
+				this._selectElement.selectedIndex = val;
+			} else if (typeof val === "string") {
+				this._selectElement.selectedIndex =
+					Array.from(this._selectElement.options)
+						.findIndex(elm => elm.textContent === val);
+			} else {
+				throw new Error("Invalid argument.");
+			}
+		}
+
+		_createDOM() {
+			this.root = document.createElement("div");
+			this.root.classList.add(CLASSES.root);
+			if (this.options.get("textRight") === true) {
+				this.root.classList.add(CLASSES.inverse);
+			}
+
+			const span = document.createElement("span");
+			const text = this.options.get("text");
+			if (text) {
+				span.textContent = text;
+			}
+			span.classList.add(CLASSES.text);
+			this.root.appendChild(span);
+
+			const select = document.createElement("select");
+			this.root.appendChild(select);
+			this._selectElement = select;
+
+			this._values.forEach((val) => {
+				const option = document.createElement("option");
+				if (isObject(val)) {
+					option.textContent = val.text;
+					option.value = val.value;
+				} else {
+					option.textContent = val;
+					option.value = val;
+				}
+				select.appendChild(option);
+			});
+
+			const index = this.options.get("selectedIndex");
+			if (Number.isInteger(index)) {
+				select.selectedIndex = index;
+			}
+		}
+
+		_addListeners() {
+			this._selectElement.addEventListener("change", () => {
+				this._onSelect.trigger(this.value);
+			});
 		}
 	};
 })();

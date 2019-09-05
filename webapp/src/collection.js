@@ -1,5 +1,5 @@
 
-import { isArray } from "./type";
+import { isObject, isArray } from "./type";
 import { addEvent } from "./event";
 
 export { Collection, BASE, SELECT };
@@ -8,7 +8,7 @@ const Collection = (function(){
 	const SINGLE = 0, MULTIPLE = 1;
 
 	const Inner2 = function (info) {
-		if (!isArray(info) || !info.every(o => typeof o === "object")) {
+		if (!isArray(info) || !info.every(o => isObject(o))) {
 			throw new Error("Invalid argument.");
 		}
 

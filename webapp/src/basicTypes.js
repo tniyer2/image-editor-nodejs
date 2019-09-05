@@ -188,13 +188,17 @@ const Layer = (function(){
 				throw new Error("Invalid argument.");
 			}
 
-			if (isUdf(box)) {
-				const d = document.createElement("div");
-				d.classList.add(CLASSES.layer);
-				this.box = new Box(d);
+			const d = document.createElement("div");
+			d.classList.add(CLASSES.layer);
+			this.box = new Box(d);
 
-				this.box.localWidth = this.canvas.width;
-				this.box.localHeight = this.canvas.height;
+			this.box.localWidth = this.canvas.width;
+			this.box.localHeight = this.canvas.height;
+
+			if (!isUdf(box)) {
+				this.box.localPosition = box.localPosition;
+				this.box.localScale = box.localScale;
+				this.box.localAngle = box.localAngle;
 			}
 
 			this.box.element.appendChild(this.canvas);
@@ -215,11 +219,13 @@ const Layer = (function(){
 		}
 
 		copy() {
+			return new Layer(this.canvas, this.box);
+		}
+
+		deepcopy() {
 			const canvas =
 			createCanvas(
-				this.canvas,
-				this.canvas.width,
-				this.canvas.height);
+				this.canvas, this.canvas.width, this.canvas.height);
 
 			return new Layer(canvas, this.box);
 		}
@@ -227,7 +233,7 @@ const Layer = (function(){
 })();
 
 class LayerGroup {
-	constructor(layers, cinfo=null) {
+	constructor(layers, cinfo={}) {
 		if (!isArray(layers) || !layers.every(l => l instanceof Layer)) {
 			throw new Error("Invalid argument.");
 		} else if (typeof cinfo !== "object") {
@@ -235,6 +241,12 @@ class LayerGroup {
 		}
 
 		this.layers = layers;
+
+		if (!isNumber(cinfo.width) || !isNumber(cinfo.height)) {
+			const v = this.layers[0].box.localDimensions;
+			cinfo.width = v.x;
+			cinfo.height = v.y;
+		}
 		this.canvasInfo = cinfo;
 	}
 
@@ -250,9 +262,9 @@ class LayerGroup {
 
 		const layers = this.layers.map((l, i) => {
 			if (udf || !arr.find(j => j === i)) {
-				return l;
-			} else {
 				return l.copy();
+			} else {
+				return l.deepcopy();
 			}
 		});
 
