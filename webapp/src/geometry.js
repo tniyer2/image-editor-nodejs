@@ -95,6 +95,10 @@ class Vector2 {
     	return (this.x * v.x) + (this.y * v.y);
     }
 
+    project(u, v) {
+    	return new Vector2(this.dot(u), this.dot(v));
+    }
+
 	// a should be in radians
     rotate(a) {
     	const cs = Math.cos(a),
@@ -114,25 +118,52 @@ class Vector2 {
     	return new Vector2(this.x, this.y);
     }
 
+    equals(v) {
+    	return this.x === v.x && this.y === v.y;
+    }
+
     toString() {
     	return "(" + this.x + ", " + this.y + ")";
     }
 }
 
-function createVectorProperty(obj, publicName, xName, yName, get=true, set=true) {
+function createVectorProperty(obj, vectorName, xName, yName, get=true, set=true) {
 	const info = {};
-	if (get) {
+	if (get === true) {
 		info.get = function() {
 			return new Vector2(this[xName], this[yName]);
 		};
 	}
-	if (set) {
+	if (set === true) {
 		info.set = function(val) {
 			this[xName] = val.x;
 			this[yName] = val.y;
 		};
 	}
-	Object.defineProperty(obj, publicName, info);
+	Object.defineProperty(obj, vectorName, info);
+}
+
+function createNumberProperties(obj, vectorName, xName, yName, get=true, set=true) {
+	const xInfo = {},
+		  yInfo = {};
+	if (get === true) {
+		xInfo.get = function() {
+			return this[vectorName].x;
+		};
+		yInfo.get = function() {
+			return this[vectorName].y;
+		};
+	}
+	if (set === true) {
+		xInfo.set = function(val) {
+			this[vectorName] = new Vector2(val, this[vectorName].y);
+		};
+		yInfo.set = function(val) {
+			this[vectorName] = new Vector2(this[vectorName].x, val);
+		};
+	}
+	Object.defineProperty(obj, xName, xInfo);
+	Object.defineProperty(obj, yName, yInfo);
 }
 
 // @todo: listen to scroll and other events
@@ -168,6 +199,14 @@ const Anchor = (function(){
 			return this._boundingBox.left;
 		}
 
+		get localTop() {
+			return this._boundingBox.top;
+		}
+
+		get localLeft() {
+			return this._boundingBox.left;
+		}
+
 		get width() {
 			return this._boundingBox.width;
 		}
@@ -176,11 +215,27 @@ const Anchor = (function(){
 			return this._boundingBox.height;
 		}
 
+		get localWidth() {
+			return this._boundingBox.width;
+		}
+
+		get localHeight() {
+			return this._boundingBox.height;
+		}
+
 		get scaleX() {
 			return 1;
 		}
 
 		get scaleY() {
+			return 1;
+		}
+
+		get localScaleX() {
+			return 1;
+		}
+
+		get localScaleY() {
 			return 1;
 		}
 
@@ -197,18 +252,21 @@ const Anchor = (function(){
 		}
 
 		toWorldPoint(v) {
-			return v;
+			return v.add(this.position);
 		}
 
 		toLocalPoint(v) {
-			return v;
+			return v.subtract(this.position);
 		}
 	}
 
 	const p = Inner.prototype;
 	createVectorProperty(p, "position", "left", "top", true, false);
+	createVectorProperty(p, "localPosition", "localLeft", "localTop", true, false);
 	createVectorProperty(p, "dimensions", "width", "height", true, false);
+	createVectorProperty(p, "localDimensions", "localWidth", "localHeight", true, false);
 	createVectorProperty(p, "scale", "scaleX", "scaleY", true, false);
+	createVectorProperty(p, "localScale", "localScaleX", "localScaleY", true, false);
 
 	return Inner;
 })();
@@ -228,8 +286,8 @@ const Box = (function(){
 				this.parent = parent;
 			}
 
-			this._localTop = 0;
-			this._localLeft = 0;
+			this._rawTop = 0;
+			this._rawLeft = 0;
 			this._rawWidth = 0;
 			this._rawHeight = 0;
 			this._localScaleX = 1;
@@ -245,7 +303,7 @@ const Box = (function(){
 				const degrees = this._angle / DEG_TO_RAD;
 				const rot = "rotate(" + degrees + "deg)";
 				const scale = "scale(" + this._localScaleX + ", " + this._localScaleY + ")";
-				this._element.style.transform = scale + " " + rot;
+				this._element.style.transform = rot + " " + scale;
 			});
 		}
 
@@ -322,26 +380,40 @@ const Box = (function(){
 		}
 
 		toLocalDir(v) {
-			v = v.rotate(-this.angle);
-			v = v.divide(this.scale);
+			v = this._parent.toLocalDir(v);
+			if (this._angle) {
+				v = v.rotate(-this._angle);
+			}
+			v = v.divide(this.localScale);
 			return v;
 		}
 
 		toWorldDir(v) {
-			v = v.multiply(this.scale);
-			v = v.rotate(this.angle);
+			v = v.multiply(this.localScale);
+			if (this._angle) {
+				v = v.rotate(this._angle);
+			}
+			v = this._parent.toWorldDir(v);
 			return v;
 		}
 
 		toLocalPoint(v) {
-			v = v.subtract(this.position);
-			v = this.toLocalDir(v);
+			v = this._parent.toLocalPoint(v);
+			v = v.subtract(this.localPosition);
+			if (this._angle) {
+				v = v.rotate(-this._angle);
+			}
+			v = v.divide(this.localScale);
 			return v;
 		}
 
 		toWorldPoint(v) {
-			v = this.toWorldDir(v);
-			v = v.add(this.position);
+			v = v.multiply(this.localScale);
+			if (this._angle) {
+				v = v.rotate(this._angle);
+			}
+			v = v.add(this.localPosition);
+			v = this._parent.toWorldPoint(v);
 			return v;
 		}
 
@@ -363,90 +435,98 @@ const Box = (function(){
 			this._transformUpdater.invoke();
 		}
 
-		get scaleX() {
-			return this._localScaleX * this._parent.scaleX;
+		get scale() {
+			return this.localScale.multiply(this._parent.scale);
 		}
 
-		set scaleX(val) {
-			this._localScaleX = val / this._parent.scaleX;
+		set scale(val) {
+			this.localScale = val.divide(this._parent.scale);
 		}
 
-		get scaleY() {
-			return this._localScaleY * this._parent.scaleY;
+		get rawTop() {
+			return this._parent ? this._element.offsetTop : this._rawTop;
 		}
 
-		set scaleY(val) {
-			this._localScaleY = val / this._parent.scaleY;
-		}
-
-		_getTopDiff() {
-			const h = this._element.offsetHeight;
-			return (h * (1 - this._localScaleY) * 0.5);
-		}
-
-		_getLeftDiff() {
-			const w = this._element.offsetWidth;
-			return (w * (1 - this._localScaleX) * 0.5);
-		}
-
-		get localTop() {
-			let v = this._parent ? this._element.offsetTop : this._localTop;
-			if (this._origin === CENTER) {
-				v += this._getTopDiff();
-			}
-			return v;
-		}
-
-		set localTop(val) {
-			if (this._origin === CENTER) {
-				val -= this._getTopDiff();
-			}
+		set rawTop(val) {
 			this._element.style.top = val + "px";
-			this._localTop = val;
+			this._rawTop = val;
 		}
 
-		get localLeft() {
-			let v = this._parent ? this._element.offsetLeft : this._localLeft;
-			if (this._origin === CENTER) {
-				v += this._getLeftDiff();
+		get rawLeft() {
+			return this._parent ? this._element.offsetLeft : this._rawLeft;
+		}
+
+		set rawLeft(val) {
+			this._element.style.left = val + "px";
+			this._rawLeft = val;
+		}
+
+		_getCenter() {
+			let v = this.rawDimensions.divide(2);
+			v = v.multiply(this.localScale);
+			if (this._origin === TOPLEFT) {
+				v = v.rotate(this._angle);
 			}
 			return v;
 		}
 
-		set localLeft(val) {
+		_centerScaleOffset() {
+			const s = Vector2.one.subtract(this.localScale);
+			return this.rawDimensions.multiply(s).divide(2);
+		}
+
+		_centerRotationOffset() {
+			const c = this._getCenter();
+			const d = c.negate().rotate(this._angle).add(c);
+			return d;
+		}
+
+		get localPosition() {
+			let v = this.rawPosition;
 			if (this._origin === CENTER) {
-				val -= this._getLeftDiff();
+				const s = this._centerScaleOffset(),
+					  r = this._centerRotationOffset();
+				v = v.add(s).add(r);
 			}
-			this._element.style.left = val + "px";
-			this._localLeft = val;
+			return v;
 		}
 
-		get top() {
-			const v = new Vector2(0, this.localTop);
-			return this._parent.toWorldPoint(v).y;
+		set localPosition(val) {
+			if (this._origin === CENTER) {
+				const s = this._centerScaleOffset(),
+					  r = this._centerRotationOffset();
+				val = val.subtract(s).subtract(r);
+			}
+			this.rawPosition = val;
 		}
 
-		set top(val) {
-			const v = new Vector2(0, val);
-			this.localTop = this._parent.toLocalPoint(v).y;
+		get staticLocalPosition() {
+			let v = this.rawPosition;
+			if (this._origin === CENTER) {
+				const s = this._centerScaleOffset();
+				v = v.add(s);
+			}
+			return v;
 		}
 
-		get left() {
-			const v = new Vector2(this.localLeft, 0);
-			return this._parent.toWorldPoint(v).x;
+		set staticLocalPosition(val) {
+			if (this._origin === CENTER) {
+				const s = this._centerScaleOffset();
+				val = val.subtract(s);
+			}
+			this.rawPosition = val;
 		}
 
-		set left(val) {
-			const v = new Vector2(val, 0);
-			this.localLeft = this._parent.toLocalPoint(v).x;
+		get position() {
+			return this._parent.toWorldPoint(this.localPosition);
+		}
+
+		set position(val) {
+			this.localPosition = this._parent.toLocalPoint(val);
 		}
 
 		get rawWidth() {
-			if (this._parent) {
-				return this._element.offsetWidth;
-			} else {
-				return this._rawWidth;
-			}
+			return this._parent ? this._element.offsetWidth : this._rawWidth;
 		}
 
 		set rawWidth(val) {
@@ -455,11 +535,7 @@ const Box = (function(){
 		}
 
 		get rawHeight() {
-			if (this._parent) {
-				return this._element.offsetHeight;
-			} else {
-				return this._rawHeight;
-			}
+			return this._parent ? this._element.offsetHeight : this._rawHeight;
 		}
 
 		set rawHeight(val) {
@@ -499,22 +575,35 @@ const Box = (function(){
 			this.localHeight = val / this._parent.scaleY;
 		}
 
-		_getCenter() {
-			const x = this.localWidth / 2;
-			const y = this.localHeight / 2;
-			let v = new Vector2(x, y);
-			if (this._angle) {
-				v = v.rotate(this._angle);
-			}
-			return v;
+		get angle() {
+			return this._angle;
+		}
+
+		set angle(val) {
+			this._angle = val;
+			this._transformUpdater.invoke();
 		}
 
 		get localCenter() {
-			return this.localPosition.add(this._getCenter());
+			let v;
+			if (this._origin === TOPLEFT) {
+				v = this.localPosition;
+			} else {
+				const s = this._centerScaleOffset();
+				v = this.rawPosition.add(s);
+			}
+			v = v.add(this._getCenter());
+			return v;
 		}
 
 		set localCenter(val) {
-			this.localPosition = val.subtract(this._getCenter());
+			val = val.subtract(this._getCenter());
+			if (this._origin === TOPLEFT) {
+				this.localPosition = val;
+			} else {
+				const s = this._centerScaleOffset();
+				this.rawPosition = val.subtract(s);
+			}
 		}
 
 		get center() {
@@ -524,33 +613,19 @@ const Box = (function(){
 		set center(val) {
 			this.localCenter = this._parent.toLocalPoint(val);
 		}
-
-		get localAngle() {
-			return this._angle;
-		}
-
-		set localAngle(val) {
-			this._angle = val;
-			this._transformUpdater.invoke();
-		}
-
-		get angle() {
-			return this.localAngle + this._parent.angle;
-		}
-
-		set angle(val) {
-			this.localAngle = val - this._parent.angle;
-		}
 	}
 
 	const p = Inner.prototype;
-	createVectorProperty(p, "localPosition", "localLeft", "localTop");
-	createVectorProperty(p, "position", "left", "top");
+
+	createVectorProperty(p, "rawPosition", "rawLeft", "rawTop");
+	createVectorProperty(p, "localScale", "localScaleX", "localScaleY");
 	createVectorProperty(p, "rawDimensions", "rawWidth", "rawHeight");
 	createVectorProperty(p, "localDimensions", "localWidth", "localHeight");
 	createVectorProperty(p, "dimensions", "width", "height");
-	createVectorProperty(p, "localScale", "localScaleX", "localScaleY");
-	createVectorProperty(p, "scale", "scaleX", "scaleY");
+
+	createNumberProperties(p, "localPosition", "localLeft", "localTop");
+	createNumberProperties(p, "position", "left", "top");
+	createNumberProperties(p, "scale", "scaleX", "scaleY");
 
 	return Inner;
 })();

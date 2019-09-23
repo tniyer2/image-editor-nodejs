@@ -1,9 +1,10 @@
 
-import { isUdf, isFunction, isArray } from "./type";
+import { isUdf } from "./type";
 
-export { clamp, extend, removeDuplicates, partition,
-         show, hide, $, isDescendant, setBooleanAttribute,
-         stopBubbling, AddToEventLoop, createSVG, toPrecision };
+export { clamp, extend, removeDuplicates,
+         show, hide, $, isDescendant,
+         setBooleanAttribute, stopBubbling,
+         AddToEventLoop, createSVG, toPrecision };
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -22,27 +23,6 @@ function extend() {
 
 function removeDuplicates(arr) {
     return Array.from(new Set(arr));
-}
-
-function partition(arr, cb, thisArg) {
-    if (!isArray(arr)) {
-        throw new Error("Invalid argument.");
-    } else if (!isFunction(cb)) {
-        throw new Error("Invalid argument.");
-    }
-
-    return arr.reduce((acc, cur, index) => {
-        let b;
-        if (isUdf(thisArg)) {
-            b = cb(cur, index, arr);
-        } else {
-            b = cb.call(thisArg, cur, index, arr);
-        }
-
-        acc[b?0:1].push(cur);
-
-        return acc;
-    }, [[], []]);
 }
 
 function show(elm) {
@@ -64,7 +44,7 @@ function $(selector, elm, all) {
         all = false;
     }
 
-    if (all) {
+    if (all === true) {
         return elm.querySelectorAll(selector);
     } else {
         return elm.querySelector(selector);
@@ -84,7 +64,7 @@ function isDescendant(parent, child) {
 }
 
 function setBooleanAttribute(elm, attr, b) {
-    if (b) {
+    if (b === true) {
         elm.setAttribute(attr, attr);
     } else {
         elm.removeAttribute(attr);
@@ -122,13 +102,9 @@ const createSVG = (function(){
 
     function Inner (href) {
         const svg = document.createElementNS(SVGNS, "svg");
-        if (href) {
-            const use = document.createElementNS(SVGNS, "use");
-            use.setAttributeNS(XLINKNS,"href", href);
-            svg.appendChild(use);
-        } else {
-            console.warn("Invalid argument href:", href);
-        }
+        const use = document.createElementNS(SVGNS, "use");
+        use.setAttributeNS(XLINKNS,"href", href);
+        svg.appendChild(use);
 
         return svg;
     }

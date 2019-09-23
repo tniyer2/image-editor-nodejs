@@ -4,5 +4,7 @@ node_modules
 webapp/css
 webapp/dist
 
+test
+
 cmd.exe
 todo.txt

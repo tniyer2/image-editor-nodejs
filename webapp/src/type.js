@@ -1,10 +1,14 @@
 
-export
-	{ isUdf, isNumber, isObject,
-	  isFunction, isType, isArray, isSubclass };
+export { isUdf, isUdfOrNull, isNumber, isObject,
+		 isFunction, isType, isObjectLiteral,
+		 isArray, isSubclass };
 
 function isUdf(a) {
 	return typeof a === "undefined";
+}
+
+function isUdfOrNull(a) {
+	return typeof a === "undefined" || a === null;
 }
 
 function isNumber(a) {
@@ -21,6 +25,10 @@ function isFunction(a) {
 
 function isType(a, type) {
 	return isObject(a) && a.constructor === type;
+}
+
+function isObjectLiteral(a) {
+	return isType(a, Object);
 }
 
 function isArray(a) {

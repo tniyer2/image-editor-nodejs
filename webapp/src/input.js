@@ -1,19 +1,24 @@
 
-import { isNumber, isObject, isFunction, isArray } from "./type";
-import { show, hide, setBooleanAttribute, isDescendant, createSVG }
-	from "./utility";
+import { isNumber, isObject,
+		 isFunction, isArray } from "./type";
+import { extend, show, hide, isDescendant,
+		 setBooleanAttribute, stopBubbling,
+		 createSVG, toPrecision } from "./utility";
 import { addEvent } from "./event";
 import { Listener } from "./listener";
+import { MouseAction, UserActionHandler } from "./action";
 import Options from "./options";
 
 export { Toggle, Slider, FileInput,
-		 FloatingList, DynamicList, TextInput, Dropdown };
+		 FloatingList, DynamicList, StringInput,
+		 NumericalInput, Dropdown, MessageBox };
 
 const Toggle = (function(){
 	const CLASSES = {
 		root: "toggle", 
 		text: "toggle__text", 
-		slider: "toggle__slider"
+		slider: "toggle__slider",
+		checked: "checked"
 	};
 	const DEFAULTS = { text: "" };
 
@@ -23,18 +28,19 @@ const Toggle = (function(){
 			this.options = new Options();
 			this.options.set(DEFAULTS, options);
 
-			addEvent(this, "onToggle");
+			addEvent(this, "onChange");
 
 			this._createDOM();
 			this._addListeners();
 		}
 
-		get toggled() {
+		get value() {
 			return this._input.checked;
 		}
 
-		set toggled(b) {
-			setBooleanAttribute(this._input, "checked", b);
+		set value(val) {
+			setBooleanAttribute(this._input, "checked", val);
+			this._slider.classList.toggle(CLASSES.checked, val);
 		}
 
 		_createDOM() {
@@ -58,13 +64,16 @@ const Toggle = (function(){
 			const slider = document.createElement("span");
 			slider.classList.add(CLASSES.slider);
 			label.appendChild(slider);
+			this._slider = slider;
 
 			d.appendChild(label);
 		}
 
 		_addListeners() {
 			this._input.addEventListener("change", (evt) => {
-				this._onToggle.trigger(evt.target.checked);
+				const val = this.value;
+				this._slider.classList.toggle(CLASSES.checked, val);
+				this._onChange.trigger(val);
 			});
 		}
 	};
@@ -475,45 +484,18 @@ const TextInput = (function(){
 	const DEFAULTS = {
 		text: null,
 		textRight: false,
-		placeholder: null,
-		value: null,
-		numerical: false
+		placeholder: null
 	};
 
 	return class {
 		constructor(options) {
 			this.options = new Options();
 			this.options.set(DEFAULTS, options);
-			this._numerical = this.options.get("numerical") === true;
 
 			addEvent(this, "onChange");
 
+			this._initValue(); // override this
 			this._createDOM();
-			this._addListeners();
-		}
-
-		get value() {
-			const val = this._input.value;
-
-			if (this._numerical) {
-				return Number(val);
-			} else {
-				return val;
-			}
-		}
-
-		set value(val) {
-			if (this._numerical) {
-				if (!isNumber(val)) {
-					throw new Error("Invalid argument.");
-				}
-			} else {
-				if (typeof val !== "string") {
-					throw new Error("Invalid argument.");
-				}
-			}
-
-			this._input.value = val;
 		}
 
 		_createDOM() {
@@ -533,33 +515,177 @@ const TextInput = (function(){
 
 			const input = document.createElement("input");
 			input.type = "text";
+			input.value = this._value;
 			const placeholder = this.options.get("placeholder");
 			if (placeholder) {
 				input.placeholder = placeholder;
 			}
 			this.root.appendChild(input);
 			this._input = input;
-			const val = this.options.get("value");
-			if (val !== null) {
-				this.value = val;
+		}
+	};
+})();
+
+const StringInput = (function(){
+	const DEFAULTS = {
+		value: ""
+	};
+
+	const cl_root = "string";
+
+	return class extends TextInput {
+		constructor(options) {
+			options = extend(DEFAULTS, options);
+			super(options);
+
+			this.root.classList.add(cl_root);
+			this._addListeners();
+		}
+
+		get value() {
+			return this._value;
+		}
+
+		set value(val) {
+			if (typeof val !== "string") {
+				throw new Error("Invalid argument.");
 			}
+
+			this._value = val;
+			this._input.value = val;
+		}
+
+		_initValue() {
+			this._value = String(this.options.get("value"));
 		}
 
 		_addListeners() {
-			if (this._numerical) {
-				this._input.addEventListener("change", (evt) => {
-					const val = Number(evt.target.value);
-					if (isNumber(val)) {
-						this._onChange.trigger(val);
-					} else {
-						evt.target.value = Number(this.options.get("value")) || 0;
-					}
-				});
-			} else {
-				this._input.addEventListener("change", (evt) => {
-					this._onChange.trigger(evt.target.value);
-				});
+			this._input.addEventListener("change", (evt) => {
+				this._value = evt.target.value;
+				this._onChange.trigger(this._value);
+			});
+		}
+	};
+})();
+
+const NumericalInput = (function(){
+	const DEFAULTS = {
+		value: "",
+		draggable: true,
+		bounds: null,
+		speed: 2,
+		snap: 20,
+		precision: 5
+	};
+
+	const cl_root = "numerical";
+
+	class NumberInputDragWidget extends UserActionHandler {
+		constructor(textInput, options) {
+			super();
+
+			if (!(textInput instanceof TextInput)) {
+				throw new Error("Invalid argument.");
 			}
+
+			this._textInput = textInput;
+			this._options = options;
+		}
+
+		_onStart(evt) {
+			this._initialPosition = this._getMousePosition(evt);
+			this._initialValue = this._textInput.value;
+		}
+
+		_onMove(evt) {
+			const newPosition = this._getMousePosition(evt);
+			const diff = newPosition.subtract(this._initialPosition);
+
+			let d = diff.x;
+			if (evt.ctrlKey) {
+				d -= (d % this._options.get("snap"));
+			}
+			d *= this._options.get("speed");
+
+			const val = this._initialValue + d;
+			if (this._textInput.value !== val) {
+				this._textInput.value = val;
+			}
+		}
+
+		_onEnd(evt) {
+			this._textInput.valueTriggerEvent = this._textInput.value;
+		}
+	}
+
+	return class extends TextInput {
+		constructor(options) {
+			options = extend(DEFAULTS, options);
+			super(options);
+
+			this.root.classList.add(cl_root);
+			this._addListeners();
+
+			if (this.options.get("draggable") === true) {
+				this._initWidget(this.options.get("bounds"));
+			}
+		}
+
+		get value() {
+			return this._value;
+		}
+
+		set value(val) {
+			if (!isNumber(val)) {
+				throw new Error("Invalid argument.");
+			}
+
+			const p = this.options.get("precision");
+			val = p === 0 ? Math.trunc(val) : toPrecision(val, p);
+
+			this._value = val;
+			this._input.value = val;
+		}
+
+		set valueTriggerEvent(val) {
+			this.value = val;
+			this._onChange.trigger(val);
+		}
+
+		_initValue() {
+			this._value = Number(this.options.get("value")) || 0;
+		}
+
+		_addListeners() {
+			this._input.addEventListener("change", (evt) => {
+				const val = Number(evt.target.value);
+
+				if (isNumber(val)) {
+					this._value = val;
+					this._onChange.trigger(val);
+				} else {
+					this._value = 0;
+					evt.target.value = "0";
+				}
+			});
+		}
+
+		_initWidget(bounds) {
+			stopBubbling(this._input, "mousedown");
+
+			const action1 =
+				new MouseAction(this._input, bounds,
+					{ condition: (evt) => evt.button === 1 });
+
+			const action2 =
+				new MouseAction(this.root, bounds,
+					{ condition: (evt) => evt.button === 0 ||
+										  evt.button === 1 });
+
+			const widget =
+				new NumberInputDragWidget(this, this.options);
+			widget.handle(action1);
+			widget.handle(action2);
 		}
 	};
 })();
@@ -657,6 +783,59 @@ const Dropdown = (function(){
 			this._selectElement.addEventListener("change", () => {
 				this._onSelect.trigger(this.value);
 			});
+		}
+	};
+})();
+
+const MessageBox = (function(){
+	const CLASSES = {
+		root: "message-box",
+		error: "error",
+		text: "text"
+	};
+
+	const ERROR_ICON = "#icon-error";
+
+	return class {
+		constructor() {
+			this._createDOM();
+		}
+
+		get value() {
+			return this._text.textContent;
+		}
+
+		setMessage(val) {
+			this._text.textContent = val;
+			hide(this._errorSVG);
+			this.root.classList.remove(CLASSES.error);
+		}
+
+		setError(val) {
+			this._text.textContent = val;
+			show(this._errorSVG);
+			this.root.classList.add(CLASSES.error);
+		}
+
+		clear() {
+			this._text.textContent = null;
+			hide(this._errorSVG);
+			this.root.classList.remove(CLASSES.error);
+		}
+
+		_createDOM() {
+			this.root = document.createElement("div");
+			this.root.classList.add(CLASSES.root);
+
+			const svg = createSVG(ERROR_ICON);
+			hide(svg);
+			this.root.appendChild(svg);
+			this._errorSVG = svg;
+
+			const text = document.createElement("span");
+			text.classList.add(CLASSES.text);
+			this.root.appendChild(text);
+			this._text = text;
 		}
 	};
 })();

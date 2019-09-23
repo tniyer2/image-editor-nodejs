@@ -8,47 +8,45 @@
 	@extend %regular-font;
 }
 
-
-$toggle-height: 20px;
-$toggle-padding: 3px;
 .toggle {
-	user-select: none; }
-.toggle label {
-	display: inline-block;
-	vertical-align: bottom;
-	cursor: pointer; }
-.toggle input {
-	position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0; }
-.toggle__slider {
-	position: relative;
-	display: block;
-	width: 2 * $toggle-height;
-	height: $toggle-height;
-	border-radius: 10px;
-	background: #ccc; }
-$before-height: $toggle-height - 2 * $toggle-padding;
-.toggle__slider:before {
-	position: absolute;
-	top: 50%;
-	left: $toggle-padding;
-	transform: translate(0, -50%);
-	width: $before-height;
-	height: $before-height;
-	content: "";
-	border-radius: 50%;
-	background: white;
-	transition: transform 0.2s; }
-.toggle .noanim ~ .toggle__slider:before {
-	transition: none; }
-.toggle input:checked ~ .toggle__slider {
-	background: $blue; }
-.toggle input:checked ~ .toggle__slider:before {
-	transform: translate($toggle-height - $toggle-padding / 2, -50%); }
-.toggle__text {
-	@extend %text; }
+	$toggle-height: 20px;
+	$toggle-padding: 3px;
+	user-select: none;
+	label {
+		display: inline-block;
+		vertical-align: bottom;
+		cursor: pointer; }
+	input {
+		position: absolute;
+	  opacity: 0;
+	  width: 0;
+	  height: 0; }
+	.toggle__slider {
+		position: relative;
+		display: block;
+		width: 2 * $toggle-height;
+		height: $toggle-height;
+		border-radius: 10px;
+		background: #ccc; }
+	$before-height: $toggle-height - 2 * $toggle-padding;
+	.toggle__slider:before {
+		position: absolute;
+		top: 50%;
+		left: $toggle-padding;
+		transform: translate(0, -50%);
+		width: $before-height;
+		height: $before-height;
+		content: "";
+		border-radius: 50%;
+		background: white;
+		transition: transform 0.2s; }
+	.toggle__slider.checked {
+		background: $blue; }
+	.toggle__slider.checked:before {
+		transform: translate($toggle-height - $toggle-padding / 2, -50%); }
+	.toggle__text {
+		@extend %text; }
+}
 
 $slider-width: 100px;
 $slider-height: $regular-font-size;
@@ -129,6 +127,7 @@ $slider-height: $regular-font-size;
 		display: inline-block; }
 	.remove-btn-parent {
 		display: inline-block;
+		margin: 0 10px;
 		width: 30px; }
 	.remove-btn {
 		@extend %remove-button-defaults;
@@ -146,32 +145,91 @@ $slider-height: $regular-font-size;
 		fill: $blue; }
 }
 
+$text-margin: 5px;
+$input-bd: 2px;
+$input-width: 150px;
 .text-input {
 	display: flex;
+	align-items: flex-end;
+	font-size: $regular-font-size;
 
 	.text {
-		display: inline-block;
+		vertical-align: bottom;
+		margin: 0;
+		margin-right: $text-margin;
 		@extend %regular-font;
-	}
+		font-size: inherit; }
 	input {
-		display: inline-block; }
+		@extend %remove-input-defaults;
+		font-size: inherit;
+		vertical-align: top;
+		box-sizing: border-box;
+		padding: 0 2px;
+		width: $input-width;
+		height: 1em;
+		border-radius: $input-bd;
+		background-color: white; }
 }
 .text-input.inverse {
-	flex-direction: row-reverse; }
+	flex-direction: row-reverse;
+	.text {
+		margin: 0;
+		margin-left: $text-margin; }
+}
 
 .dropdown {
 	display: flex;
+	align-items: flex-end;
+	font-size: $regular-font-size;
 
 	.text {
-		display: inline-block;
-		@extend %regular-font; }
+		vertical-align: bottom;
+		margin: 0;
+		margin-right: $text-margin;
+		@extend %regular-font;
+		font-size: inherit; }
 	select {
-		display: inline-block; }
+		@extend %remove-select-defaults;
+		display: inline;
+		vertical-align: top;
+		font-size: inherit;
+		width: $input-width;
+		height: 1em;
+		border-radius: $input-bd; }
 	option {
 		@extend %regular-font; }
 }
 .dropdown.inverse {
-	flex-direction: row-reverse; }
+	flex-direction: row-reverse;
+	.text {
+		margin: 0;
+		margin-left: $text-margin; }
+}
+
+.message-box {
+	border: 0.5px solid #444;
+	background-color: #888;
+	height: 20px;
+	padding: 0 5px;
+
+	svg {
+		display: inline;
+		vertical-align: middle;
+		height: 18px;
+		width: 18px;
+		margin-right: 3px;
+		fill: red; }
+	.text {
+		display: inline;
+		vertical-align: middle;
+		@extend %regular-font; }
+}
+.message-box.error {
+	border-color: red;
+
+	.text {
+		color: red; }
+}
 
 .color-picker {
 	position: fixed;

@@ -60,8 +60,8 @@ body {
 	position: relative;
 	display: flex;
 	border: 1px solid #333; }
-.area-wrapper.rows {
-	flex-direction: row; }
+.area-wrapper.column {
+	flex-direction: column; }
 .area {
 	flex: 1 1 0;
 	position: relative;
@@ -70,6 +70,7 @@ body {
 	border: 1px solid #333;
 
 	.tab-bar {
+		flex: 0 0 auto;
 		height: 50px;
 		background-color: #888; }
 	.tab-bar-top {
@@ -126,14 +127,8 @@ body {
 
 	.tab-parent {
 		position: relative;
-		flex: 1 1 auto;
-	}
+		flex: 1 1 0; }
 }
 .tab-wrapper {
 	position: relative;
 	@extend %max-size; }
-
-
-.node-settings-tab {
-	@extend %max-size; }
-.node-settings {}

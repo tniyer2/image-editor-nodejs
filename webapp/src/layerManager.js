@@ -16,7 +16,7 @@ export default class {
 		this.layers = new LayerCollection();
 		this._addLayerListeners();
 
-		this.layerUserAction = new UserActionPiper();
+		this.layers.action = new UserActionPiper();
 
 		this._initZoomWidget();
 	}
@@ -34,7 +34,7 @@ export default class {
 				this.tab.viewport.element,
 				{ data: layer,
 				  exitOnMouseLeave: false });
-			this.layerUserAction.pipe(layer.p_action);
+			this.layers.action.pipe(layer.p_action);
 		});
 
 		this.layers.onRemove.addListener((layer) => {
@@ -64,21 +64,24 @@ export default class {
 	}
 
 	_initZoomWidget() {
+		const options = {
+			factor: 0.2,
+			condition: () => {
+				const c = this._editor.stack.current;
+				return !c || !c.open;
+			}
+		};
+
+		this._zoomWidget = 
+			new ZoomWidget(this.tab.innerViewport, options);
+
 		const action = new ZoomAction(this.tab.viewport.element);
-
-		this._zoomWidget = new ZoomWidget(this.tab.innerViewport,
-		{ factor: 0.2, 
-		  condition: () => {
-			const c = this._editor.stack.current;
-			return !c || !c.open;
-		  } });
-
 		this._zoomWidget.handle(action);
 	}
 
 	render(layerGroup) {
 		this.layers.removeAll();
-		this.layerUserAction.clear();
+		this.layers.action.clear();
 
 		if (layerGroup) {
 			layerGroup.layers.forEach((l) => {
@@ -97,18 +100,29 @@ export default class {
 	}
 
 	getFinalImage() {
-		const box = this.tab.innerViewport;
-		if (!box.rawWidth || !box.rawHeight) {
+		const box = this.tab.innerViewport,
+			  w = box.rawWidth,
+			  h = box.rawHeight;
+		if (!w || !h) {
 			return null;
 		}
 
 		const canvas = document.createElement("canvas");
-		canvas.width = box.rawWidth;
-		canvas.height = box.rawHeight;
+		canvas.width = w;
+		canvas.height = h;
 
 		const context = canvas.getContext("2d");
+
 		this.layers.items.forEach((l) => {
-			context.drawImage(l.canvas, l.box.localLeft, l.box.localTop);
+			const b = l.box;
+
+			context.setTransform(1,0,0,1, b.localLeft, b.localTop);
+			context.rotate(b.localAngle);
+
+			context.drawImage(
+				l.canvas, 0, 0, b.localWidth, b.localHeight);
+
+			context.setTransform(1,0,0,1,0,0);
 		});
 
 		return canvas;

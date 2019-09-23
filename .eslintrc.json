@@ -75,7 +75,7 @@
         "no-unused-vars": [2, { "vars": "all", "args": "none" }],
 
         "comma-dangle": [2, "never"],
-        "consistent-this": [2, "self"],
+        "consistent-this": [0, "self"],
         "eol-last": [2, "always"],
         "linebreak-style": [2, "windows"],
         "new-parens": 2,

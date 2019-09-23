@@ -3,185 +3,222 @@ import { show, hide, stopBubbling } from "./utility";
 import Options from "./options";
 import { Box } from "./geometry";
 import { MouseAction } from "./action";
-import { Toggle } from "./input";
 import { SelectWidget } from "./collectionWidgets";
 import { DragWidget, ResizeWidget, RotateWidget } from "./boxWidgets";
-import { ToolUI } from "./toolUI";
+import { TransformDragWidget, 
+		 TransformScaleWidget, 
+		 TransformRotateWidget } from "./transformWidgets";
 
-export { MoveTool, MoveToolUI };
+const CLASSES = {
+	moveBox: "move-box",
+	background: "move-box__background",
+	resizeHandle: "move-box__resize-handle",
+	rotateHandle: "move-box__rotate-handle",
+	rotateConnector: "move-box__rotate-connector"
+};
 
-const MoveTool = (function(){
-	const cl_moveBox = "move-box",
-		  cl_background = "move-box__background",
-		  cl_resizeHandle = "move-box__resize-handle",
-		  RESIZE_DIRECTIONS = ["tl", "tr", "br", "bl"],
-		  cl_rotateHandle = "move-box__rotate-handle",
-		  cl_rotateConnector = "move-box__rotate-connector";
-	const DEFAULTS = { "fixAspectRatio": true };
-	const TO_BE_BOUND = ["_updateMoveBox", "_updateDOM", "_update"];
+const BOUND_FUNCTIONS = ["_updateMoveBox", "_updateDOM", "_update"],
+	  RESIZE_DIRECTIONS = ["tl", "tr", "br", "bl"];
 
-	return class {
-		constructor(editor) {
-			this._editor = editor;
-			this.options = new Options();
-			this.options.set(DEFAULTS);
+export default class {
+	constructor(collection, stack, parent, offsetParent, bounds) {
+		this._collection = collection;
+		this._stack = stack;
+		this._parent = parent;
+		this._offsetParent = offsetParent;
+		this._bounds = bounds;
 
-			TO_BE_BOUND.forEach((n) => {
-				this[n] = this[n].bind(this);
-			});
+		this._enabled = false;
 
-			this._createBoxes();
-			this._createWidgets();
+		BOUND_FUNCTIONS.forEach((n) => {
+			this[n] = this[n].bind(this);
+		});
+
+		this._createMoveBox();
+		this._createWidgets();
+	}
+
+	get enabled() {
+		return this._enabled;
+	}
+
+	_createMoveBox() {
+		const d = document.createElement("div");
+		d.classList.add(CLASSES.moveBox);
+		this._moveBox = new Box(d, this._offsetParent);
+		this._moveBox.setOriginCenter();
+
+		const background = document.createElement("div");
+		background.classList.add(CLASSES.background);
+		d.appendChild(background);
+
+		const connector = document.createElement("div");
+		connector.classList.add(CLASSES.rotateConnector);
+		d.appendChild(connector);
+
+		const rot = document.createElement("div");
+		stopBubbling(rot, "mousedown");
+		rot.classList.add(CLASSES.rotateHandle);
+		d.appendChild(rot);
+		this._rotateBox = new Box(rot, this._offsetParent);
+
+		this._resizeBoxes = RESIZE_DIRECTIONS.map((dir) => {
+			const handle = document.createElement("div");
+			stopBubbling(handle, "mousedown");
+			handle.classList.add(CLASSES.resizeHandle, dir);
+			d.appendChild(handle);
+
+			return new Box(handle, this._offsetParent);
+		});
+	}
+
+	_createWidgets() {
+		this._moveBoxAction =
+			new MouseAction(this._moveBox.element, this._bounds);
+
+		this._selectWidget =
+			new SelectWidget(this._collection);
+		this._selectWidget.handle(this._moveBoxAction);
+
+		const groups = [{ boxes: [this._moveBox] }];
+
+		this._tDragWidget =
+			new TransformDragWidget(this._collection, this._stack);
+		this._tDragWidget.handle(this._moveBoxAction);
+
+		this._dragWidget =
+			new DragWidget(groups);
+		this._dragWidget.handle(this._moveBoxAction);
+
+		const rotateBoxAction =
+			new MouseAction(this._rotateBox.element, this._bounds);
+
+		const rotateOptions = { center: () => this._moveBox.center };
+
+		this._tRotateWidget =
+			new TransformRotateWidget(
+				this._collection,
+				this._stack,
+				rotateOptions);
+		this._tRotateWidget.handle(rotateBoxAction);
+
+		this._rotateWidet =
+			new RotateWidget(groups, rotateOptions);
+		this._rotateWidet.handle(rotateBoxAction);
+
+		this._resizeActions = this._resizeBoxes.map((box) =>
+			new MouseAction(box.element, this._bounds)
+		);
+
+		this._tResizeWidgets = this._resizeActions.map((action, i) => {
+			const options = {
+				angle: () => this._moveBox.angle,
+				direction: i * 2 };
+
+			const widget =
+				new TransformScaleWidget(
+					this._collection, this._stack, options);
+
+			widget.handle(action);
+
+			return widget;
+		});
+
+		this._resizeWidgets = this._resizeActions.map((action, i) => {
+			const options = {
+				angle: () => this._moveBox.angle,
+				direction: i * 2,
+				fixAspectRatio: () => this._tResizeWidgets[i].fixAspectRatio };
+
+			const widget = new ResizeWidget(groups, options);
+
+			widget.handle(action);
+
+			return widget;
+		});
+	}
+
+	_updateDOM() {
+		const d = this._moveBox.element;
+		if (this._collection.selected.length) {
+			show(d);
+		} else {
+			hide(d);
+		}
+	}
+
+	_updateMoveBox() {
+		const selected = this._collection.selected;
+		if (!selected.length) return;
+
+		let bb;
+		const boxes = selected.map(l => l.box);
+		if (selected.length > 1) {
+			this._moveBox.angle = 0;
+			bb = Box.getBoundingBox(boxes);
+		} else {
+			const box = boxes[0];
+			this._moveBox.angle = box.angle;
+			bb = box;
 		}
 
-		_createBoxes() {
-			const parent = this._editor.layerManager.tab.innerViewport;
+		["top", "left", "width", "height"].forEach((p) => {
+			this._moveBox[p] = bb[p];
+		});
+	}
 
-			const d = document.createElement("div");
-			d.classList.add(cl_moveBox);
-			this._moveBox = new Box(d, parent);
+	_update() {
+		this._updateDOM();
+		this._updateMoveBox();
+	}
 
-			const background = document.createElement("div");
-			background.classList.add(cl_background);
-			d.appendChild(background);
-
-			const connector = document.createElement("div");
-			connector.classList.add(cl_rotateConnector);
-			d.appendChild(connector);
-
-			const rot = document.createElement("div");
-			stopBubbling(rot, "mousedown");
-			rot.classList.add(cl_rotateHandle);
-			d.appendChild(rot);
-			this._rotateBox = new Box(rot, parent);
-
-			this._resizeBoxes = RESIZE_DIRECTIONS.map((dir) => {
-				const handle = document.createElement("div");
-				stopBubbling(handle, "mousedown");
-				handle.classList.add(cl_resizeHandle, dir);
-				d.appendChild(handle);
-
-				return new Box(handle, parent);
-			});
+	enable(node) {
+		if (this._enabled) {
+			return;
+		} else {
+			this._enabled = true;
 		}
 
-		_createWidgets() {
-			const bounds = this._editor.layerManager.tab.viewport.element;
-			this._moveBoxAction = new MouseAction(this._moveBox.element, bounds);
+		const action = this._collection.action;
+		this._selectWidget.handle(action);
+		this._tDragWidget.handle(action);
+		this._dragWidget.handle(action);
 
-			this._selectWidget = new SelectWidget(this._editor.layerManager.layers);
-			this._selectWidget.handle(this._moveBoxAction);
+		this._tDragWidget.node = node;
+		this._tRotateWidget.node = node;
+		this._tResizeWidgets.forEach((w) => {
+			w.node = node;
+		});
 
-			const boxGroups = [{ stack: this._editor.stack,
-								 boxes: () => this._editor.layerManager.layers.selected }, {
-								 boxes: [this._moveBox] }];
+		this._collection.onSelectedChange.addListener(this._update);
+		this._stack.onChange.addListener(this._updateMoveBox);
 
-			this._dragWidget = new DragWidget(boxGroups);
-			this._dragWidget.handle(this._moveBoxAction);
+		this._parent.appendChild(this._moveBox.element);
 
-			this._rotateWidget = new RotateWidget(boxGroups, 
-									 { center: () => this._moveBox.center });
-			const rotAction = new MouseAction(this._rotateBox.element, bounds);
-			this._rotateWidget.handle(rotAction);
+		this._update();
+	}
 
-			this._resizeWidgets = this._resizeBoxes.map((box, i) => {
-				const options  = { angle: () => this._moveBox.angle };
-				const options2 = { direction: i * 2,
-								   fixAspectRatio: this.options.get("fixAspectRatio") };
-				const widget = new ResizeWidget(boxGroups, options, options2);
-				this.options.addListener("fixAspectRatio", (v) => {
-					widget.resizeOptions.put("fixAspectRatio", v);
-				});
-				const action = new MouseAction(box.element, bounds); 
-				widget.handle(action);
-				return widget;
-			});
+	disable() {
+		if (this._enabled) {
+			this._enabled = false;
+		} else {
+			return;
 		}
 
-		_updateMoveBox() {
-			const selected = this._editor.layerManager.layers.selected;
-			if (selected.length) {
-				let fitRect;
-				if (selected.length > 1) {
-					this._moveBox.angle = 0;
-					fitRect = Box.getBoundingBox(selected);
-				} else {
-					const l = selected[0];
-					this._moveBox.angle = l.angle;
-					fitRect = l;
-				}
-				["top", "left", "width", "height"].forEach((p) => {
-					this._moveBox[p] = fitRect[p];
-				});
-			}
-		}
+		const action = this._collection.action;
+		this._selectWidget.stopHandling(action);
+		this._tDragWidget.stopHandling(action);
+		this._dragWidget.stopHandling(action);
 
-		_updateDOM() {
-			const d = this._moveBox.element,
-				  selected = this._editor.layerManager.layers.selected;
-			if (selected.length) {
-				show(d);
-			} else {
-				hide(d);
-			}
-		}
+		this._tDragWidget.node = null;
+		this._tRotateWidget.node = null;
+		this._tResizeWidgets.forEach((w) => {
+			w.node = null;
+		});
 
-		_update() {
-			this._updateDOM();
-			this._updateMoveBox();
-		}
+		this._collection.onSelectedChange.removeListener(this._update);
+		this._stack.onChange.removeListener(this._updateMoveBox);
 
-		enable() {
-			const layers = this._editor.layerManager.layerUserAction;
-			this._selectWidget.handle(layers);
-			this._dragWidget.handle(layers);
-
-			this._editor.layerManager.layers.onSelectedChange.addListener(this._update);
-			this._editor.stack.onChange.addListener(this._updateMoveBox);
-
-			this._editor.layerManager.tab.viewport.element.firstElementChild.appendChild(this._moveBox.element);
-
-			this._update();
-		}
-
-		disable() {
-			const layers = this._editor.layerManager.layerUserAction;
-			this._selectWidget.stopHandling(layers);
-			this._dragWidget.stopHandling(layers);
-
-			this._editor.layerManager.layers.onSelectedChange.removeListener(this._update);
-			this._editor.stack.onChange.removeListener(this._updateMoveBox);
-
-			this._moveBox.element.remove();
-		}
-	};
-})();
-
-const MoveToolUI = (function(){
-	const cl_fixAspectRatio = "fix-aspect-ratio";
-	const txt_fixAspectRatio = "Keep Aspect Ratio";
-
-	return class extends ToolUI {
-		constructor(settings, globals) {
-			super();
-			this._settings = settings;
-			this._globals = globals;
-		}
-
-		_createUI() {
-			const d = document.createElement("div");
-
-			const initValue = this._settings.get("fixAspectRatio");
-			const toggle = new Toggle(initValue, { text: txt_fixAspectRatio });
-			toggle.onToggle.addListener((b) => {
-				this._settings.put("fixAspectRatio", b);
-			});
-
-			const t = toggle.root;
-			t.classList.add(cl_fixAspectRatio);
-			d.appendChild(t);
-
-			return d;
-		}
-	};
-})();
+		this._moveBox.element.remove();
+	}
+}

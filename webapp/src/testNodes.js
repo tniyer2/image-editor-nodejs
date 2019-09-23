@@ -1,9 +1,7 @@
 
 import { Slider } from "./input";
-import
-	{ Node, NodeInput, NodeOutput,
-		NodeSettingsContainer, NodeSettings }
-			from "./node";
+import { Node, NodeInput, NodeOutput,
+		 NodeSettingsContainer, NodeSettings } from "./node";
 
 export { TestNode, AsyncTestNode };
 
@@ -76,13 +74,13 @@ const AsyncTestNode = (function(){
 
 class AsyncTestNodeSettings extends NodeSettingsContainer {
 	_createDOM() {
-		const delay = this.options.get("delay");
+		const delay = this._settings.get("delay");
 		const s = new Slider(delay, 0, 5, { text: "delay", step: "0.5" });
 
 		s.onChange.addListener((val) => {
-			this.options.tryPut("delay", val);
+			this._settings.tryPut("delay", val);
 		});
-		this.options.addListener("delay", (val) => {
+		this._settings.addListener("delay", (val) => {
 			s.value = val;
 		});
 

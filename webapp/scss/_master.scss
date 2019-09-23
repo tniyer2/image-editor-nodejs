@@ -32,6 +32,8 @@ $regular-font-color: black;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%); }
+
+
 %remove-button-defaults {
 	padding: 0;
 	margin: 0; 
@@ -40,7 +42,6 @@ $regular-font-color: black;
 	outline: none;
 	cursor: pointer; }
 %remove-input-defaults {
-	background: none;
 	padding: 0;
 	margin: none;
 	border: none;
@@ -49,6 +50,11 @@ $regular-font-color: black;
 	list-style-type: none;
 	margin: 0;
 	padding: 0; }
+%remove-select-defaults {
+	border: none;
+	outline: none; }
+
+
 %inline-image-helper {
 	display: inline-block;
 	vertical-align: middle;

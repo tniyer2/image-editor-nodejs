@@ -1,16 +1,19 @@
 
 import { isType } from "./type";
-import { Vector2 } from "./geometry";
+import { extend } from "./utility";
+import { Vector2, Box } from "./geometry";
 import { Command } from "./command";
-import Options from "./options";
 
-export { DragCommand, ResizeCommand, RotateCommand };
+export { DragCommand, ResizeDimensionsCommand,
+		 ResizeScaleCommand, RotateCommand };
 
 class BoxCommand extends Command {
 	constructor(boxes, pos) {
 		super(Command.CONTINUOUS);
 
-		if (!isType(boxes, Array)) {
+		if (!isType(boxes, Array) &&
+			boxes.length &&
+			boxes.every(b => b instanceof Box)) {
 			throw new Error("Invalid argument.");
 		} else if (!isType(pos, Vector2)) {
 			throw new Error("Invalid argument.");
@@ -19,24 +22,54 @@ class BoxCommand extends Command {
 		this._boxes = boxes;
 		this._referencePosition = pos;
 
-		this._initialPositions = this._boxes.map(b => b.position);
-		this._initialLocalPositions = this._boxes.map(b => b.localPosition);
+		this.localPositionDifference = null;
+		this._initialLocalPositions =
+			this._boxes.map(b => b.localPosition);
+	}
+
+	_calcFinalPositions() {
+		this._finalLocalPositions =
+			this._boxes.map(b => b.localPosition);
+
+		this.localPositionDifference =
+			this._finalLocalPositions[0]
+				.subtract(this._initialLocalPositions[0]);
 	}
 
 	_close() {
-		this._finalLocalPositions = this._boxes.map(b => b.localPosition);
+		this._calcFinalPositions();
 	}
 
 	_undo() {
-		this._boxes.forEach((b, i) => {
-			b.localPosition = this._initialLocalPositions[i];
-		});
+		if (this._finalLocalPositions) {		
+			this._boxes.forEach((b, i) => {
+				b.localPosition = this._initialLocalPositions[i];
+			});
+		}
 	}
 
 	_redo() {
-		this._boxes.forEach((b, i) => {
-			b.localPosition = this._finalLocalPositions[i];
-		});
+		if (this._finalLocalPositions) {		
+			this._boxes.forEach((b, i) => {
+				b.localPosition = this._finalLocalPositions[i];
+			});
+		}
+	}
+
+	_applyLock(v, lock) {
+		if (lock && !this._locked) {
+			this._locked = true;
+			this._lockX = Math.abs(v.x) < Math.abs(v.y);
+		} else if (!lock && this._locked) {				
+			this._locked = false;
+		}
+		if (this._locked) {
+			if (this._lockX) {
+				v.x = 0;
+			} else {
+				v.y = 0;
+			}
+		}
 	}
 }
 
@@ -44,164 +77,312 @@ const DragCommand = (function(){
 	const DEFAULTS = { snapOffset: 10 };
 	
 	return class extends BoxCommand {
-		constructor(box, pos, options) {
-			super(box, pos);
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
+		constructor(boxes, pos, options) {
+			super(boxes, pos);
+
+			this._options = extend(DEFAULTS, options);
 		}
 
-		_execute(mousePosition, snapMovement, lock) {
+		_execute(mousePosition, snap, lock) {
 			let diff = mousePosition.subtract(this._referencePosition);
 
-			if (snapMovement) {
-				const offset = this.options.get("snapOffset");
-				diff = diff.map(a => a - (a % offset));
+			if (snap) {
+				diff = diff.map(a => a - (a % this._options.snapOffset));
 			}
 
-			if (lock && !this._ignore) {
-				this._ignore = true;
-				this._ignoreX = Math.abs(diff.x) < Math.abs(diff.y);
-			} else if (!lock && this._ignore) {				
-				this._ignore = false;
-			}
-			if (this._ignore) {
-				if (this._ignoreX) {
-					diff = new Vector2(0, diff.y);
-				} else {
-					diff = new Vector2(diff.x, 0);
-				}
-			}
+			this._applyLock(diff, lock);
 
 			this._boxes.forEach((b, i) => {
-				let p = this._initialPositions[i];
-				p = p.add(diff);
-				b.position = p;
+				const localDiff = b.parent.toLocalDir(diff);
+				const initial = this._initialLocalPositions[i];
+				b.localPosition = initial.add(localDiff);
 			});
 		}
 	};
 })();
 
 const ResizeCommand = (function(){
-	const MOVE_TOP  = [true,  true,  true,  null,  false, false, false, null], 
-		  MOVE_LEFT = [true,  null,  false, false, false, null,  true,  true],
+	const INVERTED_TOP  = [true,  true,  true,  null,  false, false, false, null], 
+		  INVERTED_LEFT = [true,  null,  false, false, false, null,  true,  true],
 		  FREEZE_Y  = [false, false, false, true,  false, false, false, true],
 		  FREEZE_X  = [false, true,  false, false, false, true,  false, false];
 
-	const DEFAULTS = { minWidth: 10,
-					   minHeight: 10,
-					   defaultSnapOffset: 1,
-					   snapOffset: 25,
-					   fixAspectRatio: false };
+	const DEFAULTS = {
+		angle: 0,
+		direction: 0,
+		minWidth: 10,
+		minHeight: 10,
+		snapOffset: 25,
+		fixAspectRatio: false };
 
 	return class extends BoxCommand {
-		constructor(boxes, pos, angle, options) {
+		constructor(boxes, pos, options) {
 			super(boxes, pos);
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
 
-			this._right = Vector2.right.rotate(angle);
-			this._down = Vector2.down.rotate(angle);
-			this._initialLocalDimensions = this._boxes.map(b => b.localDimensions);
+			this._options = extend(DEFAULTS, options);
 
-			const d = this.options.get("direction");
-			this._moveTop = MOVE_TOP[d]; 
-			this._moveLeft = MOVE_LEFT[d]; 
-			this._freezeX = FREEZE_X[d];
-			this._freezeY = FREEZE_Y[d];
+			const d = this._options.direction;
+
+			this._invertedTop = INVERTED_TOP[d]; 
+			this._invertedLeft = INVERTED_LEFT[d]; 
+
+			const freezeX = FREEZE_X[d],
+				  freezeY = FREEZE_Y[d];
+			this._fix = this._options.fixAspectRatio === true;
+
+			this._setX = !(freezeX || (freezeY && this._fix));
+			this._setY = !(freezeY || (freezeX && this._fix));
+
+			const angle = this._options.angle;
+			this._xBasis = Vector2.right.rotate(angle);
+			this._yBasis = Vector2.down.rotate(angle);
+			this._inverseXBasis = Vector2.right.rotate(-angle);
+			this._inverseYBasis = Vector2.down.rotate(-angle);
+
+			this._aspectRatios =
+				this._boxes.map(b => b.rawHeight / b.rawWidth);
 		}
 
-		_execute(mousePosition, snapMovement, lock) {
-			const fixAspectRatio = this.options.get("fixAspectRatio"),
-				  setX = !(this._freezeX || (this._freezeY && fixAspectRatio)),
-				  setY = !(this._freezeY || (this._freezeX && fixAspectRatio)),
-				  setAspectRatio = fixAspectRatio && (setX || setY),
-				  snapOffset = snapMovement ? this.options.get("snapOffset") : 
-				  							  this.options.get("defaultSnapOffset");
+		_execute(mousePosition, snap, lock) {
+			let diff = mousePosition
+				.subtract(this._referencePosition)
+				.project(this._xBasis, this._yBasis);
 
-			const diff = mousePosition.subtract(this._referencePosition);
-			let diffX = diff.dot(this._right),
-				diffY = diff.dot(this._down);
-			diffX = diffX - (diffX % snapOffset);
-			diffY = diffY - (diffY % snapOffset);
+			if (snap === true) {
+				const offset = this._options.snapOffset;
+				diff = diff.map(a => a - (a % offset));
+			}
 
-			if (!fixAspectRatio) {
-				if (lock && !this._ignore) {
-					this._ignore = true;
-					this._ignoreX = Math.abs(diffX) < Math.abs(diffY);
-				} else if (!lock && this._ignore) {				
-					this._ignore = false;
-				}
-				if (this._ignore) {
-					if (this._ignoreX) {
-						diffX = 0;
-					} else {
-						diffY = 0;
-					}
-				}
+			if (!this._fix) {
+				this._applyLock(diff, lock === true);
 			}
 
 			this._boxes.forEach((box, i) => {
-				const pos = this._initialLocalPositions[i],
-					  dim = this._initialLocalDimensions[i];
-				const worldDiff = box.toLocalDir(new Vector2(diffX, diffY));
-				diffX = worldDiff.x;
-				diffY = worldDiff.y;
-				if (setAspectRatio) {
-					[diffX, diffY] = this._fixAspect(diffX, diffY, dim, this._moveLeft, this._moveTop);
+				const ratio = this._aspectRatios[i];
+				if (this._fix) {
+					const neg = this._invertedLeft !== this._invertedTop;
+					diff = this._applyAspectRatio(diff, ratio, neg);
 				}
-
-				if (setX) {
-					const x = this._calcAxis(pos.x, dim.x, diffX, this._moveLeft, this.options.get("minWidth"));
-					box.localLeft = x[0];
-					box.localWidth = x[1];
-				} else {
-					box.localLeft = pos.x;
-					box.localWidth = dim.x;
-				}
-				if (setY) {
-					const y = this._calcAxis(pos.y, dim.y, diffY, this._moveTop, this.options.get("minHeight"));
-					box.localTop = y[0];
-					box.localHeight = y[1];
-				} else {
-					box.localTop = pos.y;
-					box.localHeight = dim.y;
-				}
+				this._callApplyResize(box, i, diff);
 			});
 		}
 
-		_fixAspect(x, y, dim, offsetLeft, offsetTop) {
-			const f = offsetLeft === offsetTop ? 1 : -1;
-			y = Math.round(dim.y / dim.x * x * f);
-			return [x, y];
-		}
-
-		_calcAxis(coord, dim, diff, move, min) {
-			const m = move ? -1 : 1;
-			const newCoord = move ? Math.min(coord + diff, coord + dim - min) : coord;
-			const newDim   = Math.max(dim + (diff * m), min);
-			return [newCoord, newDim];
-		}
-
-		_close() {
-			super._close();
-			this._finalLocalDimensions = this._boxes.map(b => b.localDimensions);
-		}
-
-		_undo() {
-			super._undo();
-			this._boxes.forEach((b, i) => {
-				b.localDimensions = this._initialLocalDimensions[i];
-			});
-		}
-
-		_redo() {
-			super._redo();
-			this._boxes.forEach((b, i) => {
-				b.localDimensions = this._finalLocalDimensions[i];
-			});
+		_applyAspectRatio(v, ratio, negSlope) {
+			if (negSlope) {
+				ratio *= -1;
+			}
+			return new Vector2(v.x, ratio * v.x);
 		}
 	};
 })();
+
+class ResizeDimensionsCommand extends ResizeCommand {
+	constructor(boxes, pos, options) {
+		super(boxes, pos, options);
+
+		this.localDimensionsDifference = null;
+		this._initialLocalDimensions =
+			this._boxes.map(b => b.localDimensions);
+	}
+
+	_callApplyResize(box, i, diff) {
+		const pos = this._initialLocalPositions[i],
+			  dim = this._initialLocalDimensions[i];
+		this._applyResize(box, diff, pos, dim);
+	}
+
+	_applyResize(box, diff, pos, dim) {
+		diff = box.parent.toLocalDir(diff);
+
+		let x;
+		if (this._setX) {
+			const result =
+				this._calcAxis(
+					diff.x,
+					dim.x,
+					this._invertedLeft,
+					this._options.minWidth);
+			x = result[0];
+			box.localWidth = result[1];
+		} else {
+			x = 0;
+		}
+
+		let y;
+		if (this._setY) {
+			const result =
+				this._calcAxis(
+					diff.y,
+					dim.y,
+					this._invertedTop,
+					this._options.minHeight);
+			y = result[0];
+			box.localHeight = result[1];
+		} else {
+			y = 0;
+		}
+
+		const newPos = new Vector2(x, y)
+			.project(this._inverseXBasis, this._inverseYBasis)
+				.add(pos);
+		box.localPosition = newPos;
+	}
+
+	_calcAxis(diff, dim, inverted, min) {
+		const m = inverted ? -1 : 1;
+		let newDim = dim + (diff * m);
+		const isMin = newDim < min;
+		if (isMin) {
+			newDim = min;
+		}
+
+		let pos;
+		if (inverted) {
+			if (isMin) {
+				pos = dim - min;
+			} else {
+				pos = diff;
+			}
+		} else {
+			pos = 0;
+		}
+
+		return [pos, newDim];
+	}
+
+	_close() {
+		this._calcFinalPositions();
+
+		this._finalLocalDimensions =
+			this._boxes.map(b => b.localDimensions);
+
+		this.localDimensionsDifference =
+			this._finalLocalDimensions[0]
+				.subtract(this._initialLocalDimensions[0]);
+	}
+
+	_undo() {
+		super._undo();
+		this._boxes.forEach((b, i) => {
+			b.localDimensions = this._initialLocalDimensions[i];
+		});
+	}
+
+	_redo() {
+		super._redo();
+		this._boxes.forEach((b, i) => {
+			b.localDimensions = this._finalLocalDimensions[i];
+		});
+	}
+}
+
+class ResizeScaleCommand extends ResizeCommand {
+	constructor(boxes, pos, options) {
+		super(boxes, pos, options);
+
+		this.localScaleDifference = null;
+		this._initialLocalScale =
+			this._boxes.map(b => b.localScale);
+	}
+
+	_callApplyResize(box, i, diff) {
+		const pos = this._initialLocalPositions[i],
+			  scale = this._initialLocalScale[i];
+		this._applyResize(box, diff, pos, scale);
+	}
+
+	_applyResize(box, diff, pos, scale) {
+		diff = box.parent.toLocalDir(diff);
+
+		let x;
+		if (this._setX) {
+			const result =
+				this._calcAxis(
+					diff.x,
+					box.rawWidth,
+					scale.x,
+					this._invertedLeft,
+					this._options.minWidth);
+			x = result[0];
+			box.localScaleX = result[1];
+		} else {
+			x = 0;
+		}
+
+		let y;
+		if (this._setY) {
+			const result =
+				this._calcAxis(
+					diff.y,
+					box.rawHeight,
+					scale.y,
+					this._invertedTop,
+					this._options.minHeight);
+			y = result[0];
+			box.localScaleY = result[1];
+		} else {
+			y = 0;
+		}
+
+		const newPos = new Vector2(x, y)
+			.project(this._inverseXBasis, this._inverseYBasis)
+				.add(pos);
+		box.localPosition = newPos;
+	}
+
+	_fixAspect() {}
+
+	_calcAxis(diff, dim, scale, inverted, min) {
+		const m = inverted ? -1 : 1;
+		let newScale = scale + (diff / dim * m);
+		const isMin = newScale * dim < min;
+		if (isMin) {
+			newScale = min / dim;
+		}
+
+		let pos;
+		if (inverted) {
+			if (isMin) {
+				pos = (scale * dim) - min;
+			} else {
+				pos = diff;
+			}
+		} else {
+			pos = 0;
+		}
+
+		return [pos, newScale];
+	}
+
+	_close() {
+		if (this._invertedLeft || this._invertedTop) {
+			this._calcFinalPositions();
+		} else {
+			this._finalLocalPositions = this._initialLocalPositions.slice();
+			this.localPositionDifference = Vector2.zero;
+		}
+
+		this._finalLocalScale = this._boxes.map(b => b.localScale);
+
+		this.localScaleDifference =
+			this._finalLocalScale[0]
+				.divide(this._initialLocalScale[0]);
+	}
+
+	_undo() {
+		super._undo();
+		this._boxes.forEach((b, i) => {
+			b.localScale = this._initialLocalScale[i];
+		});
+	}
+
+	_redo() {
+		super._redo();
+		this._boxes.forEach((b, i) => {
+			b.localScale = this._finalLocalScale[i];
+		});
+	}
+}
 
 const RotateCommand = (function(){
 	const DEFAULTS = { snapOffset: 10 };
@@ -210,40 +391,48 @@ const RotateCommand = (function(){
 		constructor(boxes, pos, options) {
 			super(boxes, pos);
 			
-			this.options = new Options();
-			this.options.set(DEFAULTS, options);
+			this._options = extend(DEFAULTS, options);
+			this._snapOffset = this._options.snapOffset * Vector2.degToRad;
 
-			this._snapOffset = this.options.get("snapOffset") * Vector2.degToRad;
-			this._initialAngles = this._boxes.map(b => b.angle);
+			this.angleDifference = null;
+			this._initialLocalAngles = this._boxes.map(b => b.angle);
+		}
+
+		get finalLocalAngles() {
+			return this._finalLocalAngles;
 		}
 
 		_execute(mousePosition, snapMovement) {
 			const dir = mousePosition.subtract(this._referencePosition);
+
 			let a = dir.angle + Vector2.angleOffset;
 			if (snapMovement) {
-				a -= (a % this._snapOffset);
+				a -= (a % this._options.snapOffset);
 			}
+
 			this._boxes.forEach((box) => {
 				box.angle = a;
 			});
 		}
 
 		_close() {
-			super._close();
-			this._finalAngles = this._boxes.map(b => b.angle);
+			this._finalLocalAngles = this._boxes.map(b => b.angle);
+
+			this.angleDifference =
+				this._finalLocalAngles[0] - this._initialLocalAngles[0];
 		}
 
 		_undo() {
 			super._undo();
 			this._boxes.forEach((b, i) => {
-				b.angle = this._initialAngles[i];
+				b.angle = this._initialLocalAngles[i];
 			});
 		}
 
 		_redo() {
 			super._redo();
 			this._boxes.forEach((b, i) => {
-				b.angle = this._finalAngles[i];
+				b.angle = this._finalLocalAngles[i];
 			});
 		}
 	};

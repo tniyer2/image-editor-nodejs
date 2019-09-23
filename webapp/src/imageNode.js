@@ -1,9 +1,8 @@
 
 import { FileInput } from "./input";
 import { LayerGroup, Layer } from "./basicTypes";
-import
-	{ Node, NodeOutput, NodeSettingsContainer, NodeSettings }
-		from "./node";
+import { Node, NodeOutput,
+		 NodeSettingsContainer, NodeSettings } from "./node";
 
 const OPTIONS = { icon: "#icon-image-node" };
 const SETTINGS = { image: { value: null, nostack: true } };
@@ -11,7 +10,7 @@ const SETTINGS = { image: { value: null, nostack: true } };
 export default class extends Node {
 	constructor() {
 		const output = new NodeOutput(LayerGroup),
-			  ui = new ImageNodeSettings(),
+			  ui = new ImageNodeSettingsContainer(),
 			  settings = new NodeSettings(SETTINGS);
 
 		super([], [output], ui, settings, OPTIONS);
@@ -31,7 +30,7 @@ export default class extends Node {
 	}
 }
 
-class ImageNodeSettings extends NodeSettingsContainer {
+class ImageNodeSettingsContainer extends NodeSettingsContainer {
 	_createDOM() {
 		const f = new FileInput(
 			{ text: "upload",
@@ -42,7 +41,7 @@ class ImageNodeSettings extends NodeSettingsContainer {
 			const image = document.createElement("img");
 
 			image.addEventListener("load", () => {
-				this.options.tryPut("image", image);
+				this._settings.tryPut("image", image);
 			});
 			image.addEventListener("error", () => {
 				console.warn("Failed to load image from url:", url);

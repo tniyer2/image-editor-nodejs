@@ -3,12 +3,13 @@ import { AddToEventLoop } from "./utility";
 import { Vector2, Box } from "./geometry";
 import { Tab } from "./area";
 
-const CLASSES =
-{ root: "viewport-tab",
+const CLASSES = {
+  root: "viewport-tab",
   viewport: "viewport",
   innerViewport: "viewport__inner",
   background: "viewport__background",
-  layerParent: "viewport__layersParent" };
+  layerParent: "viewport__layersParent"
+};
 
 const H_PADDING = 20,
 	  V_PADDING = 20;

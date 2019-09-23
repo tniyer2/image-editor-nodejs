@@ -1,37 +1,71 @@
 
-import { isFunction, isArray } from "./type";
-import { MultiCommand } from "./command";
+import { isUdf, isFunction,
+		 isObjectLiteral, isArray } from "./type";
+import { MultiCommand, CommandStack } from "./command";
+import { Box } from "./geometry";
 import { UserActionHandler } from "./action";
 
+function isValidGroup(g) {
+	return isObjectLiteral(g) &&
+		(isFunction(g.boxes) || isValidBoxes(g.boxes)) &&
+			(!("stack" in g) || g.stack instanceof CommandStack);
+}
+
+function isValidBoxes(boxes) {
+	return isArray(boxes) && 
+		boxes.every(b => b instanceof Box);
+}
+
+function getBoxes(group) {
+	if (isFunction(group.boxes)) {
+		const boxes = group.boxes();
+		if (!isValidBoxes(boxes)) {
+			throw new Error("Invalid argument.");
+		}
+		return boxes;
+	} else {
+		return group.boxes;
+	}
+}
+
+function addCommandToStack(group, command) {
+	const stack = group.stack;
+	if (stack instanceof CommandStack) {
+		stack.add(command);
+	} else if (!isUdf(stack) && stack !== null) {
+		throw new Error("Invalid State.");
+	}
+}
+
 export default class extends UserActionHandler {
-	constructor(infos) {
+	constructor(groups) {
 		super();
 
-		if (typeof infos === "object") {
-			this._boxInfos = [infos];
-		} else if (isArray(infos) && infos.every(g => typeof g === "object")) {
-			this._boxInfos = infos;
+		if (isArray(groups) && groups.every(g => isValidGroup(g))) {
+			this._groups = groups.map(a => Object.assign({}, a));
+		} else if (isValidGroup(groups)) {
+			this._groups = [groups];
 		} else {
 			throw new Error("Invalid argument.");
 		}
 	}
 
 	_onStart(evt) {
-		this._commands = this._boxInfos.map((g) => {
-			const boxes = isFunction(g.boxes) ? g.boxes() : g.boxes;
+		this._commands = this._groups.map((g) => {
+			const boxes = getBoxes(g);
+			if (!boxes.length) {
+				return null;
+			}
 
 			let c = this._getCommand(boxes, evt);
 			if (isArray(c)) {
 				c = new MultiCommand(c);
 			}
 
-			const stack = isFunction(g.stack) ? g.stack() : g.stack;
-			if (stack) {
-				stack.add(c);
-			}
+			addCommandToStack(g, c);
 
 			return c;
-		});
+		}).filter(Boolean);
 	}
 
 	_onMove(evt) {
@@ -49,6 +83,5 @@ export default class extends UserActionHandler {
 		this._commands.forEach((c) => {
 			c.close();
 		});
-		this._commands = null;
 	}
 }

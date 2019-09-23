@@ -1,16 +1,17 @@
 
 import { isFunction } from "./type";
 import Options from "./options";
-import { Vector2 } from "./geometry";
-import { DragCommand, ResizeCommand, RotateCommand } from "./boxCommands";
+import { DragCommand,
+		 ResizeDimensionsCommand,
+		 RotateCommand } from "./boxCommands";
 import BoxWidget from "./boxWidget";
 
 export { DragWidget, ResizeWidget, RotateWidget };
 
 class DragWidget extends BoxWidget {
 	_getCommand(boxes, evt) {
-		const mp = this._getMousePosition(evt);
-		return new DragCommand(boxes, mp);
+		const p = this._getMousePosition(evt);
+		return new DragCommand(boxes, p);
 	}
 
 	_getArguments(evt) {
@@ -19,23 +20,26 @@ class DragWidget extends BoxWidget {
 }
 
 const ResizeWidget = (function(){
-	const DEFAULTS = { angle: 0 };
-
 	return class extends BoxWidget {
-		constructor(groups, op, rop) {
+		constructor(groups, options) {
 			super(groups);
 
 			this.options = new Options();
-			this.options.set(DEFAULTS, op);
-			this.resizeOptions = new Options();
-			this.resizeOptions.set(rop);
+			this.options.set(options);
 		}
 
 		_getCommand(boxes, evt) {
-			const mp = this._getMousePosition(evt);
-			let a = this.options.get("angle");
-			a = isFunction(a) ? a() : a;
-			return new ResizeCommand(boxes, mp, a, this.resizeOptions);
+			const p = this._getMousePosition(evt);
+
+			const options = this.options.items;
+			if (isFunction(options.angle)) {
+				options.angle = options.angle();
+			}
+			if (isFunction(options.fixAspectRatio)) {
+				options.fixAspectRatio = options.fixAspectRatio();
+			}
+
+			return new ResizeDimensionsCommand(boxes, p, options);
 		}
 
 		_getArguments(evt) {
@@ -45,19 +49,19 @@ const ResizeWidget = (function(){
 })();
 
 const RotateWidget = (function(){
-	const DEFAULTS = { center: Vector2.zero };
-
 	return class extends BoxWidget {
 		constructor(groups, options) {
 			super(groups);
 
 			this.options = new Options();
-			this.options.set(DEFAULTS, options);
+			this.options.set(options);
 		}
 
 		_getCommand(boxes, evt) {
 			let center = this.options.get("center");
-			center = isFunction(center) ? center() : center;
+			if (isFunction(center)) {
+				center = center();
+			}
 			return new RotateCommand(boxes, center);
 		}
 

@@ -157,9 +157,9 @@ const ImageRect = (function(){
 })();
 
 const Layer = (function(){
-	const CLASSES =
-	{ layer: "layer",
-	  selected: "selected" };
+	const CLASSES = {
+		layer: "layer",
+		selected: "selected" };
 
 	function createCanvas(source, width, height) {
 		const canvas = document.createElement("canvas");
@@ -176,12 +176,13 @@ const Layer = (function(){
 		constructor(source, box) {
 			if (source instanceof HTMLImageElement) {
 				if (!source.complete) {
-					throw new Error("Argument 'source' is not fully loaded.");
+					throw new Error("Invalid argument.");
 				}
-				this.canvas = createCanvas(
-								source,
-								source.naturalWidth,
-								source.naturalHeight);
+				this.canvas =
+					createCanvas(
+						source,
+						source.naturalWidth,
+						source.naturalHeight);
 			} else if (source instanceof HTMLCanvasElement) {
 				this.canvas = source;
 			} else {
@@ -191,11 +192,15 @@ const Layer = (function(){
 			const d = document.createElement("div");
 			d.classList.add(CLASSES.layer);
 			this.box = new Box(d);
+			this.box.setOriginCenter();
 
-			this.box.localWidth = this.canvas.width;
-			this.box.localHeight = this.canvas.height;
+			this.box.rawWidth = this.canvas.width;
+			this.box.rawHeight = this.canvas.height;
 
 			if (!isUdf(box)) {
+				if (!(box instanceof Box)) {
+					throw new Error("Invalid argument.");
+				}
 				this.box.localPosition = box.localPosition;
 				this.box.localScale = box.localScale;
 				this.box.localAngle = box.localAngle;
@@ -214,7 +219,8 @@ const Layer = (function(){
 			if (typeof val !== "boolean") {
 				throw new Error("Invalid argument.");
 			}
-			this.box.element.classList.toggle(CLASSES.selected, val);
+			this.box.element.classList
+				.toggle(CLASSES.selected, val);
 			this._selected = val;
 		}
 
@@ -224,8 +230,10 @@ const Layer = (function(){
 
 		deepcopy() {
 			const canvas =
-			createCanvas(
-				this.canvas, this.canvas.width, this.canvas.height);
+				createCanvas(
+					this.canvas,
+					this.canvas.width,
+					this.canvas.height);
 
 			return new Layer(canvas, this.box);
 		}
@@ -240,7 +248,7 @@ class LayerGroup {
 			throw new Error("Invalid argument.");
 		}
 
-		this.layers = layers;
+		this.layers = layers.slice();
 
 		if (!isNumber(cinfo.width) || !isNumber(cinfo.height)) {
 			const v = this.layers[0].box.localDimensions;
@@ -268,9 +276,11 @@ class LayerGroup {
 			}
 		});
 
-		let cinfo = null;
+		let cinfo;
 		if (this.canvasInfo) {
 			cinfo = Object.assign({}, this.canvasInfo);	
+		} else {
+			cinfo = null;
 		}
 
 		return new LayerGroup(layers, cinfo);

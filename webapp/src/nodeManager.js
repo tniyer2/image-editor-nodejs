@@ -1,4 +1,5 @@
 
+import { isType } from "./type";
 import { AddToEventLoop } from "./utility";
 import { ConstantDictionary } from "./dictionary";
 import Lock from "./lock";
@@ -84,7 +85,17 @@ export default class {
 			this._pointMouseAction.pipe(m2);
 		});
 
-		node.position = this._nodesTab.nodeSpace.position.add(NODE_SPAWN);
+		node.position =
+			this._nodesTab.nodeSpace
+				.position.add(NODE_SPAWN);
+
+		node.ui.messageBox = this._settingsTab.messageBox;
+		const type = node.toolType;
+		if (type) {
+			node.tool =
+				this._editor.tools.find(t => isType(t, type))
+					|| null;
+		}
 	}
 
 	_addNodeListeners() {
@@ -146,11 +157,13 @@ export default class {
 		});
 
 		this.nodes.onActiveChange.addListener((oldNode, node) => {
+			this._settingsTab.messageBox.clear();
+
 			if (oldNode) {
 				oldNode.ui.remove();
 			}
 			if (node) {
-				node.ui.add(this._settingsTab.box);
+				node.ui.add(this._settingsTab.wrapper);
 			}
 		});
 	}
@@ -257,7 +270,8 @@ export default class {
 						const outputs = n.outputs.map(o => o.value);
 						console.log("time:", total, "output:", ...outputs);
 
-						if (n !== this._prevRendered || !info.clean) {
+						const diffNode = n !== this._prevRendered;
+						if (diffNode || !info.clean) {
 							this._editor.render(n);
 							this._prevRendered = n;
 						}

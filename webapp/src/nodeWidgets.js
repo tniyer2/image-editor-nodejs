@@ -1,4 +1,5 @@
 
+import { isArray } from "./type";
 import { show, hide } from "./utility";
 import { Command, MultiCommand } from "./command";
 import { UserActionHandler } from "./action";
@@ -223,6 +224,12 @@ class DragNodeWidget extends DragWidget {
 	_getCommand(boxes, evt) {
 		const inherited = super._getCommand(boxes, evt);
 		const command = new UpdateLinkCommand(boxes);
-		return [inherited, command];
+
+		if (isArray(inherited)) {
+			inherited.push(command);
+			return inherited;
+		} else {
+			return [inherited, command];
+		}
 	}
 }

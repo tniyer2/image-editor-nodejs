@@ -1,9 +1,7 @@
 
 import { LayerGroup } from "./basicTypes";
-import
-	{ Node, MultiNodeInput, NodeOutput,
-		NodeSettingsContainer, NodeSettings }
-			from "./node";
+import { Node, MultiNodeInput, NodeOutput,
+		 NodeSettingsContainer, NodeSettings } from "./node";
 
 const OPTIONS = { icon: "#icon-merge-node" };
 

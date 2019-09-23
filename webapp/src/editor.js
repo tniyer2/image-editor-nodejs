@@ -13,6 +13,8 @@ import NodeEditorTab from "./nodeEditorTab";
 import NodeSettingsTab from "./nodeSettingsTab";
 import AreaManager from "./areaManager";
 
+import MoveTool from "./moveTool";
+
 const DEFAULTS = { stackLimit: null };
 
 export default class {
@@ -31,6 +33,7 @@ export default class {
 
 		this._initAreaManager();
 		this._initLayerManager();
+		this._initTools();
 		this._initNodeManager();
 	}
 
@@ -56,6 +59,21 @@ export default class {
 	_initLayerManager() {
 		const tab = this._areaManager.tabs.get("viewport");
 		this._layerManager = new LayerManager(this, tab);
+	}
+
+	_initTools() {
+		this.tools = [];
+
+		const tab1 = this._layerManager.tab;
+		const t1 =
+			new MoveTool(
+				this._layerManager.layers,
+				this.stack,
+				tab1.layerParent,
+				tab1.innerViewport,
+				tab1.viewport.element);
+
+		this.tools.push(t1);
 	}
 
 	_initNodeManager() {
