@@ -57,9 +57,9 @@ export default class extends Tab {
 			const p = this.viewport.localDimensions;
 
 			const w = p.x - H_PADDING;
-			const sx = w / dim.x;
+			const sx = dim.x === 0 ? 0 : w / dim.x;
 			const h = p.y - V_PADDING;
-			const sy = h / dim.y;
+			const sy = dim.y === 0 ? 0 : h / dim.y;
 
 			const scale = sx < sy ? sx : sy;
 			this.innerViewport.localScale = new Vector2(scale, scale);
@@ -85,6 +85,6 @@ export default class extends Tab {
 	}
 
 	updateDOM() {
-		this._updateDOM.invoke();
+		this._updateDOM.update();
 	}
 }

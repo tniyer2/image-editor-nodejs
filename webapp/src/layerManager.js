@@ -2,6 +2,7 @@
 import { MouseAction, UserActionPiper, ZoomAction } from "./action";
 import ZoomWidget from "./zoomWidget";
 import { Vector2 } from "./geometry";
+import { CanvasLayer } from "./layer";
 import { Collection, BASE, SELECT } from "./collection";
 
 const BASE2 = Object.assign({}, BASE);
@@ -13,6 +14,8 @@ export default class {
 		this._editor = editor;
 		this.tab = tab;
 
+		this._prevRender = null;
+
 		this.layers = new LayerCollection();
 		this._addLayerListeners();
 
@@ -21,20 +24,31 @@ export default class {
 		this._initZoomWidget();
 	}
 
-	_addLayerListeners() {
-		this.layers.onAdd.addListener((layer) => {
-			this.tab.layerParent.appendChild(layer.box.element);
+	initLayer(layer) {
+		if (!layer.initialized) {
 			layer.box.parent = this.tab.innerViewport;
-			if (layer.canvas.parentElement !== layer.box.element) {
-				layer.box.element.appendChild(layer.canvas);
-			}
-
-			layer.p_action = new MouseAction(
+			layer.action = new MouseAction(
 				layer.box.element,
 				this.tab.viewport.element,
 				{ data: layer,
 				  exitOnMouseLeave: false });
-			this.layers.action.pipe(layer.p_action);
+
+			layer.initialized = true;
+		}
+	}
+
+	_addLayerListeners() {
+		this.layers.onAdd.addListener((layer) => {
+			this.initLayer(layer);
+
+			layer.box.parent = this.tab.innerViewport;
+			this.tab.layerParent.appendChild(layer.box.element);
+			if (layer instanceof CanvasLayer) {			
+				if (layer.canvas.parentElement !== layer.box.element) {
+					layer.box.element.appendChild(layer.canvas);
+				}
+			}
+			this.layers.action.pipe(layer.action);
 		});
 
 		this.layers.onRemove.addListener((layer) => {
@@ -80,6 +94,12 @@ export default class {
 	}
 
 	render(layerGroup) {
+		if (layerGroup === this._prevRender) {
+			return;
+		} else {
+			this._prevRender = layerGroup;
+		}
+
 		this.layers.removeAll();
 		this.layers.action.clear();
 

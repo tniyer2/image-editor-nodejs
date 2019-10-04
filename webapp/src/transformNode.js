@@ -2,12 +2,11 @@
 import { isType } from "./type";
 import { removeDuplicates } from "./utility";
 import { Vector2 } from "./geometry";
-import { LayerGroup } from "./basicTypes";
+import { LayerGroup } from "./layer";
 import { Node, NodeInput, NodeOutput,
 		 NodeSettingsContainer, NodeSettings } from "./node";
 import { StringInput, NumericalInput,
-		 Dropdown, DynamicList, Toggle } from "./input";
-import MoveTool from "./moveTool";
+		 Dropdown, UnorderedList, Toggle } from "./input";
 
 export default (function(){
 	const OPTIONS = {
@@ -16,35 +15,23 @@ export default (function(){
 
 	const SETTINGS = {
 		transforms: { array: true },
-		lockedTransform: { value: null, nostack: true, noupdate: true }
+		lockedTransform: { value: null }
 	};
 
 	const DEFAULT_TRANSFORM = {
 		tx: 0,
 		ty: 0,
+		pretx: 0,
+		prety: 0,
 		sx: 1,
 		sy: 1,
 		angle: 0
 	};
 
-	const ADD = (a, b) => a + b,
-		  MULTIPLY = (a, b) => a * b;
-
-	const TRANSFORM_FUNCTIONS = {
-		tx: ADD,
-		ty: ADD,
-		sx: MULTIPLY,
-		sy: MULTIPLY,
-		angle: ADD
-	};
-
-	const RECALC_SETTINGS = ["transforms", "range", "mode"],
-		  READJUST_SETTINGS = ["tx", "ty", "sx", "sy", "angle"];
-
-	const RANGE_REGEX = /^(\d+)-(\d+)$/;
-
 	const matchExists = (a, b) => 
 		Boolean(a.find(c => b.includes(c)));
+
+	const RANGE_REGEX = /^(\d+)-(\d+)$/;
 
 	return class extends Node {
 		constructor() {
@@ -57,14 +44,18 @@ export default (function(){
 		}
 
 		get toolType() {
-			return MoveTool;
+			return "MoveTool";
 		}
 
 		_cook(inputs) {
 			const group = inputs[0];
-			if (!group) return [null];
+			if (!group) {
+				return [null];
+			}
 
-			const init = !this._initialTransforms || this._dirtyInput;
+			const init = Boolean(
+				!this._initialTransforms ||
+					this._dirtyInputs.length);
 
 			if (init) {
 				this._group = group.copy();
@@ -72,31 +63,25 @@ export default (function(){
 					group.layers.map(l => this._getInitialTransform(l));
 			}
 
-			if (init ||
-				matchExists(this._dirtySettingNames, RECALC_SETTINGS)) {
+			const sort = init ||
+				matchExists(
+					this._dirtySettings,
+					["transforms", "range", "mode"]);
+			const calc =
+				matchExists(
+					this._dirtySettings,
+					["tx", "ty", "sx", "sy", "angle"]);
+
+			if (sort) {
 				this._sortedTransforms =
 					this._getSortedTransforms(
 						this.settings.get("transforms"),
 						this._initialTransforms);
-
+			}
+			if (sort || calc) {
 				this._finalTransforms =
 					this._sortedTransforms.map(
 						arr => this._computeTransforms(arr));
-
-			} else if (matchExists(this._dirtySettingNames, READJUST_SETTINGS)) {
-				this._finalTransforms = this._sortedTransforms.map((arr, i) => {
-					const final = this._finalTransforms[i];
-
-					const found = this._dirtySettingInfos.find((p) =>
-						Boolean(arr.find(t => t.settings === p.settings)));
-					if (found) {
-						found.names.forEach((name) => {
-							this._adjustComputed(final, arr, name);
-						});
-					}
-
-					return final;
-				});
 			}
 
 			this._group.layers.forEach((l, i) => {
@@ -108,19 +93,19 @@ export default (function(){
 		}
 
 		_getInitialTransform(layer) {
-			const transform = {};
+			const t = layer.box.localPosition,
+				  s = layer.box.localScale,
+				  a = layer.box.degrees;
 
-			const t = layer.box.staticLocalPosition;
-			transform.tx = t.x;
-			transform.ty = t.y;
-
-			const s = layer.box.localScale;
-			transform.sx = s.x;
-			transform.sy = s.y;
-
-			transform.angle = layer.box.angle;
-
-			return transform;
+			return {
+				pretx: 0,
+				prety: 0,
+				tx: t.x,
+				ty: t.y,
+				sx: s.x,
+				sy: s.y,
+				angle: a
+			};
 		}
 
 		_getSortedTransforms(transforms, initial) {
@@ -181,51 +166,37 @@ export default (function(){
 		}
 
 		_computeTransforms(transforms) {
-			let init;
+			let final;
 			let skip = false;
 			const first = transforms[0];
 			if (isType(first, Object)) {
-				init = Object.assign({}, first);
+				final = Object.assign({}, first);
 				skip = true;
 			} else {
-				init = Object.assign({}, DEFAULT_TRANSFORM);
+				final = Object.assign({}, DEFAULT_TRANSFORM);
 			}
 
-			return transforms.reduce((acc, t, i) => {
-				if (!(skip && !i)) {
-					acc.tx += t.settings.get("tx");
-					acc.ty += t.settings.get("ty");
-					acc.sx *= t.settings.get("sx");
-					acc.sy *= t.settings.get("sy");
-					acc.angle += t.settings.get("angle");
-				}
+			transforms.forEach((t, i) => {
+				if (skip && i === 0) return;
 
-				return acc;
-			}, init);
-		}
+				final.tx += t.settings.get("tx");
+				final.ty += t.settings.get("ty");
+				final.pretx += t.settings.get("pretx");
+				final.prety += t.settings.get("prety");
+				final.sx *= t.settings.get("sx");
+				final.sy *= t.settings.get("sy");
+				final.angle += t.settings.get("angle");
+			});
 
-		_adjustComputed(computed, transforms, settingsName) {
-			let start;
-			let skip = false;
-			const first = transforms[0];
-
-			if (isType(first, Object)) {
-				start = first[settingsName];
-				skip = true;
-			} else {
-				start = DEFAULT_TRANSFORM[settingsName];
-			}
-
-			const func = TRANSFORM_FUNCTIONS[settingsName];
-			computed[settingsName] = transforms.reduce((acc, t, i) => {
-				return skip && !i ? acc : func(acc, t.settings.get(settingsName));
-			}, start);
+			return final;
 		}
 
 		_applyTransform(layer, transform) {
-			layer.box.angle = transform.angle;
+			layer.box.degrees = transform.angle;
 			layer.box.localScale = new Vector2(transform.sx, transform.sy);
-			layer.box.staticLocalPosition = new Vector2(transform.tx, transform.ty);
+			const x = transform.tx + transform.pretx,
+				  y = transform.ty + transform.prety;
+			layer.box.localPosition = new Vector2(x, y);
 		}
 	};
 })();
@@ -241,7 +212,7 @@ const TransformNodeSettingsContainer = (function(){
 			super();
 
 			this._transformBuilder = () => {
-				const s = new TransformSettingsContainer();
+				const s = new Transform();
 				s.settings.linkTo(this._settings);
 				return s;
 			};
@@ -257,36 +228,42 @@ const TransformNodeSettingsContainer = (function(){
 				"transforms", this._transformBuilder);
 		}
 
+		_initDOM() {
+			this._createDOM();
+			this._addListeners();
+		}
+
 		_createDOM() {
 			this._box.element.classList.add(CLASSES.root);
 
-			const list = new DynamicList();
+			const list = new UnorderedList({ userAdd: true });
 			list.root.classList.add(CLASSES.transforms);
 			this._box.element.appendChild(list.root);
+			this._transformList = list;
+		}
 
-			list.onAdd = () => {
-				const tsc = this._settings.new("transforms");
-				this._settings.tryPush("transforms", tsc, true);
-			};
+		_addListeners() {
+			this._transformList.onRequestAdd(() => {
+				const t = this._settings.new("transforms");
+				this._settings.tryPush("transforms", t, true);
+			});
 
-			list.onRemove = (element, tsc) => {
-				this._settings.tryPush("transforms", tsc, false);
-			};
+			this._transformList.onRequestRemove((element, t) => {
+				this._settings.tryPush("transforms", t, false);
+			});
 
-			this._settings.addListener("transforms", (tsc, adding) => {
+			this._settings.addListener("transforms", (t, adding) => {
 				if (adding) {
-					list.add({
-						element: tsc.box.element,
-						data: tsc });
+					this._transformList.add(t.root, t);
 				} else {
-					list.remove(tsc.box.element);
+					this._transformList.remove(t.root);
 				}
 			});
 		}
 	};
 })();
 
-const TransformSettingsContainer = (function(){
+const Transform = (function(){
 	const OPTIONS = {
 		lock: { value: false, nostack: true, noupdate: true },
 		fixAspectRatio: { value: false },
@@ -296,7 +273,9 @@ const TransformSettingsContainer = (function(){
 		ty: { value: 0 },
 		sx: { value: 1 },
 		sy: { value: 1 },
-		angle: { value: 0 }
+		angle: { value: 0 },
+		pretx: { value: 0, nostack: true, noupdate: true },
+		prety: { value: 0, nostack: true, noupdate: true }
 	};
 
 	const CLASSES = {
@@ -313,17 +292,21 @@ const TransformSettingsContainer = (function(){
 
 	const SCALE_DRAG_SPEED = 0.01;
 
-	return class extends NodeSettingsContainer {
+	return class {
 		constructor() {
-			super();
 			this._settings = new NodeSettings(OPTIONS);
 
 			this._createDOM();
 			this._addListeners();
 		}
 
+		get settings() {
+			return this._settings;
+		}
+
 		_createDOM() {
-			this._box.element.className = CLASSES.root;
+			this.root = document.createElement("div");
+			this.root.classList.add(CLASSES.root);
 
 			this._createFixToggle();
 			this._createLockToggle();
@@ -332,7 +315,6 @@ const TransformSettingsContainer = (function(){
 			this._createRange();
 
 			const bounds = document;
-
 			this._createTranslate(bounds);
 			this._createScale(bounds);
 			this._createAngle(bounds);
@@ -344,7 +326,7 @@ const TransformSettingsContainer = (function(){
 
 			const root = this._fixToggle.root;
 			root.classList.add(CLASSES.lock);
-			this._box.element.appendChild(root);
+			this.root.appendChild(root);
 		}
 
 		_createLockToggle() {
@@ -353,7 +335,7 @@ const TransformSettingsContainer = (function(){
 
 			const root = this._lockToggle.root;
 			root.classList.add(CLASSES.lock);
-			this._box.element.appendChild(root);
+			this.root.appendChild(root);
 		}
 
 		_createMode() {
@@ -364,7 +346,7 @@ const TransformSettingsContainer = (function(){
 
 			const root = this._mode.root;
 			root.classList.add(CLASSES.mode);
-			this._box.element.appendChild(root);
+			this.root.appendChild(root);
 		}
 
 		_createRange() {
@@ -373,7 +355,7 @@ const TransformSettingsContainer = (function(){
 					{ text: "Range",
 					  value: this._settings.get("range") });
 			this._range.root.classList.add(CLASSES.range);
-			this._box.element.appendChild(this._range.root);
+			this.root.appendChild(this._range.root);
 		}
 
 		_createAngle(bounds) {
@@ -383,13 +365,13 @@ const TransformSettingsContainer = (function(){
 					  value: this._settings.get("angle"),
 					  bounds: bounds });
 			this._angle.root.classList.add(CLASSES.angle);
-			this._box.element.appendChild(this._angle.root);
+			this.root.appendChild(this._angle.root);
 		}
 
 		_createTranslate(bounds) {
 			const t = document.createElement("div");
 			t.classList.add(CLASSES.vector);
-			this._box.element.appendChild(t);
+			this.root.appendChild(t);
 
 			const text = document.createElement("span");
 			text.textContent = "Translate";
@@ -416,7 +398,7 @@ const TransformSettingsContainer = (function(){
 		_createScale(bounds) {
 			const s = document.createElement("div");
 			s.classList.add(CLASSES.vector);
-			this._box.element.appendChild(s);
+			this.root.appendChild(s);
 
 			const text = document.createElement("span");
 			text.textContent = "Scale";
@@ -463,14 +445,6 @@ const TransformSettingsContainer = (function(){
 				this._settings.parent.put("lockedTransform", lt);
 			});
 
-			this._fixToggle.onChange.addListener((val) => {
-				this._settings.tryPut("fixAspectRatio", val);
-			});
-			this._settings.addListener("fixAspectRatio", (val) => {
-				console.log("val:", val);
-				this._fixToggle.value = val;
-			});
-
 			this._mode.onSelect.addListener((val) => {
 				this._settings.tryPut("mode", val);
 			});
@@ -478,7 +452,14 @@ const TransformSettingsContainer = (function(){
 				this._mode.value = val;
 			});
 
-			["range", "tx", "ty", "sx", "sy", "angle"].forEach((name) => {
+			this._fixToggle.onChange.addListener((val) => {
+				this._settings.tryPut("fixAspectRatio", val);
+			});
+			this._settings.addListener("fixAspectRatio", (val) => {
+				this._fixToggle.value = val;
+			});
+
+			["range", "tx", "ty", "angle"].forEach((name) => {
 				const input = this["_" + name];
 
 				input.onChange.addListener((val) => {
@@ -486,6 +467,26 @@ const TransformSettingsContainer = (function(){
 				});
 				this._settings.addListener(name, (val) => {
 					input.value = val;
+				});
+			});
+
+			[["sx", "sy"], ["sy", "sx"]].forEach((names) => {
+				const n1 = names[0],
+					  n2 = names[1],
+					  a = this["_" + n1],
+					  b = this["_" + n2];
+
+				a.onChange.addListener((val) => {
+					this._settings.tryPut(n1, val);
+				});
+				this._settings.addListener(n1, (val, skip) => {
+					if (skip === true) return;
+
+					a.value = val;
+					if (this._settings.get("fixAspectRatio") === true) {
+						b.value = val;
+						this._settings.put(n2, val, [true]);
+					}
 				});
 			});
 		}

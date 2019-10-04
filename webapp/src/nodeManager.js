@@ -1,5 +1,4 @@
 
-import { isType } from "./type";
 import { AddToEventLoop } from "./utility";
 import { ConstantDictionary } from "./dictionary";
 import Lock from "./lock";
@@ -22,6 +21,8 @@ import { TestNode, AsyncTestNode } from "./testNodes";
 import ImageNode from "./imageNode";
 import MergeNode from "./mergeNode";
 import TransformNode from "./transformNode";
+import PaintNode from "./paintNode";
+import FilterNode from "./filterNode";
 
 const NodeCollection = Collection([BASE, SELECT,
 { type: Collection.SINGLE,
@@ -36,10 +37,10 @@ const LinkCollection = Collection([BASE, SELECT]);
 const NODE_SPAWN = new Vector2(10, 15);
 
 export default class {
-	constructor (editor, nodesTab, settingsTab) {
+	constructor (editor, tabs) {
 		this._editor = editor;
-		this._nodesTab = nodesTab;
-		this._settingsTab = settingsTab;
+		this._nodesTab = tabs[0];
+		this._settingsTab = tabs[1];
 
 		this.lock = new Lock();
 		this.lock.pipe(this._editor.stack.lock);
@@ -63,6 +64,10 @@ export default class {
 		this._initNodeWidgets();
 		this._initPointWidgets();
 		this._initLinkWidgets();
+	}
+
+	get editor() {
+		return this._editor;
 	}
 
 	get stack() {
@@ -90,11 +95,10 @@ export default class {
 				.position.add(NODE_SPAWN);
 
 		node.ui.messageBox = this._settingsTab.messageBox;
+
 		const type = node.toolType;
-		if (type) {
-			node.tool =
-				this._editor.tools.find(t => isType(t, type))
-					|| null;
+		if (this._editor.tools.has(type)) {
+			node.tool = this._editor.tools.get(type);
 		}
 	}
 
@@ -143,7 +147,7 @@ export default class {
 			if (fname === "selectOnly") {
 				this.links.deselectAll();
 			}
-			this._activeNodeUpdater.invoke();
+			this._activeNodeUpdater.update();
 		});
 
 		this.nodes.onVisibleChange.addListener((oldNode, node) => {
@@ -163,7 +167,7 @@ export default class {
 				oldNode.ui.remove();
 			}
 			if (node) {
-				node.ui.add(this._settingsTab.wrapper);
+				node.ui.addTo(this._settingsTab.wrapper);
 			}
 		});
 	}
@@ -239,6 +243,8 @@ export default class {
 		n.put("image", ImageNode);
 		n.put("merge", MergeNode);
 		n.put("transform", TransformNode);
+		n.put("paint", PaintNode);
+		n.put("filter", FilterNode);
 	}
 
 	_createAutoComplete() {
@@ -371,6 +377,6 @@ export default class {
 	}
 
 	updateNetwork() {
-		this._networkUpdater.invoke();
+		this._networkUpdater.update();
 	}
 }

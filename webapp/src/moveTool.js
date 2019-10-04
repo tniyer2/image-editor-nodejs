@@ -1,6 +1,5 @@
 
 import { show, hide, stopBubbling } from "./utility";
-import Options from "./options";
 import { Box } from "./geometry";
 import { MouseAction } from "./action";
 import { SelectWidget } from "./collectionWidgets";
@@ -46,7 +45,7 @@ export default class {
 		const d = document.createElement("div");
 		d.classList.add(CLASSES.moveBox);
 		this._moveBox = new Box(d, this._offsetParent);
-		this._moveBox.setOriginCenter();
+		// this._moveBox.setOriginCenter();
 
 		const background = document.createElement("div");
 		background.classList.add(CLASSES.background);

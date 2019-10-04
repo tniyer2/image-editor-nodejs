@@ -1,6 +1,6 @@
 
 import { FileInput } from "./input";
-import { LayerGroup, Layer } from "./basicTypes";
+import { LayerGroup, CanvasLayer } from "./layer";
 import { Node, NodeOutput,
 		 NodeSettingsContainer, NodeSettings } from "./node";
 
@@ -20,7 +20,7 @@ export default class extends Node {
 		let output;
 		const image = this.settings.get("image");
 		if (image) {
-			const layer = new Layer(image);
+			const layer = new CanvasLayer(image);
 			output = new LayerGroup([layer]);
 		} else {
 			output = null;
@@ -31,12 +31,23 @@ export default class extends Node {
 }
 
 class ImageNodeSettingsContainer extends NodeSettingsContainer {
+	constructor() {
+		super();
+
+		this._createDOM();
+		this._addListener();
+	}
+
 	_createDOM() {
 		const f = new FileInput(
 			{ text: "upload",
 			  accept: "image/png, image/jpeg" });
+		this._box.element.appendChild(f.root);
+		this._fileInput = f;
+	}
 
-		f.onChange.addListener((file) => {
+	_addListener() {
+		this._fileInput.onChange.addListener((file) => {
 			const url = URL.createObjectURL(file);
 			const image = document.createElement("img");
 
@@ -44,11 +55,10 @@ class ImageNodeSettingsContainer extends NodeSettingsContainer {
 				this._settings.tryPut("image", image);
 			});
 			image.addEventListener("error", () => {
-				console.warn("Failed to load image from url:", url);
+				throw new Error("Failed to load image from url: " + url);
 			});
 
 			image.src = url;
 		});
-		this._box.element.appendChild(f.root);
 	}
 }

@@ -163,21 +163,23 @@ class TransformDragWidget extends TransformWidget {
 	}
 
 	_getSettingCommands(command, transform) {
-		const diff = command.localPositionDifference,
+		const posDiff = command.localPositionDifference,
 			  s = transform.settings;
 
-		let dxi, dyi;
+		let initPosX, initPosY;
 		if (this._usingLocked === true) {
-			dxi = s.get("tx");
-			dyi = s.get("ty");
-			diff.x += dxi;
-			diff.y += dyi;
+			initPosX = s.get("tx");
+			initPosY = s.get("ty");
+			posDiff.x += initPosX;
+			posDiff.y += initPosY;
 		} else {
-			dxi = dyi = 0;
+			initPosX = initPosY = 0;
 		}
 
-		const c1 = this._node.createSettingCommand(s, "tx", dxi, diff.x),
-			  c2 = this._node.createSettingCommand(s, "ty", dyi, diff.y);
+		const c1 = this._node.createSettingCommand(
+			s, "tx", initPosX, posDiff.x),
+			  c2 = this._node.createSettingCommand(
+			s, "ty", initPosY, posDiff.y);
 
 		return [c1, c2];
 	}
@@ -213,37 +215,41 @@ class TransformScaleWidget extends TransformWidget {
 		}
 
 		_getSettingCommands(command, transform) {
-			const pdiff = command.localPositionDifference,
-				  sdiff = command.localScaleDifference,
+			const posDiff = command.localPositionDifference,
+				  scaleDiff = command.localScaleDifference,
 				  s = transform.settings;
 
-			let sxi, syi;
+			let initScaleX, initScaleY;
 			if (this._usingLocked === true) {
-				sxi = s.get("sx");
-				syi = s.get("sy");
-				sdiff.x *= sxi;
-				sdiff.y *= syi;
+				initScaleX = s.get("sx");
+				initScaleY = s.get("sy");
+				scaleDiff.x *= initScaleX;
+				scaleDiff.y *= initScaleY;
 			} else {
-				sxi = syi = 1;
+				initScaleX = initScaleY = 1;
 			}
 
-			const c1 = this._node.createSettingCommand(s, "sx", sxi, sdiff.x),
-				  c2 = this._node.createSettingCommand(s, "sy", syi, sdiff.y);
+			const c1 = this._node.createSettingCommand(
+				s, "sx", initScaleX, scaleDiff.x),
+				  c2 = this._node.createSettingCommand(
+				s, "sy", initScaleY, scaleDiff.y);
 			const arr = [c1, c2];
 
-			if (!pdiff.equals(Vector2.zero)) {
-				let pxi, pyi;
+			if (!posDiff.equals(Vector2.zero)) {
+				let initPosX, initPosY;
 				if (this._usingLocked === true) {
-					pxi = s.get("px");
-					pyi = s.get("py");
-					pdiff.x += pxi;
-					pdiff.y += pyi;
+					initPosX = s.get("tx");
+					initPosY = s.get("ty");
+					posDiff.x += initPosX;
+					posDiff.y += initPosY;
 				} else {
-					pxi = pyi = 0;
+					initPosX = initPosY = 0;
 				}
 
-				const c3 = this._node.createSettingCommand(s, "tx", pxi, pdiff.x),
-					  c4 = this._node.createSettingCommand(s, "ty", pyi, pdiff.y);
+				const c3 = this._node.createSettingCommand(
+					s, "tx", initPosX, posDiff.x),
+					  c4 = this._node.createSettingCommand(
+					s, "ty", initPosY, posDiff.y);
 				arr.push(c3, c4);
 			}
 
@@ -272,19 +278,33 @@ class TransformRotateWidget extends TransformWidget {
 	}
 
 	_getSettingCommands(command, transform) {
-		let diff = command.angleDifference,
+		let angleDiff = command.angleDifference / Vector2.degToRad,
+			posDiff = command.localPositionDifference,
 			s = transform.settings;
 
-		let init;
+		let initAngle;
 		if (this._usingLocked === true) {
-			init = s.get("angle");
-			diff += init;
+			initAngle = s.get("angle");
+			angleDiff += initAngle;
 		} else {
-			init = 0;
+			initAngle = 0;
 		}
 
-		const c = this._node.createSettingCommand(s, "angle", init, diff);
+		const c1 = this._node.createSettingCommand(s, "angle", initAngle, angleDiff);
 
-		return [c];
+		let initPosX, initPosY;
+		if (this._usingLocked === true) {
+			initPosX = s.get("pretx");
+			initPosY = s.get("prety");
+			posDiff.x += initPosX;
+			posDiff.y += initPosY;
+		} else {
+			initPosX = initPosY = 0;
+		}
+
+		const c2 = this._node.createSettingCommand(s, "pretx", initPosX, posDiff.x),
+			  c3 = this._node.createSettingCommand(s, "prety", initPosY, posDiff.y);
+
+		return [c1, c2, c3];
 	}
 }

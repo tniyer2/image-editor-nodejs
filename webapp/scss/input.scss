@@ -1,17 +1,12 @@
 
 @import "master";
 
-%text {
-	display: inline-block;
-	vertical-align: middle;
-	margin-right: 10px;
-	@extend %regular-font;
-}
-
 .toggle {
-	$toggle-height: 20px;
-	$toggle-padding: 3px;
+	$height: 20px;
+	$padding: 3px;
 	user-select: none;
+	font-size: $regular-font-size;
+
 	label {
 		display: inline-block;
 		vertical-align: bottom;
@@ -24,15 +19,15 @@
 	.toggle__slider {
 		position: relative;
 		display: block;
-		width: 2 * $toggle-height;
-		height: $toggle-height;
+		width: 2 * $height;
+		height: $height;
 		border-radius: 10px;
 		background: #ccc; }
-	$before-height: $toggle-height - 2 * $toggle-padding;
+	$before-height: $height - 2 * $padding;
 	.toggle__slider:before {
 		position: absolute;
 		top: 50%;
-		left: $toggle-padding;
+		left: $padding;
 		transform: translate(0, -50%);
 		width: $before-height;
 		height: $before-height;
@@ -43,9 +38,13 @@
 	.toggle__slider.checked {
 		background: $blue; }
 	.toggle__slider.checked:before {
-		transform: translate($toggle-height - $toggle-padding / 2, -50%); }
+		transform: translate($height - $padding / 2, -50%); }
 	.toggle__text {
-		@extend %text; }
+		display: inline-block;
+		vertical-align: middle;
+		margin-right: 10px;
+		@extend %regular-font;
+		font-size: inherit; }
 }
 
 $slider-width: 100px;
@@ -70,7 +69,10 @@ $slider-height: $regular-font-size;
 	background: #444;
 	border-radius: 50%; }
 .slider__text {
-	@extend %text;
+	display: inline-block;
+	vertical-align: middle;
+	margin-right: 10px;
+	@extend %regular-font;
 	user-select: none; }
 
 .file-input {
@@ -117,7 +119,7 @@ $slider-height: $regular-font-size;
 		border-bottom-width: 1px; }
 }
 
-.dynamic-list {
+.list-input {
 	@extend %remove-list-defaults;
 	display: flex;
 	flex-direction: column;

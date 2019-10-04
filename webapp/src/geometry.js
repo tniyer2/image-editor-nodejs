@@ -1,134 +1,174 @@
 
-import { isUdf } from "./type";
-import { toPrecision, AddToEventLoop } from "./utility";
+import { isUdf, isNumber, isType } from "./type";
+import { toPrecision } from "./utility";
 
 export { Vector2, Anchor, Box };
 
-const PRECISION = 12,
-	  DEG_TO_RAD = Math.PI / 180,
-	  ANGLE_OFFSET = Math.PI / 2;
+const Vector2 = (function(){
+	const PRECISION = 12,
+		  DEG_TO_RAD = Math.PI / 180,
+		  ANGLE_OFFSET = Math.PI / 2;
 
-class Vector2 {
-    constructor(x, y) {
-    	this.x = x;
-    	this.y = y;
-    }
+	return class {
+	    constructor(x, y) {
+	    	if (!isNumber(x) || !isNumber(y)) {
+	    		throw new Error("Invalid arguments.");
+	    	}
+	    	this.x = x;
+	    	this.y = y;
+	    	this._buffer = { x: 0, y: 0 };
+	    }
 
-    static get zero() {
-    	return new Vector2(0, 0);
-    }
+	    static get zero() {
+	    	return new Vector2(0, 0);
+	    }
 
-    static get one() {
-    	return new Vector2(1, 1);
-    }
+	    static get one() {
+	    	return new Vector2(1, 1);
+	    }
 
-    static get right() {
-    	return new Vector2(1, 0);
-    }
+	    static get right() {
+	    	return new Vector2(1, 0);
+	    }
 
-    static get left() {
-    	return new Vector2(-1, 0);
-    }
+	    static get left() {
+	    	return new Vector2(-1, 0);
+	    }
 
-    static get down() {
-    	return new Vector2(0, 1);
-    }
+	    static get down() {
+	    	return new Vector2(0, 1);
+	    }
 
-    static get up() {
-    	return new Vector2(0, -1);
-    }
+	    static get up() {
+	    	return new Vector2(0, -1);
+	    }
 
-    _parseFactor(a) {
-    	return a instanceof Vector2 ? [a.x, a.y] : [a, a];
-    }
+	    static get degToRad() {
+	    	return DEG_TO_RAD;
+	    }
 
-    add(a) {
-    	const [x, y] = this._parseFactor(a);
-        return new Vector2(this.x + x, this.y + y);
-    }
+	    static get angleOffset() {
+	    	return ANGLE_OFFSET;
+	    }
 
-    subtract(a) {
-    	const [x, y] = this._parseFactor(a);
-        return new Vector2(this.x - x, this.y - y);
-    }
+	    equals(v) {
+	    	if (!isType(v, Vector2)) {
+	    		throw new Error("Invalid argument.");
+	    	}
+	    	return this.x === v.x && this.y === v.y;
+	    }
 
-    multiply(a) {
-    	const [x, y] = this._parseFactor(a);
-    	return new Vector2(this.x * x, this.y * y);
-    }
+	    _parseInput(v) {
+	    	if (isType(v, Vector2)) {
+	    		return v;
+	    	} else if (isNumber(v)) {
+	    		this._buffer.x = v;
+	    		this._buffer.y = v;
+	    		return this._buffer;
+	    	} else {
+	    		throw new Error("Invalid argument.");
+	    	}
+	    }
 
-    divide(a) {
-    	const [x, y] = this._parseFactor(a);
-    	return new Vector2(this.x / x, this.y / y);
-    }
+	    add(v) {
+	    	v = this._parseInput(v);
+	        return new Vector2(this.x + v.x, this.y + v.y);
+	    }
 
-    negate() {
-    	return new Vector2(-this.x, -this.y);
-    }
+	    subtract(v) {
+	    	v = this._parseInput(v);
+	        return new Vector2(this.x - v.x, this.y - v.y);
+	    }
 
-    get sqrMagnitude() {
-    	return Math.pow(this.x, 2) + Math.pow(this.y, 2);
-    }
+	    multiply(v) {
+	    	v = this._parseInput(v);
+	    	return new Vector2(this.x * v.x, this.y * v.y);
+	    }
 
-    get magnitude() {
-    	return Math.sqrt(this.sqrMagnitude);	
-    }
+	    divide(v) {
+	    	v = this._parseInput(v);
 
-    normalize() {
-    	const m = this.magnitude;
-    	return new Vector2(this.x / m, this.y / m);
-    }
+	    	if (v.x === 0 || v.y === 0) {
+	    		throw new Error("Divide by Zero Exception");
+	    	}
 
-    static get degToRad() {
-    	return DEG_TO_RAD;
-    }
+	    	// 0 / num evaluates to Infinity
+	    	const x = this.x === 0 ? 0 : this.x / v.x,
+	    		  y = this.y === 0 ? 0 : this.y / v.y;
+	    	return new Vector2(x, y);
+	    }
 
-    static get angleOffset() {
-    	return ANGLE_OFFSET;
-    }
+	    negate() {
+	    	return new Vector2(-this.x, -this.y);
+	    }
 
-    get angle() {
-    	return Math.atan2(this.y, this.x);
-    }
+	    get sqrMagnitude() {
+	    	return Math.pow(this.x, 2) + Math.pow(this.y, 2);
+	    }
 
-    dot(v) {
-    	return (this.x * v.x) + (this.y * v.y);
-    }
+	    get magnitude() {
+	    	return Math.sqrt(this.sqrMagnitude);	
+	    }
 
-    project(u, v) {
-    	return new Vector2(this.dot(u), this.dot(v));
-    }
+	    normalize() {
+	    	if (this.x === 0 && this.y === 0) {
+	    		return this.copy();
+	    	} else {
+	    		return this.divide(this.magnitude);
+	    	}
+	    }
 
-	// a should be in radians
-    rotate(a) {
-    	const cs = Math.cos(a),
-    		  sn = Math.sin(a);
-		let px = (this.x * cs) - (this.y * sn),
-    		py = (this.x * sn) + (this.y * cs);
-    	px = toPrecision(px, PRECISION);
-    	py = toPrecision(py, PRECISION);
-    	return new Vector2(px, py);
-    }
+	    get angle() {
+	    	return Math.atan2(this.y, this.x);
+	    }
 
-    map(f) {
-    	return new Vector2(f(this.x), f(this.y));
-    }
+	    dot(v) {
+	    	if (!isType(v, Vector2)) {
+	    		throw new Error("Invalid argument.");
+	    	}
+	    	return (this.x * v.x) + (this.y * v.y);
+	    }
 
-    copy() {
-    	return new Vector2(this.x, this.y);
-    }
+	    project(u, v) {
+	    	return new Vector2(this.dot(u), this.dot(v));
+	    }
 
-    equals(v) {
-    	return this.x === v.x && this.y === v.y;
-    }
+		// a should be in radians
+	    rotate(a) {
+	    	if (!isNumber(a)) {
+	    		throw new Error("Invalid argument.");
+	    	}
 
-    toString() {
-    	return "(" + this.x + ", " + this.y + ")";
-    }
-}
+	    	const cs = Math.cos(a),
+	    		  sn = Math.sin(a);
+			let x = (this.x * cs) - (this.y * sn),
+	    		y = (this.x * sn) + (this.y * cs);
 
-function createVectorProperty(obj, vectorName, xName, yName, get=true, set=true) {
+	    	x = toPrecision(x, PRECISION);
+	    	y = toPrecision(y, PRECISION);
+
+	    	return new Vector2(x, y);
+	    }
+
+	    map(f) {
+	    	return new Vector2(f(this.x), f(this.y));
+	    }
+
+	    copy() {
+	    	return new Vector2(this.x, this.y);
+	    }
+
+	    toString() {
+	    	return "(" + this.x + ", " + this.y + ")";
+	    }
+	};
+})();
+
+function createVectorProperty(
+	obj, vectorName, xName, yName, get=true, set=true) {
+
 	const info = {};
+
 	if (get === true) {
 		info.get = function() {
 			return new Vector2(this[xName], this[yName]);
@@ -136,16 +176,23 @@ function createVectorProperty(obj, vectorName, xName, yName, get=true, set=true)
 	}
 	if (set === true) {
 		info.set = function(val) {
+			if (!isType(val, Vector2)) {
+				throw new Error("Invalid argument.");
+			}
 			this[xName] = val.x;
 			this[yName] = val.y;
 		};
 	}
+
 	Object.defineProperty(obj, vectorName, info);
 }
 
-function createNumberProperties(obj, vectorName, xName, yName, get=true, set=true) {
+function splitVectorProperty(
+	obj, vectorName, xName, yName, get=true, set=true) {
+
 	const xInfo = {},
 		  yInfo = {};
+
 	if (get === true) {
 		xInfo.get = function() {
 			return this[vectorName].x;
@@ -162,85 +209,40 @@ function createNumberProperties(obj, vectorName, xName, yName, get=true, set=tru
 			this[vectorName] = new Vector2(this[vectorName].x, val);
 		};
 	}
+
 	Object.defineProperty(obj, xName, xInfo);
 	Object.defineProperty(obj, yName, yInfo);
 }
 
-// @todo: listen to scroll and other events
 const Anchor = (function(){
 	class Inner {
 		constructor(element) {
+			if (!(element instanceof HTMLElement)) {
+				throw new Error("Invalid argument.");
+			}
 			this._element = element;
-			this._innerBoundingBox = null;
+
+			this._boundingBox = null;
 			this._dirty = true;
+
+			this._body = document.body;
+			this._docEl = document.documentElement;
 		}
 
 		get element() {
 			return this._element;
 		}
 
-		get _boundingBox() {
-			this._updateBoundingBox();
-			return this._innerBoundingBox;
+		_calcBoundingBox() {
+			return this._element.getBoundingClientRect();
 		}
 
-		_updateBoundingBox() {
+		_getBoundingBox() {
 			if (this._dirty) {
-				this._innerBoundingBox = this._element.getBoundingClientRect();
+				this._boundingBox = this._calcBoundingBox();
 				this._dirty = false;
 			}
-		}
-
-		get top() {
-			return this._boundingBox.top;
-		}
-
-		get left() {
-			return this._boundingBox.left;
-		}
-
-		get localTop() {
-			return this._boundingBox.top;
-		}
-
-		get localLeft() {
-			return this._boundingBox.left;
-		}
-
-		get width() {
-			return this._boundingBox.width;
-		}
-
-		get height() {
-			return this._boundingBox.height;
-		}
-
-		get localWidth() {
-			return this._boundingBox.width;
-		}
-
-		get localHeight() {
-			return this._boundingBox.height;
-		}
-
-		get scaleX() {
-			return 1;
-		}
-
-		get scaleY() {
-			return 1;
-		}
-
-		get localScaleX() {
-			return 1;
-		}
-
-		get localScaleY() {
-			return 1;
-		}
-
-		get angle() {
-			return 0;
+			return this._boundingBox;
 		}
 
 		toWorldDir(v) {
@@ -258,15 +260,98 @@ const Anchor = (function(){
 		toLocalPoint(v) {
 			return v.subtract(this.position);
 		}
+
+		_scrollOffsetTop() {
+			return window.pageYOffset || this._docEl.scrollTop || this._body.scrollTop;
+		}
+
+		_clientOffsetTop() {
+			return this._docEl.clientTop || this._body.clientTop || 0;
+		}
+
+		_scrollOffsetLeft() {
+			return window.pageXOffset || this._docEl.scrollLeft || this._body.scrollLeft;
+		}
+
+		_clientOffsetLeft() {
+			return this._docEl.clientLeft || this._body.clientLeft || 0;
+		}
+
+		get top() {
+			return this._getBoundingBox().top +
+				this._scrollOffsetTop() -
+					this._clientOffsetTop();
+		}
+
+		get left() {
+			return this._getBoundingBox().left +
+				this._scrollOffsetLeft() -
+					this._clientOffsetLeft();
+		}
+
+		get localTop() {
+			return this.top;
+		}
+
+		get localLeft() {
+			return this.left;
+		}
+
+		get width() {
+			return this._getBoundingBox().width;
+		}
+
+		get height() {
+			return this._getBoundingBox().height;
+		}
+
+		get localWidth() {
+			return this.width;
+		}
+
+		get localHeight() {
+			return this.height;
+		}
+
+		get scaleX() {
+			return 1;
+		}
+
+		get scaleY() {
+			return 1;
+		}
+
+		get scale() {
+			return Vector2.one;
+		}
+
+		get localScaleX() {
+			return 1;
+		}
+
+		get localScaleY() {
+			return 1;
+		}
+
+		get localScale() {
+			return Vector2.one;
+		}
+
+		get angle() {
+			return 0;
+		}
+
+		get degrees() {
+			return 0;
+		}
 	}
 
 	const p = Inner.prototype;
+
 	createVectorProperty(p, "position", "left", "top", true, false);
 	createVectorProperty(p, "localPosition", "localLeft", "localTop", true, false);
 	createVectorProperty(p, "dimensions", "width", "height", true, false);
 	createVectorProperty(p, "localDimensions", "localWidth", "localHeight", true, false);
-	createVectorProperty(p, "scale", "scaleX", "scaleY", true, false);
-	createVectorProperty(p, "localScale", "localScaleX", "localScaleY", true, false);
 
 	return Inner;
 })();
@@ -292,19 +377,52 @@ const Box = (function(){
 			this._rawHeight = 0;
 			this._localScaleX = 1;
 			this._localScaleY = 1;
-			this._angle = 0;
+			this._degrees = 0;
 
 			this.setOriginTopLeft();
-			this._initTransformUpdater();
 		}
 
-		_initTransformUpdater() {
-			this._transformUpdater = new AddToEventLoop(() => {
-				const degrees = this._angle / DEG_TO_RAD;
-				const rot = "rotate(" + degrees + "deg)";
-				const scale = "scale(" + this._localScaleX + ", " + this._localScaleY + ")";
-				this._element.style.transform = rot + " " + scale;
+		_updateTransform() {
+			const rot = "rotate(" + this._degrees + "deg)";
+			const scale = "scale(" + this._localScaleX + "," + this._localScaleY + ")";
+			this._element.style.transform = rot + " " + scale;
+		}
+
+		get rect() {
+			const r = {},
+				  top = this.top, 
+				  left = this.left,
+				  w = this.width, 
+				  h = this.height;
+
+			r.top = top;
+			r.bottom = top + h;
+			r.left = left;
+			r.right = left + w;
+			r.width = w;
+			r.height = h;
+
+			return r;
+		}
+
+		static getBoundingBox(boxes) {
+			const b = {};
+			boxes.forEach((box) => {
+				["top", "left", "bottom", "right"].forEach((p, i) => {
+					const n = box.rect[p],
+						  m = b[p];
+					if (isUdf(m) || 
+						(i < 2 && n < m) || 
+						(i >= 2 && n > m)) {
+						b[p] = n;
+					}
+				});
 			});
+
+			b.width = b.right - b.left;
+			b.height = b.bottom - b.top;
+
+			return b;
 		}
 
 		get element() {
@@ -317,8 +435,8 @@ const Box = (function(){
 
 		set parent(val) {
 			if (val !== null &&
-				!(val instanceof Anchor) &&
-				!(val instanceof Box)) {
+				!(val instanceof Box) &&
+				!isType(val, Anchor)) {
 				throw new Error("Invalid argument.");
 			}
 			this._parent = val;
@@ -330,43 +448,6 @@ const Box = (function(){
 
 		removeElement() {
 			this._parent.element.removeChild(this._element);			
-		}
-
-		get rect() {
-			const r = {};
-			const top = this.top, 
-				  left = this.left,
-				  w = this.width, 
-				  h = this.height;
-
-			r.top 	 = top;
-			r.bottom = top + h;
-			r.left 	 = left;
-			r.right  = left + w;
-			r.width  = w;
-			r.height = h;
-
-			return r;
-		}
-
-		static getBoundingBox(boxes) {
-			const b = {};
-			boxes.forEach((box) => {
-				["top", "left", "bottom", "right"].forEach((p, i) => {
-					const n = box.rect[p],
-						  m = b[p];
-					if ( isUdf(m) || 
-						 (i < 2 && n < m) || 
-						 (i >= 2 && n > m) ) {
-						b[p] = n;
-					}
-				});
-			});
-
-			b.width  = b.right  - b.left;
-			b.height = b.bottom - b.top;
-
-			return b;
 		}
 
 		setOriginTopLeft() {
@@ -381,8 +462,9 @@ const Box = (function(){
 
 		toLocalDir(v) {
 			v = this._parent.toLocalDir(v);
-			if (this._angle) {
-				v = v.rotate(-this._angle);
+			const a = this.angle;
+			if (a) {
+				v = v.rotate(-a);
 			}
 			v = v.divide(this.localScale);
 			return v;
@@ -390,8 +472,9 @@ const Box = (function(){
 
 		toWorldDir(v) {
 			v = v.multiply(this.localScale);
-			if (this._angle) {
-				v = v.rotate(this._angle);
+			const a = this.angle;
+			if (a) {
+				v = v.rotate(a);
 			}
 			v = this._parent.toWorldDir(v);
 			return v;
@@ -400,8 +483,9 @@ const Box = (function(){
 		toLocalPoint(v) {
 			v = this._parent.toLocalPoint(v);
 			v = v.subtract(this.localPosition);
-			if (this._angle) {
-				v = v.rotate(-this._angle);
+			const a = this.angle;
+			if (a) {
+				v = v.rotate(-a);
 			}
 			v = v.divide(this.localScale);
 			return v;
@@ -409,8 +493,9 @@ const Box = (function(){
 
 		toWorldPoint(v) {
 			v = v.multiply(this.localScale);
-			if (this._angle) {
-				v = v.rotate(this._angle);
+			const a = this.angle;
+			if (a) {
+				v = v.rotate(a);
 			}
 			v = v.add(this.localPosition);
 			v = this._parent.toWorldPoint(v);
@@ -423,7 +508,7 @@ const Box = (function(){
 
 		set localScaleX(val) {
 			this._localScaleX = val;
-			this._transformUpdater.invoke();
+			this._updateTransform();
 		}
 
 		get localScaleY() {
@@ -432,7 +517,7 @@ const Box = (function(){
 
 		set localScaleY(val) {
 			this._localScaleY = val;
-			this._transformUpdater.invoke();
+			this._updateTransform();
 		}
 
 		get scale() {
@@ -441,88 +526,6 @@ const Box = (function(){
 
 		set scale(val) {
 			this.localScale = val.divide(this._parent.scale);
-		}
-
-		get rawTop() {
-			return this._parent ? this._element.offsetTop : this._rawTop;
-		}
-
-		set rawTop(val) {
-			this._element.style.top = val + "px";
-			this._rawTop = val;
-		}
-
-		get rawLeft() {
-			return this._parent ? this._element.offsetLeft : this._rawLeft;
-		}
-
-		set rawLeft(val) {
-			this._element.style.left = val + "px";
-			this._rawLeft = val;
-		}
-
-		_getCenter() {
-			let v = this.rawDimensions.divide(2);
-			v = v.multiply(this.localScale);
-			if (this._origin === TOPLEFT) {
-				v = v.rotate(this._angle);
-			}
-			return v;
-		}
-
-		_centerScaleOffset() {
-			const s = Vector2.one.subtract(this.localScale);
-			return this.rawDimensions.multiply(s).divide(2);
-		}
-
-		_centerRotationOffset() {
-			const c = this._getCenter();
-			const d = c.negate().rotate(this._angle).add(c);
-			return d;
-		}
-
-		get localPosition() {
-			let v = this.rawPosition;
-			if (this._origin === CENTER) {
-				const s = this._centerScaleOffset(),
-					  r = this._centerRotationOffset();
-				v = v.add(s).add(r);
-			}
-			return v;
-		}
-
-		set localPosition(val) {
-			if (this._origin === CENTER) {
-				const s = this._centerScaleOffset(),
-					  r = this._centerRotationOffset();
-				val = val.subtract(s).subtract(r);
-			}
-			this.rawPosition = val;
-		}
-
-		get staticLocalPosition() {
-			let v = this.rawPosition;
-			if (this._origin === CENTER) {
-				const s = this._centerScaleOffset();
-				v = v.add(s);
-			}
-			return v;
-		}
-
-		set staticLocalPosition(val) {
-			if (this._origin === CENTER) {
-				const s = this._centerScaleOffset();
-				val = val.subtract(s);
-			}
-			this.rawPosition = val;
-		}
-
-		get position() {
-			return this._parent.toWorldPoint(this.localPosition);
-		}
-
-		set position(val) {
-			this.localPosition = this._parent.toLocalPoint(val);
 		}
 
 		get rawWidth() {
@@ -575,13 +578,99 @@ const Box = (function(){
 			this.localHeight = val / this._parent.scaleY;
 		}
 
+		get degrees() {
+			return this._degrees;
+		}
+
+		set degrees(val) {
+			this._degrees = val;
+			this._updateTransform();
+		}
+
 		get angle() {
-			return this._angle;
+			return this._degrees * Vector2.degToRad;
 		}
 
 		set angle(val) {
-			this._angle = val;
-			this._transformUpdater.invoke();
+			this._degrees = val / Vector2.degToRad;
+			this._updateTransform();
+		}
+
+		_getCenter() {
+			let v = this.rawDimensions.divide(2);
+			v = v.multiply(this.localScale);
+			if (this._origin === TOPLEFT) {
+				const a = this.angle;
+				if (a) {
+					v = v.rotate(a);
+				}
+			}
+			return v;
+		}
+
+		_centerScaleOffset() {
+			const s = Vector2.one.subtract(this.localScale);
+			return this.rawDimensions.multiply(s).divide(2);
+		}
+
+		_centerRotationOffset() {
+			const c = this._getCenter();
+			let d = c.negate();
+			const a = this.angle;
+			if (a) {
+				d = d.rotate(a);
+			}
+			d = d.add(c);
+			return d;
+		}
+
+		get rawTop() {
+			return this._parent ? this._element.offsetTop : this._rawTop;
+		}
+
+		set rawTop(val) {
+			this._element.style.top = val + "px";
+			this._rawTop = val;
+		}
+
+		get rawLeft() {
+			return this._parent ? this._element.offsetLeft : this._rawLeft;
+		}
+
+		set rawLeft(val) {
+			this._element.style.left = val + "px";
+			this._rawLeft = val;
+		}
+
+		get localPosition() {
+			let v = this.rawPosition;
+			if (this._origin === CENTER) {
+				const s = this._centerScaleOffset(),
+					  r = this._centerRotationOffset();
+				v = v.add(s).add(r);
+			}
+			return v;
+		}
+
+		set localPosition(val) {
+			if (this._origin === CENTER) {
+				const s = this._centerScaleOffset(),
+					  r = this._centerRotationOffset();
+				val = val.subtract(s).subtract(r);
+			}
+			this.rawPosition = val;
+		}
+
+		get position() {
+			return this._parent.toWorldPoint(this.localPosition);
+		}
+
+		set position(val) {
+			this.localPosition = this._parent.toLocalPoint(val);
+		}
+
+		get rawCenter() {
+			return this._getCenter();
 		}
 
 		get localCenter() {
@@ -618,14 +707,14 @@ const Box = (function(){
 	const p = Inner.prototype;
 
 	createVectorProperty(p, "rawPosition", "rawLeft", "rawTop");
-	createVectorProperty(p, "localScale", "localScaleX", "localScaleY");
 	createVectorProperty(p, "rawDimensions", "rawWidth", "rawHeight");
 	createVectorProperty(p, "localDimensions", "localWidth", "localHeight");
 	createVectorProperty(p, "dimensions", "width", "height");
+	createVectorProperty(p, "localScale", "localScaleX", "localScaleY");
 
-	createNumberProperties(p, "localPosition", "localLeft", "localTop");
-	createNumberProperties(p, "position", "left", "top");
-	createNumberProperties(p, "scale", "scaleX", "scaleY");
+	splitVectorProperty(p, "localPosition", "localLeft", "localTop");
+	splitVectorProperty(p, "position", "left", "top");
+	splitVectorProperty(p, "scale", "scaleX", "scaleY");
 
 	return Inner;
 })();

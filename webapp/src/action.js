@@ -100,12 +100,14 @@ class ActionPiper {
 }
 
 const MouseAction = (function(){
-	const DEFAULTS =
-	{ loop: true,
+	const DEFAULTS = {
+	  loop: true,
 	  exitOnMouseLeave: true, 
 	  mouseMoveAlways: false,
 	  mouseLeaveAlways: false,
-	  condition: (evt) => evt.button === 0 };
+	  mouseMoveMinEvents: 3,
+	  condition: (evt) => evt.button === 0
+	};
 
 	function isMouseOver(elm, evt) {
 		const topMostElm = document.elementFromPoint(evt.clientX, evt.clientY);
@@ -191,7 +193,7 @@ const MouseAction = (function(){
 
 			this._mouseMovePromise = new PromiseListener(
 				this._bounds, "mousemove", triggerOnMouseOver,
-				{ minEvents: 3 });
+				{ minEvents: this._options.mouseMoveMinEvents });
 
 			this._mouseUpPromise   = new PromiseListener(
 				mouseUpTarget, "mouseup", triggerOnMouseOver,

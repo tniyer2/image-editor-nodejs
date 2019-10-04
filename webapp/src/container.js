@@ -17,30 +17,21 @@ export default class {
 		return this._disposed;
 	}
 
-	_attach(box) {
-		this._box.parent = box;
-		this._box.appendElement();
-	}
-
-	_detach() {
-		this._box.removeElement();
-		this._box.parent = null;
-	}
-
 	_checkState() {
 		if (this._disposed) {
 			throw new Error("Invalid state. Container is disposed.");
 		}
 	}
 
-	add(box) {
+	addTo(box) {
 		this._checkState();
 		if (this._attached) {
 			throw new Error("Invalid state. Container is attached.");
 		}
 
-		this._attach(box);
-		this._add(box);
+		this._box.parent = box;
+		this._box.appendElement();
+		this._onAdd(box);
 
 		this._attached = true;
 	}
@@ -51,8 +42,9 @@ export default class {
 			throw new Error("Invalid state. Container is not attached.");
 		}
 
-		this._detach();
-		this._remove();
+		this._onRemove();
+		this._box.removeElement();
+		this._box.parent = null;
 
 		this._attached = false;
 	}
@@ -63,12 +55,12 @@ export default class {
 			throw new Error("Invalid state. Container is attached.");
 		}
 
-		this._dispose();
+		this._onDispose();
 
 		this._disposed = true;
 	}
 
-	_add(box) {}
-	_remove() {}
-	_dispose() {}
+	_onAdd(box) {}
+	_onRemove() {}
+	_onDispose() {}
 }

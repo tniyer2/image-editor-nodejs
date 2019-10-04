@@ -6,7 +6,9 @@ export { clamp, extend, removeDuplicates,
          setBooleanAttribute, stopBubbling,
          AddToEventLoop, createSVG, toPrecision };
 
-function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+function clamp(v, min, max) {
+    return v < min ? min : v > max ? max : v;
+}
 
 function extend() {
     const master = {};
@@ -80,16 +82,16 @@ function stopBubbling(elm, ...eventNames) {
 }
 
 class AddToEventLoop {
-    constructor(cb) {
-        this._callback = cb;
+    constructor(f) {
+        this._function = f;
         this._added = false;
     }
 
-    invoke() {
+    update() {
         if (!this._added) {
             this._added = true;
             setTimeout(() => {
-                this._callback();
+                this._function();
                 this._added = false;
             });
         }

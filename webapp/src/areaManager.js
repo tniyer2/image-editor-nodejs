@@ -12,16 +12,16 @@ export default class {
 		}
 
 		this.root = new AreaWrapper();
-		this.root.add(root);
+		this.root.addTo(root);
 
 		this.tabs = new TabManager();
 	}
 
-	getArea() {
+	createArea() {
 		return new Area(this.tabs);
 	}
 
-	getAreaWrapper() {
+	createAreaWrapper() {
 		return new AreaWrapper();
 	}
 }
@@ -34,25 +34,33 @@ class TabManager {
 	}
 
 	get freeTabs() {
-		return this._array.filter(i => !i.single || i.free)
-			   .map(o => Object.assign({}, o));
+		return this._array.filter(p => !p.single || p.free)
+			.map(o => Object.assign({}, o));
 	}
 
-	register(key, tabType, single=true) {
+	_checkValidKey(key, checkHas) {
+		if (typeof key !== "string" || !key.length) {
+			throw new Error("Invalid argument.");
+		} else if (checkHas && !this._dictionary.has(key)) {
+			throw new Error("'" + key + "' is not a registered tab.");
+		}
+	}
+
+	register(key, tabType, multiple=false) {
+		this._checkValidKey(key, false);
 		if (!isSubclass(tabType, Tab)) {
 			throw new Error("Invalid argument.");
-		} else if (typeof single !== "boolean") {
+		} else if (typeof multiple !== "boolean") {
 			throw new Error("Invalid argument.");
 		}
 
 		const info =
 		{ key: key,
 		  type: tabType,
-		  single: single };
-		if (single) {
-			const tab = new tabType();
-			tab.tabKey = key;
-			info.instance = tab;
+		  single: !multiple };
+		if (!multiple) {
+			info.instance = new tabType();
+			info.instance.tabKey = key;
 			info.free = true;
 		}
 
@@ -62,22 +70,18 @@ class TabManager {
 	}
 
 	get(key) {
-		if (!this._dictionary.has(key)) {
-			throw new Error("Argument 'key' is not a registered tab.");
-		}
+		this._checkValidKey(key, true);
 
 		const info = this._dictionary.get(key);
 		if (info.single) {
 			return info.instance;
 		} else {
-			throw new Error("Cannot get instance of tab '" + key + "'. Tab is not registered as single.");
+			throw new Error("'" + key + "' is registered as multiple and does not have an instance.");
 		}
 	}
 
 	use(key) {
-		if (!this._dictionary.has(key)) {
-			throw new Error("Argument 'key' is not a registered tab.");
-		}
+		this._checkValidKey(key, true);
 
 		const info = this._dictionary.get(key);
 		if (info.single) {
@@ -97,9 +101,7 @@ class TabManager {
 	}
 
 	free(key) {
-		if (!this._dictionary.has(key)) {
-			throw new Error("Argument 'key' is not a registered tab.");
-		}
+		this._checkValidKey(key, true);
 
 		const info = this._dictionary.get(key);
 		if (!info.single) {

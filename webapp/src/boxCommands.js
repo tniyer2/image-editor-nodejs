@@ -140,7 +140,7 @@ const ResizeCommand = (function(){
 			this._inverseYBasis = Vector2.down.rotate(-angle);
 
 			this._aspectRatios =
-				this._boxes.map(b => b.rawHeight / b.rawWidth);
+				this._boxes.map(b => b.localHeight / b.localWidth);
 		}
 
 		_execute(mousePosition, snap, lock) {
@@ -395,11 +395,8 @@ const RotateCommand = (function(){
 			this._snapOffset = this._options.snapOffset * Vector2.degToRad;
 
 			this.angleDifference = null;
-			this._initialLocalAngles = this._boxes.map(b => b.angle);
-		}
-
-		get finalLocalAngles() {
-			return this._finalLocalAngles;
+			this._initialAngles = this._boxes.map(b => b.angle);
+			this._initialCenters = this._boxes.map(b => b.rawCenter);
 		}
 
 		_execute(mousePosition, snapMovement) {
@@ -410,29 +407,39 @@ const RotateCommand = (function(){
 				a -= (a % this._options.snapOffset);
 			}
 
-			this._boxes.forEach((box) => {
+			this._boxes.forEach((box, i) => {
 				box.angle = a;
+				const c = this._initialCenters[i],
+					  pos = this._initialLocalPositions[i],
+					  diff = a - this._initialAngles[i];
+				box.localPosition =
+					c.negate()
+					.rotate(diff)
+					.add(c)
+					.add(pos);
 			});
 		}
 
 		_close() {
-			this._finalLocalAngles = this._boxes.map(b => b.angle);
+			this._calcFinalPositions();
+
+			this._finalAngles = this._boxes.map(b => b.angle);
 
 			this.angleDifference =
-				this._finalLocalAngles[0] - this._initialLocalAngles[0];
+				this._finalAngles[0] - this._initialAngles[0];
 		}
 
 		_undo() {
 			super._undo();
 			this._boxes.forEach((b, i) => {
-				b.angle = this._initialLocalAngles[i];
+				b.angle = this._initialAngles[i];
 			});
 		}
 
 		_redo() {
 			super._redo();
 			this._boxes.forEach((b, i) => {
-				b.angle = this._finalLocalAngles[i];
+				b.angle = this._finalAngles[i];
 			});
 		}
 	};

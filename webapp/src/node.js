@@ -182,7 +182,7 @@ const Link = (function(){
 		updatePath (i, o) {
 			this._inputPosition = i;
 			this._outputPosition = o;
-			this._pathUpdater.invoke();
+			this._pathUpdater.update();
 		}
 	};
 })();
@@ -404,7 +404,7 @@ const NodeSettings = (function(){
 		        	}
 		        });
 	        }
-	    	this._inner = Object.create(proto || null);
+	    	this._inner = Object.assign(Object.create(null), proto || null);
 
 	        this._events = new Dictionary();
 	        this._parent = null;
@@ -466,6 +466,22 @@ const NodeSettings = (function(){
 	    		throw new Error("Invalid key: '" + name + "'");
 	    	}
 	    	return this._inner[name];
+	    }
+
+	    items() {
+	    	const copy = {};
+	    	Object.keys(this._inner).forEach((key) => {
+	    		copy[key] = this._inner[key].value;
+	    	});
+	    	return copy;
+	    }
+
+	    attributes() {
+	    	const copy = {};
+	    	Object.keys(this._inner).forEach((key) => {
+	    		copy[key] = this._inner[key];
+	    	});
+	    	return copy;
 	    }
 
 	    tryPut(name, newValue, eventArgs) {
@@ -707,8 +723,8 @@ class NodeSettingsContainer extends Container {
 	constructor() {
 		super();
 
-		this._box.element.classList.add("node-settings");
 		this._settings = null;
+		this._box.element.classList.add("node-settings");
 	}
 
 	get box() {
@@ -726,14 +742,14 @@ class NodeSettingsContainer extends Container {
 		this._settings = val;
 	}
 
-	_add(box) {
+	_onAdd() {
 		if (!this._initialized) {
-			this._createDOM();
+			this._initDOM();
 			this._initialized = true;
 		}
 	}
 
-	_createDOM() {}
+	_initDOM() {}
 }
 
 const Node = (function(){
@@ -779,14 +795,15 @@ const Node = (function(){
 			this.settings = settings;
 			this._options = extend(DEFAULTS, options);
 
-			this._dirtyInput = true;
-			this._dirtySettings = false;
-			this._dirtySettingNames = [];
+			this._neverCooked = true;
+			this._dirtyInputs = [];
+			this._dirtySettings = [];
 			this._dirtySettingInfos = [];
 			this._selected = false;
 			this._locked = false;
 			this._visible = false;
 			this.tool = null;
+			this.globals = null;
 
 			this._initCallbacks();
 			this._initSettings();
@@ -797,12 +814,14 @@ const Node = (function(){
 		_initCallbacks() {
 			this._onCommandChange = (settings, name, attr) => {
 				if (this.manager.nodes.active !== this) {
+					if (this.selected) {
+						this.manager.nodes.deselect(this);
+					}
 					this.manager.nodes.select(this);
 				}
 
 				if (attr.noupdate !== true) {
-					this._dirtySettings = true;
-					this._dirtySettingNames.push(name);
+					this._dirtySettings.push(name);
 
 					const found =
 						this._dirtySettingInfos
@@ -829,8 +848,6 @@ const Node = (function(){
 		}
 
 		_initSettings() {
-			this.ui.settings = this.settings;
-
 			this.settings.onTryPut = (...args) => {
 				const command = this._createSettingCommand(...args);
 				this._executeCommand(command, args[4]);
@@ -840,6 +857,8 @@ const Node = (function(){
 				const command = this._createArraySettingCommand(...args);
 				this._executeCommand(command, args[4]);
 			};
+
+			this.ui.settings = this.settings;
 		}
 
 		_createSettingCommand(ns, name, oldValue, newValue, attr, eventArgs) {
@@ -927,9 +946,9 @@ const Node = (function(){
 		}
 
 		_addListeners() {
-			this.inputs.forEach((input) => {
+			this.inputs.forEach((input, i) => {
 				input.onChange.addListener(() => {
-					this._dirtyInput = true;
+					this._dirtyInputs.push(i);
 				});
 			});
 
@@ -949,7 +968,10 @@ const Node = (function(){
 		}
 
 		get dirty() {
-			return this._dirtyInput || this._dirtySettings;
+			return Boolean(
+				this._neverCooked || 
+				this._dirtyInputs.length ||
+				this._dirtySettings.length);
 		}
 
 		get selected() {
@@ -995,7 +1017,7 @@ const Node = (function(){
 				if (val) {
 					this.tool.enable(this);
 				} else {
-					this.tool.disable(this);
+					this.tool.disable();
 				}
 			}
 			this._visible = val;
@@ -1045,11 +1067,16 @@ const Node = (function(){
 				}
 			}).then((results) => {
 				this.outputs.forEach((o, i) => {
-					o.value = results[i];
+					const result = results[i];
+					if (result !== null && !isType(result, o.type)) {
+						throw new Error("Invalid node output.");
+					}
+					o.value = result;
 				});
-				this._dirtyInput = false;
-				this._dirtySettings = false;
-				this._dirtySettingNames = [];
+
+				this._neverCooked = false;
+				this._dirtyInputs = [];
+				this._dirtySettings = [];
 				this._dirtySettingInfos = [];
 			});
 		}

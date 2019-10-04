@@ -1,0 +1,44 @@
+
+General File Specification
+
+	File Signature
+
+	4 byte size
+	json encoded in utf8
+
+	list of raw data
+		4 byte size
+		raw data for resource
+
+
+JSON Specification
+
+Top Level
+	resources: [Resource Object, ...]
+	nodes: [Node Object, ...]
+	links: [Link Object, ...]
+	settings: Settings Object
+
+Resource Object
+	mimeType: String
+
+Node Object
+	id: String #a unique node id
+	version: String #semantic versioning
+	name: String #user given name
+	flags:
+		visible: Boolean
+		locked: Boolean
+		bypassed: Boolean
+		selectedIndex: Integer
+	settings: Node Settings Object
+
+Node Settings Object
+
+
+Link Object
+	input: index pointing to node
+	output: index pointing to node
+
+Settings Object
+	#empty for now

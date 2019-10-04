@@ -52,6 +52,10 @@ const Collection = (function(){
 				});
 
 				Inner.prototype[p.add] = function(item) {
+					if (this[priv].includes(item)) {
+						throw new Error("Invalid argument.");
+					}
+
 					this[priv].push(item);
 					if (p.onAdd) {
 						this["_" + p.onAdd].trigger(item);
@@ -62,7 +66,7 @@ const Collection = (function(){
 				};
 
 				Inner.prototype[p.remove] = function(item) {
-					const i = this[priv].findIndex(o => o === item);
+					const i = this[priv].indexOf(item);
 					const found = i !== -1;
 					if (found) {
 						this[priv].splice(i, 1);
@@ -95,15 +99,12 @@ const Collection = (function(){
 
 				if (p.addOnly) {
 					Inner.prototype[p.addOnly] = function(newItem) {
-						let n = this[priv].filter(o => o === newItem);
-						if (n.length > 1) {
-							console.warn("item is referenced multiple times in array:", newItem);
-							n = n.slice(0, 1);
-						}
-						const old = this[priv].filter(o => o !== newItem);
-
-						if (n.length) {
-							this[priv] = n;
+						const i = this[priv].indexOf(newItem);
+						const found = i !== -1;
+						const old = this[priv];
+						this[priv] = [newItem];
+						if (found) {
+							old.splice(i, 1);
 						}
 
 						old.forEach((item) => {
@@ -112,8 +113,7 @@ const Collection = (function(){
 							}
 						});
 
-						if (!n.length) {
-							this[priv] = [newItem];
+						if (!found) {						
 							if (p.onAdd) {
 								this["_" + p.onAdd].trigger(newItem);
 							}

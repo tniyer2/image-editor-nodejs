@@ -1,5 +1,5 @@
 
-import { LayerGroup } from "./basicTypes";
+import { LayerGroup } from "./layer";
 import { Node, MultiNodeInput, NodeOutput,
 		 NodeSettingsContainer, NodeSettings } from "./node";
 
@@ -20,17 +20,25 @@ export default class extends Node {
 		groups = groups.filter(Boolean);
 
 		let output;
-		const l = groups.length;
-		if (!l) {
+		const len = groups.length;
+		if (!len) {
 			output = null;
-		} else if (l === 1) {
+		} else if (len === 1) {
 			output = groups[0];
 		} else {
 			let layers = groups.map(g => g.layers);
 			layers = [].concat(...layers);
 
-			let cinfo = groups.map(g => g.canvasInfo).filter(Boolean);
-			cinfo = cinfo.length ? cinfo[0] : null;
+			// clone copies
+			layers = layers.map((l, i) => {
+				if (layers.indexOf(l) === i) {
+					return l;
+				} else {
+					return l.deepcopy();
+				}
+			});
+
+			const cinfo = groups[0].canvasInfo;
 
 			output = new LayerGroup(layers, cinfo);
 		}

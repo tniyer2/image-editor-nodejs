@@ -9,57 +9,58 @@ import Container from "./container";
 export { AreaWrapper, Area, Tab };
 
 const AreaWrapper = (function(){
-	const CLASSES =
-	{ root: "area-wrapper",
-	  rows: "rows" };
+	const CLASSES = {
+		root: "area-wrapper",
+	 	columns: "columns"
+	 };
 
 	return class extends Container {
 		constructor() {
 			super();
 
 			this._children = [];
-			this.rows = false;
+			this._columns = false;
 
 			this._box.element.classList.add(CLASSES.root);
 		}
 
-		get rows() {
-			return this._rows;
+		get columns() {
+			return this._columns;
 		}
 
-		set rows(val) {
+		set columns(val) {
 			if (typeof val !== "boolean") {
 				throw new Error("Invalid argument.");
 			}
-
-			this._box.element.classList.toggle(CLASSES.rows, val);
-			this._rows = val;
+			this._box.element.classList.toggle(CLASSES.columns, val);
+			this._columns = val;
 		}
 
 		get children() {
 			return this._children.splice();
 		}
 
-		appendChild(child) {
-			if (!(child instanceof Area) && !(child instanceof AreaWrapper)) {
+		addContainer(container) {
+			if (!(container instanceof Area) &&
+				!(container instanceof AreaWrapper)) {
 				throw new Error("Invalid argument.");
 			}
 
-			child.add(this._box);
-			this._children.push(child);
+			container.addTo(this._box);
+			this._children.push(container);
 		}
 
-		removeChild(child) {
-			const i = this._children.findIndex(c => c === child);
+		removeContainer(container) {
+			const i = this._children.indexOf(container);
 			if (i === -1) {
-				throw new Error("Cannot find argument 'child' in this._children");
+				throw new Error("Cannot find argument 'container'");
 			}
 
-			child.remove();
+			container.remove();
 			this._children.splice(i, 1);
 		}
 
-		_dispose() {
+		_onDispose() {
 			this._children.forEach((child) => {
 				child.remove();
 				child.dispose();
@@ -70,15 +71,17 @@ const AreaWrapper = (function(){
 })();
 
 const Area = (function(){
-	const CLASSES =
-	{ root: "area",
-	  bar: "tab-bar",
-	  topBar: "tab-bar-top",
-	  tabs: "tabs",
-	  bottomBar: "tab-bar-bottom",
-	  addTab: "add-tab",
-	  tabMenu: "tab-menu",
-	  wrapper: "tab-parent" };
+	const CLASSES = {
+		root: "area",
+		bar: "tab-bar",
+		topBar: "tab-bar-top",
+		tabs: "tabs",
+		bottomBar: "tab-bar-bottom",
+		addTab: "add-tab",
+		tabMenu: "tab-menu",
+		wrapper: "tab-parent"
+	};
+
 	const ADD_ICON = "#icon-plus";
 
 	return class extends Container {
@@ -88,6 +91,7 @@ const Area = (function(){
 			this._tabManager = tabManager;
 			this._tabUIs = [];
 			this._activeTabUI = null;
+			this._tabUICount = 0;
 
 			this._createDOM();
 			this._createListeners();
@@ -141,8 +145,8 @@ const Area = (function(){
 			};
 
 			this._clickListener = new Listener(
-			this._addBtn, "click", () => {
-				this._tabMenu.show();
+				this._addBtn, "click", () => {
+					this._tabMenu.show();
 			});
 
 			this._updateTabMenu = () => {
@@ -167,23 +171,25 @@ const Area = (function(){
 			this._tabManager.onChange.removeListener(this._updateTabMenu);
 		}
 
-		_add(box) {
+		_onAdd(box) {
 			this._updateTabMenu();
 			this._addListeners();
 		}
 
-		_remove() {
+		_onRemove() {
 			this._removeListeners();
 		}
 
 		addTab(key) {
-			return this._addTabUI(key);
+			return this._addTabUI(key).p_id;
 		}
 
 		_addTabUI(key) {
 			const ui = new TabUI();
-			ui.add(this._tabUIParent);
+			ui.addTo(this._tabUIParent);
 			ui.tab = this._tabManager.use(key);
+			ui.p_id = this._tabUICount;
+			this._tabUICount += 1;
 			this._tabUIs.push(ui);
 
 			this._setActive(ui);
@@ -191,7 +197,7 @@ const Area = (function(){
 			ui.onClick.addListener(() => {
 				this._setActive(ui);
 			});
-			ui.onRemove.addListener(() => {
+			ui.onRequestRemove.addListener(() => {
 				this._removeTabUI(ui);
 			});
 
@@ -203,9 +209,9 @@ const Area = (function(){
 				throw new Error("Invalid argument.");
 			}
 
-			const i = this._tabUIs.findIndex(t => t === val);
+			const i = this._tabUIs.indexOf(val);
 			if (i === -1) {
-				throw new Error("Cannot find argument 'val' in this._tabUIs");
+				throw new Error("Cannot find argument 'val'");
 			}
 
 			if (val === this._activeTabUI) {
@@ -213,7 +219,7 @@ const Area = (function(){
 				if (l === 1) {
 					this._setActive(null);
 				} else {
-					const n = (i+1) % l,
+					const n = i+1 === l ? i-1 : i+1,
 						  next = this._tabUIs[n];
 					this._setActive(next);
 				}
@@ -227,17 +233,14 @@ const Area = (function(){
 		}
 
 		setActive(val) {
-			if (val !== null && !this._tabUIs.find(t => t === val)) {
-				throw new Error("Could not find argument 'val' in this._tabUIs");
+			if (val !== null &&
+				!(val = this._tabUIs.find(t => t.p_id === val))) {
+				throw new Error("Invalid argument.");
 			}
 			this._setActive(val);
 		}
 
 		_setActive(val) {
-			if (val !== null && !(val instanceof TabUI)) {
-				throw new Error("Invalid argument.");
-			}
-
 			if (this._activeTabUI) {
 				this._activeTabUI.active = false;
 				const tab = this._activeTabUI.tab;
@@ -250,14 +253,14 @@ const Area = (function(){
 				val.active = true;
 				const tab = val.tab;
 				if (tab) {
-					tab.add(this._tabParent);
+					tab.addTo(this._tabParent);
 				}
 			}
 
 			this._activeTabUI = val;
 		}
 
-		_dispose() {
+		_onDispose() {
 			this._setActive(null);
 			this._tabUIs.forEach((ui) => {
 				ui.remove();
@@ -270,11 +273,12 @@ const Area = (function(){
 })();
 
 const TabUI = (function(){
-	const CLASSES =
-	{ root: "tab",
-	  active: "active",
-	  text: "text",
-	  remove: "remove-btn" };
+	const CLASSES = {
+		root: "tab",
+		active: "active",
+		text: "text",
+		remove: "remove-btn"
+	};
 
 	return class extends Container {
 		constructor() {
@@ -284,7 +288,7 @@ const TabUI = (function(){
 			this._active = false;
 
 			addEvent(this, "onClick");
-			addEvent(this, "onRemove");
+			addEvent(this, "onRequestRemove");
 
 			this._createDOM();
 			this._createListeners();
@@ -298,8 +302,7 @@ const TabUI = (function(){
 			if (!(val instanceof Tab)) {
 				throw new Error("Invalid argument.");
 			}
-
-			this._name.innerText = val.constructor.tabName || "";
+			this._name.textContent = val.constructor.tabName || "";
 			this._tab = val;
 		}
 
@@ -311,7 +314,6 @@ const TabUI = (function(){
 			if (typeof val !== "boolean") {
 				throw new Error("Invalid argument.");
 			}
-
 			this._box.element.classList.toggle(CLASSES.active, val);
 			this._active = val;
 		}
@@ -334,14 +336,14 @@ const TabUI = (function(){
 
 		_createListeners() {
 			this._clickListener = new Listener(
-			this._box.element, "click", () => {
-				this._onClick.trigger();
+				this._box.element, "click", () => {
+					this._onClick.trigger();
 			});
 
 			this._removeListener = new Listener(
-			this._removeBtn, "click", (evt) => {
-				evt.stopPropagation();
-				this._onRemove.trigger();
+				this._removeBtn, "click", (evt) => {
+					evt.stopPropagation();
+					this._onRequestRemove.trigger();
 			});
 		}
 
@@ -355,17 +357,17 @@ const TabUI = (function(){
 			this._removeListener.remove();
 		}
 
-		_add() {
+		_onAdd() {
 			this._addListeners();
 		}
 
-		_remove() {
+		_onRemove() {
 			this._removeListeners();
 			this._onClick.clear();
-			this._onRemove.clear();
+			this._onRequestRemove.clear();
 		}
 
-		_dispose() {
+		_onDispose() {
 			this._tab = null;
 		}
 	};

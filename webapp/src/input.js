@@ -10,7 +10,7 @@ import { MouseAction, UserActionHandler } from "./action";
 import Options from "./options";
 
 export { Toggle, Slider, FileInput,
-		 FloatingList, DynamicList, StringInput,
+		 FloatingList, UnorderedList, StringInput,
 		 NumericalInput, Dropdown, MessageBox };
 
 const Toggle = (function(){
@@ -342,9 +342,9 @@ const FloatingList = (function(){
 	};
 })();
 
-const DynamicList = (function(){
+const UnorderedList = (function(){
 	const CLASSES = {
-		root: "dynamic-list",
+		root: "list-input",
 		item: "item",
 		itemSpace: "item-space",
 		removeBtnParent: "remove-btn-parent",
@@ -356,65 +356,100 @@ const DynamicList = (function(){
 	const ADD_ICON = "#icon-plus",
 		  REMOVE_ICON = "#icon-minus";
 
+	const DEFAULTS = {
+		userAdd: false
+	};
+
 	return class {
-		constructor() {
+		constructor(options) {
+			this._options = extend(DEFAULTS, options);
+
 			this._items = [];
-			this._onAdd = null;
-			this._onRemove = null;
+			this._onRequestAdd = null;
+			this._onRequestRemove = null;
 
 			this._createDOM();
 			this._addListeners();
 		}
 
-		get length() {
-			return this._items.length;
+		get items() {
+			return this._items.slice();
 		}
 
-		set onAdd(val) {
+		onRequestAdd(val) {
 			if (val !== null && !isFunction(val)) {
 				throw new Error("Invalid argument.");
 			}
-			this._onAdd = val;
+			this._onRequestAdd = val;
 		}
 
-		set onRemove(val) {
+		onRequestRemove(val) {
 			if (val !== null && !isFunction(val)) {
 				throw new Error("Invalid argument.");
 			}
-			this._onRemove = val;
+			this._onRequestRemove = val;
+		}
+
+		add(element, data) {
+			if (!(element instanceof HTMLElement)) {
+				throw new Error("Invalid argument.");
+			}
+			this._createItem({ element: element, data: data });
+		}
+
+		remove(element) {
+			const i = this._items.findIndex(o => o.element === element);
+			if (i === -1) {
+				throw new Error("Could not find argument 'element'");
+			}
+
+			const info = this._items[i];
+			info.removeListeners();
+			info.element.remove();
+			info.item.remove();
+
+			this._items.splice(i, 1);
 		}
 
 		_createDOM() {
 			this.root = document.createElement("ul");
 			this.root.classList.add(CLASSES.root);
 
-			const p = document.createElement("li");
-			p.classList.add(CLASSES.addBtnParent);
-			this.root.appendChild(p);
-			this._addBtnParent = p;
+			if (this._options.userAdd === true) {			
+				const p = document.createElement("li");
+				p.classList.add(CLASSES.addBtnParent);
+				this.root.appendChild(p);
+				this._addBtnParent = p;
 
-			const btn = document.createElement("button");
-			btn.type = "button";
-			btn.classList.add(CLASSES.addBtn);
-			p.appendChild(btn);
-			this._addBtn = btn;
+				const btn = document.createElement("button");
+				btn.type = "button";
+				btn.classList.add(CLASSES.addBtn);
+				p.appendChild(btn);
+				this._addBtn = btn;
 
-			const svg = createSVG(ADD_ICON);
-			btn.appendChild(svg);
+				const svg = createSVG(ADD_ICON);
+				btn.appendChild(svg);
+			}
 		}
 
 		_addListeners() {
-			this._addBtn.addEventListener("click", () => {
-				if (this._onAdd) {
-					this._onAdd();
-				}
-			});
+			if (this._addBtn) {				
+				this._addBtn.addEventListener("click", () => {
+					if (this._onRequestAdd) {
+						this._onRequestAdd();
+					}
+				});
+			}
 		}
 
 		_createItem(info) {
 			const item = document.createElement("li");
 			item.classList.add(CLASSES.item);
-			this.root.insertBefore(item, this._addBtnParent);
+			if (this._addBtnParent) {
+				this.root.insertBefore(item, this._addBtnParent);
+			} else {
+				this.root.appendChild(item);
+			}
 			info.item = item;
 
 			const itemSpace = document.createElement("div");
@@ -435,8 +470,8 @@ const DynamicList = (function(){
 			btn.appendChild(svg);
 
 			const listener = () => {
-				if (this._onRemove) {
-					this._onRemove(info.element, info.data);
+				if (this._onRequestRemove) {
+					this._onRequestRemove(info.element, info.data);
 				}
 			};
 			btn.addEventListener("click", listener);
@@ -445,31 +480,6 @@ const DynamicList = (function(){
 			};
 
 			this._items.push(info);
-		}
-
-		add(info) {
-			if (!isObject(info)) {
-				throw new Error("Invalid argument.");
-			} else if (!(info.element instanceof HTMLElement)) {
-				throw new Error("Invalid argument.");
-			}
-
-			const copy = Object.assign({}, info);
-			this._createItem(copy);
-		}
-
-		remove(element) {
-			const i = this._items.findIndex(o => o.element === element);
-			if (i === -1) {
-				throw new Error("Could not find argument 'element'");
-			}
-
-			const info = this._items[i];
-			info.removeListeners();
-			info.element.remove();
-			info.item.remove();
-
-			this._items.splice(i, 1);
 		}
 	};
 })();
@@ -570,7 +580,7 @@ const StringInput = (function(){
 
 const NumericalInput = (function(){
 	const DEFAULTS = {
-		value: "",
+		value: 0,
 		draggable: true,
 		bounds: null,
 		speed: 2,

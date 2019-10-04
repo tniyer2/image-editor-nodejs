@@ -11,11 +11,7 @@ class TestOutputType {
 	}
 
 	static get pointColor() {
-		return "#0af";
-	}
-
-	copy() {
-		return new TestOutputType(this.value);
+		return "grey";
 	}
 }
 
@@ -73,17 +69,26 @@ const AsyncTestNode = (function(){
 })(); 
 
 class AsyncTestNodeSettings extends NodeSettingsContainer {
+	constructor() {
+		super();
+
+		this._createDOM();
+		this._addListeners();
+	}
+
 	_createDOM() {
 		const delay = this._settings.get("delay");
 		const s = new Slider(delay, 0, 5, { text: "delay", step: "0.5" });
+		this._box.element.appendChild(s.root);
+		this._slider = s;
+	}
 
-		s.onChange.addListener((val) => {
+	_addListeners() {
+		this._slider.onChange.addListener((val) => {
 			this._settings.tryPut("delay", val);
 		});
 		this._settings.addListener("delay", (val) => {
-			s.value = val;
+			this._slider.value = val;
 		});
-
-		this._box.element.appendChild(s.root);
 	}
 }
