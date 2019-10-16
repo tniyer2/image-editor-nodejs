@@ -23,9 +23,9 @@ Resource Object
 	mimeType: String
 
 Node Object
-	id: String #a unique node id
-	version: String #semantic versioning
-	name: String #user given name
+	id: String //a unique node id
+	version: String //semantic versioning
+	name: String //user given name
 	flags:
 		visible: Boolean
 		locked: Boolean
@@ -37,8 +37,8 @@ Node Settings Object
 
 
 Link Object
-	input: index pointing to node
-	output: index pointing to node
+	input: Integer //index pointing to node
+	output: Integer //index pointing to node
 
 Settings Object
-	#empty for now
+	//empty for now

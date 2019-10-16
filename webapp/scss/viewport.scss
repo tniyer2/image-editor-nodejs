@@ -30,16 +30,5 @@
 	@extend %max-size;
 	z-index: -1;
 	background-image: url("../img/checkers.png"); }
-.viewport__layersParent {
-	@extend %max-size;
-	overflow: hidden; }
-
-
-.layer {
-	@extend %default-absolute;
-	overflow: hidden;
-	z-index: 0; }
-.layer.selected {
-	z-index: 2; }
-.layer canvas {
-	@extend %default-absolute; }
+.viewport__main-canvas {
+	@extend %max-size; }

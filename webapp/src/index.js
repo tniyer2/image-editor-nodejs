@@ -1,6 +1,6 @@
 
-import { $, setBooleanAttribute } from "./utility";
-import Editor from "./editor";
+import { $, setBooleanAttribute } from "./util/util";
+import Editor from "./core/editor";
 
 const UNDO_DELAY = 100;
 
