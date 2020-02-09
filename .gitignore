@@ -1,11 +1,8 @@
-
 node_modules
-
+.npmrc
+.yarnrc
 webapp/css
 webapp/dist
-
-test
-
 cmd.exe
 todo.txt
-misc.js
+test_images
