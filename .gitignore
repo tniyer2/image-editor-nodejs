@@ -1,8 +1,9 @@
-node_modules
+node_modules/
+/npm-debug.log
 .npmrc
 .yarnrc
-webapp/css
-webapp/dist
-cmd.exe
+.next/
+out/
+test_images/
 todo.txt
-test_images
+.DS_Store

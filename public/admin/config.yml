@@ -1,0 +1,6 @@
+backend:
+  name: github
+  repo: tniyer2/image-editor
+  branch: react
+media_folder: public/img
+public_folder: img
