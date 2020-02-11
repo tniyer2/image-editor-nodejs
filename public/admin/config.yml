@@ -4,3 +4,12 @@ backend:
   branch: react
 media_folder: public/img
 public_folder: img
+collections:
+  - name: "placeholder"
+    label: "Placeholder"
+    files:
+    - label: "placeholder"
+      name: "Placeholder"
+      file: "content/app.md"
+      fields:
+        - { label: "Title", name: "title", widget: "string" }
