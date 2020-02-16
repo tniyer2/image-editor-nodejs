@@ -13,7 +13,7 @@ const MarkdownRule = {
     options: { mode: ["react-component"] }
 };
 
-const dirAlias = [ "lib", "components", "css", "content" ];
+const dirAlias = [ "lib", "comp", "css", "content" ];
 const aliasObj = {
 	"make": "node_modules/@tniyer2/particles/css/make.scss"
 };

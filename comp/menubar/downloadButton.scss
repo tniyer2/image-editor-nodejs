@@ -1,0 +1,10 @@
+
+@import "~css/_globals";
+
+.downloadBtn {
+	@include c("tc br2 pointer");
+	height: 40px;
+	padding: 0 5px;
+	margin-right: 10px;
+	background-color: #444;
+}

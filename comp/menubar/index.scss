@@ -1,0 +1,10 @@
+
+@import "~css/_globals";
+
+.menubar {
+	@include c("flex align-center b-w3");
+	height: 50px;
+	padding: 5px 10px;
+	background-color: #888;
+	border-color: #444;
+}

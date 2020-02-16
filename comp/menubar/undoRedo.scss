@@ -1,0 +1,14 @@
+
+@import "~css/_globals";
+
+.undoRedoBtn {
+	width: 40px;
+	height: 40px;
+	margin-right: 10px;
+}
+.undoRedoSvg:hover { 
+	fill: $dark-blue;
+}
+.undoRedoSvg:disabled { 
+	fill: #444;
+}
