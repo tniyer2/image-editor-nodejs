@@ -1,17 +1,7 @@
 
 import css from "./tabs.scss";
 
-function WindowContainer({ containers, row }) {
-	return (
-	<div className={css.container + " " +
-		(row === true ? css.containerRow : css.containerCol)}>
-	{containers.map((ctr, i) => ({
-		ctr.type === "window" ?
-		<Window {...ctr} key={i}/> :
-		<WindowContainer {...ctr} key={i}/>
-	}))}
-	</div>);
-}
+function Tab() {}
 
 function Window() {
 	return (
@@ -19,4 +9,14 @@ function Window() {
 	</div>);
 }
 
-function Tab() {}
+export default function WindowContainer({ containers, row }) {
+	return (
+	<div className={css.container + " " +
+		(row === true ? css.containerRow : css.containerCol)}>
+	{containers.map((ctr, i) => (
+		ctr.type === "window" ?
+		<Window {...ctr} key={i}/> :
+		<WindowContainer {...ctr} key={i}/>
+	))}
+	</div>);
+}

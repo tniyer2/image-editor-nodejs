@@ -1,6 +1,8 @@
 
 @import "~make";
 
+
+
 @mixin c($s) {
 	composes: #{$s} from global;
 }
@@ -16,3 +18,5 @@
 		transform: translate(-50%, -50%);
 	}
 }
+
+@include make();

@@ -1,14 +1,18 @@
 
-@import "~css/_globals.scss";
+@import "~css/_globals";
 
 .container {
-	
+	@include c("max-size flex");
 }
-.containerRow {}
-.containerCol {}
+.containerRow {
+	@include c("flex-row");
+}
+.containerCol {
+	@include c("flex-col");
+}
 
 .window {
-
+	@include c("max-size");
 }
 
 .tab {}

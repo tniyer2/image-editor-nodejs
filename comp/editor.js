@@ -14,6 +14,7 @@ import {
 import { Provider } from "react-redux";
 import css from "./editor.scss";
 import MenuBar from "./menubar/index";
+import WindowContainer from "./tabs";
 
 export default function Editor() {
 	const [store, setStore] = useState();
@@ -31,8 +32,15 @@ export default function Editor() {
     </div>);
 }
 
+const layout1 = [{
+	type: "window"
+}, {
+	type: "window"
+}];
+
 function EditorContent() {
 	return (
 		<div className={css.editorContent}>
+			<WindowContainer containers={layout1} row={true}/>
 		</div>);
 }
