@@ -8,6 +8,5 @@
 	background-color: #888;
 }
 .editorContent {
-	@include c("max-size relative flex");
-	flex-grow: 1;
+	@include c("max-size");
 }

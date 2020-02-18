@@ -3,8 +3,7 @@ const path = require("path");
 const withSass = require("@zeit/next-sass");
 
 const StaticRoutes = {
-	"/": { page: "/" },
-	"/about": { page: "/about" }
+	"/": { page: "/" }
 };
 
 const MarkdownRule = {
@@ -15,7 +14,7 @@ const MarkdownRule = {
 
 const dirAlias = [ "lib", "comp", "css", "content" ];
 const aliasObj = {
-	"make": "node_modules/@tniyer2/particles/css/make.scss"
+	"make": "./node_modules/@tniyer2/particles/css/make.scss"
 };
 
 module.exports = withSass({
@@ -28,7 +27,7 @@ module.exports = withSass({
 			config.resolve.alias[dir] = path.resolve(dir);
 		});
 		Object.keys(aliasObj).forEach((key) => {
-			config.resolve.alias[key] = aliasObj[key];
+			config.resolve.alias[key] = path.resolve(aliasObj[key]);
 		});
 		return config;
 	}
