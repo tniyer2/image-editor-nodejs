@@ -1,22 +1,16 @@
 
-$light-blue: #5d9afc;
-$blue: #4286F4;
-$medium-blue: #166af4;
-$dark-blue: #1c59bc;
-
-$red: #cc0606;
-$yellow: #edd51f;
+@import "~make";
 
 @mixin c($s) {
 	composes: #{$s} from global;
 }
 
-:global {
-	.max-size {
+@mixin template($s) {
+	.max-size#{$s} {
 		width: 100%;
 		height: 100%;
 	}
-	.position-center {
+	.position-center#{$s} {
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
