@@ -1,9 +1,10 @@
 
 module.exports = {
-  presets: [[
-  	"next/babel", {
-  		"@babel/preset-env": {},
-  		"@babel/preset-react": {}
-  	}
-  ]]
+	plugins: ["lodash"],
+	presets: [[
+		"next/babel", {
+			"@babel/preset-env": {},
+			"@babel/preset-react": {}
+		}
+	]]
 };

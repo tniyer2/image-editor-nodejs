@@ -1,9 +1,10 @@
 
-import css from "./index.scss";
-import DownloadButton from "./downloadButton";
-import UndoRedo from "./undoRedo";
+import { DownloadButton } from "./download-button";
+import { UndoRedo } from "./undo-redo";
 
-export default function MenuBar() {
+import css from "./index.scss";
+
+export function MenuBar() {
     return (
     <div className={css.menubar}>
         <DownloadButton/>

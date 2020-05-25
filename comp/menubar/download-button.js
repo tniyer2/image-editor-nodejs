@@ -1,7 +1,7 @@
 
-import css from "./downloadButton.scss";
+import css from "./download-button.scss";
 
-export default function DownloadButton() {
+export function DownloadButton() {
     const downloadImage = (e) => {
     };
 

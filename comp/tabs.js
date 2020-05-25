@@ -9,10 +9,11 @@ function Window() {
 	</div>);
 }
 
-export default function WindowContainer({ containers, row }) {
+export function WindowContainer({ containers, row }) {
+	const cssDir = row ? css.containerRow : css.containerCol;
+
 	return (
-	<div className={css.container + " " +
-		(row === true ? css.containerRow : css.containerCol)}>
+	<div className={css.container + " " + cssDir}>
 	{containers.map((ctr, i) => (
 		ctr.type === "window" ?
 		<Window {...ctr} key={i}/> :

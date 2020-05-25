@@ -3,7 +3,7 @@
 
 .menubar {
 	@include c("flex align-center b-w3");
-	height: 50px;
+	height: $menubar-height;
 	padding: 5px 10px;
 	background-color: #888;
 	border-color: #444;

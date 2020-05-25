@@ -1,14 +1,6 @@
 
-import css from "./undoRedo.scss";
-import { IconRedo, IconUndo } from "comp/icons";
-
-export default function UndoRedo() {
-	return (
-		<div>
-			<UndoButton/>
-			<RedoButton/>
-		</div>);
-}
+import { IconRedo, IconUndo } from "comp/icons.js";
+import css from "./undo-redo.scss";
 
 function makeUndoRedoButton(args) {
 	return function UndoRedoButton() {
@@ -29,3 +21,11 @@ const UndoButton = makeUndoRedoButton({ hint: "Undo",
 const RedoButton = makeUndoRedoButton({ hint: "Redo",
 	code: "M18 7.762v-7.762l12 12-12 12v-7.932c-13.961-0.328-13.362 9.493-9.808 15.932-8.772-9.482-6.909-24.674 9.808-24.238z"
 });
+
+export function UndoRedo() {
+	return (
+		<div>
+			<UndoButton/>
+			<RedoButton/>
+		</div>);
+}

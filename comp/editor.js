@@ -1,25 +1,18 @@
 
 import { useState } from "react";
 import { createStore } from "redux";
-import reducer from "lib/reducer";
-import {
-	PUSH_COMMAND,
-	START_TEMP_COMMAND,
-	PUSH_TEMP_COMMAND,
-	CLEAR_TEMP_COMMAND,
-	FLUSH_TEMP_COMMAND,
-	MOVE_FORWARD,
-	MOVE_BACKWARD
-} from "lib/actions";
 import { Provider } from "react-redux";
-import css from "./editor.scss";
-import MenuBar from "./menubar/index";
-import WindowContainer from "./tabs";
 
-export default function Editor() {
+import { MainReducer } from "lib/reducers/main-reducer.js";
+import { MenuBar } from "./menubar/index.js";
+import { WindowContainer } from "./tabs.js";
+
+import css from "./editor.scss";
+
+export function Editor() {
 	const [store, setStore] = useState();
 	if (!store) {
-		const newStore = createStore(reducer);
+		const newStore = createStore(MainReducer);
 		setStore(newStore);
 	}
 

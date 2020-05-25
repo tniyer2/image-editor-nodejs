@@ -21,24 +21,26 @@
     "url": "https://github.com/tniyer2/image-editor/issues"
   },
   "dependencies": {
+    "@babel/preset-env": "^7.8.4",
+    "@babel/preset-react": "^7.8.3",
     "@tniyer2/particles": "git+https://github.com/tniyer2/particles.git",
     "@zeit/next-sass": "^1.0.1",
+    "babel-jest": "^25.1.0",
     "frontmatter-markdown-loader": "^3.1.0",
     "jest": "^25.1.0",
+    "lodash": "^4.17.15",
     "next": "^9.2.1",
     "node-sass": "^4.13.1",
     "react": "^16.12.0",
     "react-dom": "^16.12.0",
     "react-redux": "^7.1.3",
+    "react-test-renderer": "^16.12.0",
     "redux": "^4.0.5",
     "reselect": "^4.0.0",
-    "rxjs": "^6.5.4",
-    "@babel/preset-env": "^7.8.4",
-    "@babel/preset-react": "^7.8.3",
-    "babel-jest": "^25.1.0",
-    "react-test-renderer": "^16.12.0"
+    "rxjs": "^6.5.4"
   },
   "devDependencies": {
+    "babel-plugin-lodash": "^3.3.4",
     "serve": "^11.3.0"
   }
 }

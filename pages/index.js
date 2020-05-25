@@ -2,8 +2,8 @@
 import Head from "next/head";
 import { useEffect } from "react";
 
+import { Editor } from "comp/editor.js";
 import css from "./index.scss";
-import Editor from "comp/editor.js";
 
 export default function Index() {
     useEffect(() => {

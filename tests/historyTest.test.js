@@ -1,6 +1,6 @@
 
 import { createStore } from "redux";
-import reducer from "../lib/reducer";
+import reducer from "../lib/reducers/main";
 import {
 	PUSH_COMMAND,
 	START_TEMP_COMMAND,
@@ -9,7 +9,7 @@ import {
 	FLUSH_TEMP_COMMAND,
 	MOVE_FORWARD,
 	MOVE_BACKWARD
-} from "../lib/actions";
+} from "../lib/reducers/historyActions";
 
 const store = createStore(reducer);
 

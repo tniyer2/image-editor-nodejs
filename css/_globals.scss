@@ -1,7 +1,7 @@
 
 @import "~make";
 
-
+$menubar-height: 50px;
 
 @mixin c($s) {
 	composes: #{$s} from global;
