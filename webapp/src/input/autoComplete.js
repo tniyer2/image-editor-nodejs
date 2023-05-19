@@ -44,6 +44,9 @@ export default class {
 	}
 
 	_attachEvents() {
+		this._input.addEventListener("focus", (evt) => {
+			this._update(this._input.value);
+		});
 		this._input.addEventListener("input", (evt) => {
 			this._update(this._input.value);
 		});
@@ -109,15 +112,11 @@ export default class {
 	_update(text) {
 		const ftext = this._formatInput(text);
 
-		if (!ftext) {
-			this._close();
+		const values = this._getSimilarValues(ftext, g_evaluate);
+		if (values.length > 0) {
+			this._setList(values);
 		} else {
-			const values = this._getSimilarValues(ftext, g_evaluate);
-			if (values.length > 0) {
-				this._setList(values);
-			} else {
-				this._close();
-			}
+			this._close();
 		}
 	}
 

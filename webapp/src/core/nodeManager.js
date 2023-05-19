@@ -275,10 +275,12 @@ export default class {
 				const p = this._cooker.cook(n);
 				if (p) {
 					p.then((info) => {
+						/*
 						let total = info.time.reduce((a, b) => a + b, 0);
 						total /= 1000;
 						const outputs = n.outputs.map(o => o.value);
 						console.log("time:", total, "output:", ...outputs);
+						*/
 
 						const diffNode = n !== this._prevRendered;
 						if (diffNode || !info.clean) {

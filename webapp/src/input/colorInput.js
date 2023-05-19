@@ -12,6 +12,8 @@ import Box from "../vector/box";
 import { DragWidget } from "../transform/boxWidgets";
 import Slider from "./slider";
 
+import chroma from "chroma";
+
 export { ColorPicker, ColorBox };
 
 function isInt8(a) {
