@@ -159,6 +159,6 @@ export default class LayerManager {
 	}
 
 	getFinalImage() {
-		return copyCanvas(this._tab.mainCanvas.element);
+		return this._tab.mainCanvas.element;
 	}
 }

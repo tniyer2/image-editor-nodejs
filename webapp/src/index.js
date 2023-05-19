@@ -65,7 +65,7 @@ function listenUndoRedoButtons() {
 
 function listenSaveButton() {
 	$("#save-image").addEventListener("click", () => {
-		const canvas = g_editor.getFinalImage();
+		const canvas = g_editor._layerManager.getFinalImage();
 		if (canvas) {
 			canvas.toBlob((blob) => {
 				const url = URL.createObjectURL(blob);
